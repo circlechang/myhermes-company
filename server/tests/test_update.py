@@ -1,6 +1,7 @@
 """`myhermescompany update` 與站內新版提示（studio/update.py ＋ /version、/version/studio）。"""
 from __future__ import annotations
 
+import re
 import json
 import urllib.error
 
@@ -21,14 +22,28 @@ def _clean_cache(monkeypatch):
     up.cache_clear()
 
 
+
+# 假的「最新版」要永遠比目前版號新，否則每次 bump 版號測試就會壞。
+def _next_version(v: str) -> str:
+    parts = [int(x) for x in re.findall(r"\d+", v)[:3]] or [0, 0, 0]
+    while len(parts) < 3:
+        parts.append(0)
+    parts[1] += 1
+    parts[2] = 0
+    return ".".join(str(x) for x in parts)
+
+
+NEWER = _next_version(CURRENT)
+NEWER_TAG = f"v{NEWER}"
+
 API_JSON = {
-    "tag_name": "v0.2.0",
-    "html_url": f"https://github.com/{REPO}/releases/tag/v0.2.0",
+    "tag_name": NEWER_TAG,
+    "html_url": f"https://github.com/{REPO}/releases/tag/{NEWER_TAG}",
     "published_at": "2026-09-01T00:00:00Z",
     "body": "新增 update 子命令\n修好一堆版面問題\n" + ("細節 " * 300),
     "assets": [
         {"name": "notes.txt", "browser_download_url": "https://x/notes.txt"},
-        {"name": "myhermescompany-0.2.0-py3-none-any.whl", "browser_download_url": "https://x/w.whl"},
+        {"name": f"myhermescompany-{NEWER}-py3-none-any.whl", "browser_download_url": "https://x/w.whl"},
     ],
 }
 
@@ -64,8 +79,8 @@ def test_version_key():
 
 def test_parse_release_json_picks_the_wheel():
     rel = up.parse_release_json(API_JSON)
-    assert rel and rel.tag == "v0.2.0" and rel.version == "0.2.0"
-    assert rel.wheel() == {"name": "myhermescompany-0.2.0-py3-none-any.whl", "url": "https://x/w.whl"}
+    assert rel and rel.tag == NEWER_TAG and rel.version == NEWER
+    assert rel.wheel() == {"name": f"myhermescompany-{NEWER}-py3-none-any.whl", "url": "https://x/w.whl"}
     assert rel.source == "api"
 
 
@@ -102,7 +117,7 @@ def test_fetch_latest_uses_api(monkeypatch):
 
     monkeypatch.setattr(up, "_get", fake_get)
     rel = up.fetch_latest(REPO)
-    assert rel and rel.tag == "v0.2.0"
+    assert rel and rel.tag == NEWER_TAG
     assert calls == [f"https://api.github.com/repos/{REPO}/releases/latest"]
 
 
@@ -158,8 +173,8 @@ def test_fetch_latest_caches_for_six_hours(monkeypatch):
         return 200, {}, json.dumps(API_JSON).encode()
 
     monkeypatch.setattr(up, "_get", fake_get)
-    assert up.fetch_latest(REPO).tag == "v0.2.0"
-    assert up.fetch_latest(REPO).tag == "v0.2.0"
+    assert up.fetch_latest(REPO).tag == NEWER_TAG
+    assert up.fetch_latest(REPO).tag == NEWER_TAG
     assert n["calls"] == 1
     assert up.CACHE_TTL == 6 * 3600
     up.fetch_latest(REPO, use_cache=False)
@@ -196,7 +211,7 @@ def test_update_check_on_by_default():
 def test_status_shape():
     rel = up.parse_release_json(API_JSON)
     st = up.status("0.1.0", REPO, rel)
-    assert st["current"] == "0.1.0" and st["latest"] == "0.2.0" and st["update_available"] is True
+    assert st["current"] == "0.1.0" and st["latest"] == NEWER and st["update_available"] is True
     assert st["release"]["wheel"].endswith(".whl") and st["repo"] == REPO
     st_none = up.status("0.1.0", REPO, None)
     assert st_none["latest"] is None and st_none["update_available"] is None
@@ -249,7 +264,7 @@ def test_cli_check_json_is_machine_readable(monkeypatch, capsys):
     monkeypatch.setattr(up, "fetch_latest", lambda *a, **k: up.parse_release_json(API_JSON))
     assert _run_cli(["update", "--check", "--json"]) == 0
     data = json.loads(capsys.readouterr().out)
-    assert data["current"] == CURRENT and data["latest"] == "0.2.0"
+    assert data["current"] == CURRENT and data["latest"] == NEWER
     assert data["update_available"] is True
     assert data["release"]["wheel"].endswith(".whl")
 
@@ -258,7 +273,7 @@ def test_cli_check_does_not_install(monkeypatch, capsys):
     monkeypatch.setattr(up, "fetch_latest", lambda *a, **k: up.parse_release_json(API_JSON))
     monkeypatch.setattr("studio.cli._pip_install", lambda w: pytest.fail("--check 不該安裝"))
     assert _run_cli(["update", "--check"]) == 0
-    assert "有新版 v0.2.0" in capsys.readouterr().out
+    assert f"有新版 {NEWER_TAG}" in capsys.readouterr().out
 
 
 def test_cli_reports_when_github_is_unreachable(monkeypatch, capsys):
@@ -291,7 +306,7 @@ def test_cli_installs_then_restarts_with_yes(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr("studio.cli.read_meta", lambda pf: {"host": "127.0.0.1"})
     monkeypatch.setattr("studio.cli.cmd_restart", lambda a: seen.setdefault("restart", (a.port, a.host)) and 0 or 0)
     assert _run_cli(["update", "--yes"]) == 0
-    assert seen["wheel"].endswith("myhermescompany-0.2.0-py3-none-any.whl")
+    assert seen["wheel"].endswith(f"myhermescompany-{NEWER}-py3-none-any.whl")
     assert seen["restart"] == (8712, "127.0.0.1")
 
 
@@ -338,8 +353,8 @@ def test_version_endpoint_carries_studio_update_fields(client, auth, app, monkey
     _patch_async(monkeypatch, up.parse_release_json(API_JSON))
     monkeypatch.setattr(up, "is_newer", lambda cur, tag: True)
     d = client.get("/version", headers=auth).json()
-    assert d["studio_latest"] == "0.2.0" and d["studio_update_available"] is True
-    assert d["studio_release"]["tag"] == "v0.2.0"
+    assert d["studio_latest"] == NEWER and d["studio_update_available"] is True
+    assert d["studio_release"]["tag"] == NEWER_TAG
     assert d["studio_update_cmd"] == "myhermescompany update"
     assert d["studio_repo"]
 
@@ -352,7 +367,7 @@ def test_version_studio_endpoint_does_not_call_hermes(client, auth, app, monkeyp
     r = client.get("/version/studio", headers=auth)
     assert r.status_code == 200
     d = r.json()
-    assert d["studio"]["version"] and d["studio_latest"] == "0.2.0"
+    assert d["studio"]["version"] and d["studio_latest"] == NEWER
 
 
 def test_version_studio_says_up_to_date(client, auth, monkeypatch):
