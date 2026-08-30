@@ -7,17 +7,20 @@
 - 那台機器**已安裝 Hermes Agent** 並已設定好模型供應商（`hermes --version` 有輸出）
 - 私有 repo：先 `gh auth login`（或設好 SSH key）
 
-## 方式 A：裝 release（推薦，不需要 Node）
+## 方式 A：裝 release（推薦，不需要 Node，也不需要 gh）
 
 ```bash
-gh release download --repo circlechang/myhermes-company --pattern '*.whl' -D /tmp/mhc
+cd ~/Downloads
+curl -sLO https://github.com/circlechang/myhermes-company/releases/download/v0.1.0/myhermescompany-0.1.0-py3-none-any.whl
 python3.12 -m venv ~/.myhermescompany-venv
-~/.myhermescompany-venv/bin/pip install /tmp/mhc/*.whl
+~/.myhermescompany-venv/bin/pip install myhermescompany-0.1.0-py3-none-any.whl
 ~/.myhermescompany-venv/bin/myhermescompany start --daemon --port 8700
 ```
 驗證：`curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8700/` 應為 **200**（不是 404 也不是 503）。
 
-好用的話把它加進 PATH：`echo 'export PATH="$HOME/.myhermescompany-venv/bin:$PATH"' >> ~/.zshrc`
+> **不要改 wheel 的檔名**（例如 `curl -o mhc.whl`），pip 會回 `Invalid wheel filename` 拒絕安裝。用 `curl -sLO` 保留原檔名。
+
+加進 PATH 比較好用：`echo 'export PATH="$HOME/.myhermescompany-venv/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`
 
 ## 方式 B：從原始碼（要改程式時用，需要 Node 22+）
 
