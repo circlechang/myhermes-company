@@ -351,3 +351,42 @@ CRUD（`studio/api/workflows.py`）：
 - `GET /compat/schedule`、`PATCH /compat/schedule {enabled?,weekday?(0=一…6=日),hour?,minute?}`（admin）
 - 環境變數：`STUDIO_COMPAT_SCHEDULER=0` 關排程、`STUDIO_COMPAT_TICK_SECONDS`、`STUDIO_PRECHECK_DIR`、`STUDIO_PRECHECK_KEEP=1`、`STUDIO_PRECHECK_PYTHON`、`STUDIO_PRECHECK_EXTRA_PKGS`、`STUDIO_HERMES_REPO`
 - 事件 `compat.check` / `compat.precheck`（source `compat`）；有 fail 時每家公司一筆 inbox `kind=compat`（ref `compat:<kind>:<tag>`，link `/compat`）
+
+## Preview（統一檔案預覽）— `server/studio/modules/preview`
+聊天面板、檔案瀏覽器、工作流節點輸出共用同一支預覽 API 與同一個前端元件（`web/src/components/preview`）。
+
+- `GET /preview?path=&kind=auto` → 結構化預覽
+  `path` 兩種寫法都吃：**絕對路徑**（`/…`、`~/…`）或**檔案瀏覽器虛擬路徑**（`workspace/a/b.md`、`profile:researcher/SOUL.md`、`uploads/…`）。
+  `kind` 省略＝依副檔名／MIME 自動判斷，也可強制指定（例如把 `.md` 當 `code` 看）。
+- `POST /preview/inline {text,kind?="auto",title?,language?}` → 同一形狀，給**非檔案的純文字**（工作流節點輸出、審批 payload）。`kind` 預設 markdown。
+- `GET /preview/raw[/<檔名>]?path=&download=false&token=` → 原檔位元組（`<img>`／`<object>` 帶不了 header，所以也吃 `?token=`）。路徑尾巴的 `<檔名>` 只是給瀏覽器看的（PDF 檢視器標題、另存新檔預設名），**不參與路徑解析**。`.html`／`.svg` 一律以 `text/plain` 回並帶 `X-Content-Type-Options: nosniff`，不讓 agent 產出的標記在本站 origin 執行。
+
+**回應形狀**（欄位視 kind 出現）：
+```
+{kind, title, path, source_path, size, mtime, mime, meta{}, warnings[],
+ text?, html?, rows?, sheets?, pages?, url, download_url, too_large?, error?}
+```
+
+| kind | 後端給什麼 | meta 重點 |
+| --- | --- | --- |
+| `markdown` | `text`（**不渲染**，交給前端 react-markdown + GFM） | `encoding, language, lines` |
+| `code` | `text` | `language`（副檔名對照）、`encoding`、`lines` |
+| `html` | `text` | 同上；前端用 sandbox iframe srcDoc 顯示 |
+| `docx` | `html`（標題階層 h1–h6、粗／斜／底線／刪除線／上下標、有序＋無序清單含層級、表格 thead/tbody、超連結、**內嵌圖片轉 data URI**） | `headings[{level,text,id}]`（前端目錄）、`counts`、`author`、`doc_title` |
+| `xlsx` | `sheets[{name,rows,merges,freeze,numeric_cols,total_rows,total_cols,truncated,hidden}]`；數字格式／日期／百分比／千分位已套用；公式取快取計算值 | `sheet_names` |
+| `pptx` | `pages[{index,title,body[],notes,images[data URI],tables}]` | `slides`, `size` |
+| `pdf` | `pages[{index,text}]`（`pypdf`） | `pages`, `doc_title`, `author`；原檔用 `url` 以 `<object>` 顯示 |
+| `csv` | `rows[][]`（自動偵測分隔符與編碼：UTF-8 BOM／Big5／CP950／GB18030） | `encoding, delimiter, numeric_cols, total_rows, total_cols, truncated` |
+| `image` | — | `width, height, format, mode, animated, exif{}` |
+| `binary` | — | 只給 metadata＋`download_url` |
+
+**上限與保護**
+- 檔案 > 10MB：只回 metadata＋`download_url`，帶 `too_large:true` 與 warning，不做任何轉換。
+- xlsx 最多前 200 列 × 50 欄；csv 最多 2000 列；PDF 最多抽前 200 頁文字；純文字最多 400KB。超過都在 `warnings[]` 講明並可下載原檔。
+- docx／pptx 內嵌圖片：單張 > 2MB 或累計 > 6MB 不內嵌，改顯示「［圖片］」並記 warning。
+- 轉換失敗不 500：`kind` 降級成 `binary`，訊息放 `error` 與 `warnings[]`。
+- docx／pptx 轉出的 HTML 只含白名單標籤，所有文字都 `html.escape`；超連結只放行 `http/https/mailto/tel/ftp` 與相對路徑（`javascript:`／`data:` 一律丟掉），內嵌圖片的 data URI 只允許 `image/*`。前端才敢用 `dangerouslySetInnerHTML` 直接渲染。
+
+**路徑白名單**（`modules/preview/paths.py`，與 `/chat/files` 同一套規則的聯集）
+① 該公司 uploads ② `$HERMES_HOME/workspace` ③ 檔案瀏覽器的允許根（workspace／各 profile／uploads／`STUDIO_FILE_ROOTS`）④ 該成員 session 訊息中「原文出現過」的絕對路徑。
+虛擬路徑走檔案瀏覽器的 `resolve()`（擋 `..`、擋絕對路徑、resolve 後必須留在根內）；絕對路徑先 `resolve(strict)` 再比對根，**symlink 指到根外一樣擋掉**。不在白名單一律 404（不透露檔案存不存在）。

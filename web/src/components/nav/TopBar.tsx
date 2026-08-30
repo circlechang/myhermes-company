@@ -18,6 +18,7 @@ const SunIcon = iconFor('Sun')
 const MoonIcon = iconFor('Moon')
 const HelpIcon = iconFor('HelpCircle')
 const TourIcon = iconFor('Compass')
+const UpIcon = iconFor('ArrowUpCircle')
 
 /** 觸發聊天模組既有的 Ctrl/⌘+K 監聽（WorkbenchPage 掛在 window keydown） */
 export function openGlobalSearch() {
@@ -44,6 +45,44 @@ function useInboxCount(): number {
     return () => window.removeEventListener(INBOX_EVENT, h)
   }, [])
   return count
+}
+
+/** MyHermesCompany 有沒有新版：打輕量的 /version/studio（不呼叫 hermes CLI，伺服器端快取 6 小時）。
+ *  站內只提示指令，不做一鍵更新——更新會重啟伺服器，等於把正在服務的自己關掉。 */
+function UpdateHint() {
+  const { t } = useTranslation()
+  const [info, setInfo] = useState<{ v: string; cmd: string; url?: string } | null>(null)
+  useEffect(() => {
+    if (IS_MOCK) return
+    let alive = true
+    request<{
+      studio_latest: string | null
+      studio_update_available: boolean | null
+      studio_update_cmd: string
+      studio_release: { tag: string; url: string } | null
+    }>('/version/studio')
+      .then((r) => {
+        if (!alive || r?.studio_update_available !== true || !r.studio_latest) return
+        setInfo({ v: r.studio_latest, cmd: r.studio_update_cmd || 'myhermescompany update', url: r.studio_release?.url })
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+  if (!info) return null
+  const label = t('nav.updateAvailable', { v: info.v })
+  return (
+    <Link
+      to="/admin"
+      className="flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+      title={`${label}｜${t('nav.updateHow', { cmd: info.cmd })}`}
+      data-testid="update-hint"
+    >
+      <UpIcon className="h-3.5 w-3.5" aria-hidden />
+      <span className="hidden sm:inline">{label}</span>
+    </Link>
+  )
 }
 
 function effectiveDark(): boolean {
@@ -104,6 +143,7 @@ export function TopBar({ title, username, onLogout, onOpenMenu, mobile }: Props)
       </h1>
       <div className="ml-auto flex items-center gap-1 text-xs">
         {IS_MOCK && <span className="mr-1 rounded bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('common.mockMode')}</span>}
+        <UpdateHint />
         <button type="button" className="btn-ghost px-2" onClick={openGlobalSearch} aria-label={t('nav.search')} title={`${t('nav.search')} (Ctrl/⌘+K)`} data-testid="search-button">
           <SearchIcon className="h-4 w-4" aria-hidden />
           <span className="hidden text-zinc-600 dark:text-zinc-400 md:inline">⌘K</span>

@@ -10,7 +10,16 @@ import { useAuth } from '../../auth/AuthContext'
 
 export interface McpServer { name: string; transport: string; url?: string | null; command?: string | null; args: string[]; auth?: string | null; enabled: boolean; tools: unknown }
 export interface Plugin { name: string; status: string; version?: string; description?: string; source?: string; enabled: boolean }
-export interface VersionInfo { studio: { version: string }; hermes: { version: string; date?: string; upstream?: string; behind?: number | null; python?: string; error?: string }; latest: { tag: string; url: string } | null; update_check_enabled: boolean; update_available: boolean | null; repo: string }
+export interface StudioUpdateInfo {
+  studio_latest: string | null
+  studio_update_available: boolean | null
+  studio_release: { tag: string; url: string } | null
+  studio_repo: string
+  studio_update_cmd: string
+  studio_update_check_enabled: boolean
+}
+export interface VersionInfo extends StudioUpdateInfo { studio: { version: string }; hermes: { version: string; date?: string; upstream?: string; behind?: number | null; python?: string; error?: string }; latest: { tag: string; url: string } | null; update_check_enabled: boolean; update_available: boolean | null; repo: string }
+export interface StudioVersionInfo extends StudioUpdateInfo { studio: { version: string } }
 
 const json = (b: unknown) => JSON.stringify(b)
 const q = (o: Record<string, string>) => new URLSearchParams(o).toString()
@@ -28,6 +37,7 @@ export const adminApi = {
   plugins: () => request<Plugin[]>('/plugins'),
   pluginToggle: (name: string, action: 'enable' | 'disable') => request<{ ok: boolean; output: string }>(`/plugins/${encodeURIComponent(name)}/${action}`, { method: 'POST' }),
   version: (check: boolean) => request<VersionInfo>(`/version?check=${check ? 1 : 0}`),
+  studioVersion: () => request<StudioVersionInfo>('/version/studio'),
   profiles: () => request<{ profiles: { name: string }[] }>('/hermes/status').then((r) => r.profiles.map((p) => p.name)),
 }
 
@@ -70,6 +80,11 @@ const zhTW = {
     upToDate: '已是最新',
     checkDisabled: '更新檢查已關閉（STUDIO_UPDATE_CHECK=0）',
     behind: '落後 upstream {{n}} 個 commit',
+    mhcLatest: 'MyHermesCompany 最新',
+    mhcUpdateAvailable: '有新版 v{{v}}',
+    mhcUpdateHow: '更新方式：在終端跑',
+    mhcUpdateNote: '站內不做一鍵更新（會把正在服務的自己關掉）。',
+    mhcCheckDisabled: '更新檢查已關閉（MHC_UPDATE_CHECK=0）',
   },
 }
 const en = { nav: { admin: 'Admin' }, admin: { title: 'Admin', tabTerminal: 'Terminal', tabMcp: 'MCP', tabPlugins: 'Plugins', tabVersion: 'Version', connect: 'Connect' } }
@@ -303,6 +318,36 @@ function VersionTab() {
         </dl>
         <label className="mt-3 flex items-center gap-1 text-xs"><input type="checkbox" checked={check} onChange={(e) => setCheck(e.target.checked)} />{t('admin.checkUpdates')} ({d.repo})</label>
       </div>
+      <StudioUpdateCard d={d} />
+    </div>
+  )
+}
+
+/** MyHermesCompany 自己的新版：只告訴使用者跑哪個指令，不做站內一鍵更新（會把正在服務的自己關掉）。 */
+export function StudioUpdateCard({ d }: { d: StudioUpdateInfo & { studio: { version: string } } }) {
+  const { t } = useTranslation()
+  return (
+    <div className="card p-4 text-sm" data-testid="mhc-update-card">
+      <dl className="grid grid-cols-1 gap-y-1 sm:grid-cols-[minmax(0,140px)_minmax(0,1fr)]">
+        <dt className="text-zinc-600 dark:text-zinc-400">{t('admin.mhcLatest')}</dt>
+        <dd>
+          {!d.studio_update_check_enabled ? (
+            <span className="text-xs text-zinc-600 dark:text-zinc-400">{t('admin.mhcCheckDisabled')}</span>
+          ) : d.studio_release ? (
+            <a className="text-indigo-600 underline dark:text-indigo-300" href={d.studio_release.url} target="_blank" rel="noreferrer" data-testid="mhc-latest-tag">{d.studio_release.tag}</a>
+          ) : d.studio_latest ? (
+            <span data-testid="mhc-latest-tag">v{d.studio_latest}</span>
+          ) : '—'}
+          {d.studio_update_available === true && <span className="ml-2 rounded bg-amber-100 px-1.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" data-testid="mhc-update-badge">{t('admin.mhcUpdateAvailable', { v: d.studio_latest })}</span>}
+          {d.studio_update_available === false && <span className="ml-2 rounded bg-emerald-100 px-1.5 text-xs text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">{t('admin.upToDate')}</span>}
+        </dd>
+      </dl>
+      {d.studio_update_available === true && (
+        <p className="mt-2 break-words text-xs text-zinc-600 dark:text-zinc-400">
+          {t('admin.mhcUpdateHow')} <code className="rounded bg-zinc-100 px-1 py-0.5 dark:bg-zinc-800" data-testid="mhc-update-cmd">{d.studio_update_cmd}</code>
+          <br />{t('admin.mhcUpdateNote')}
+        </p>
+      )}
     </div>
   )
 }

@@ -85,12 +85,16 @@ beforeEach(() => {
 })
 
 describe('I 檔案瀏覽器', () => {
-  it('列目錄、開檔、編輯儲存、附回聊天事件', async () => {
+  it('列目錄、開檔（預覽→編輯）、編輯儲存、附回聊天事件', async () => {
     renderApp(<FilesPage />, { route: '/files' })
     const user = userEvent.setup()
     expect(await screen.findByText('hello.md')).toBeInTheDocument()
     expect(screen.getByText('sub')).toBeInTheDocument()
     await user.click(screen.getByText('hello.md'))
+    // 預設是共用預覽元件（渲染 Markdown），切到編輯才是純文字編輯器
+    expect(await screen.findByTestId('file-preview')).toBeInTheDocument()
+    expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('預覽標題')
+    await user.click(screen.getByTestId('files-mode-edit'))
     const ta = (await screen.findByLabelText('editor')) as HTMLTextAreaElement
     await waitFor(() => expect(ta.value).toBe('# hi'))
     await user.type(ta, '!')

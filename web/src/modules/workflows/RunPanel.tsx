@@ -1,7 +1,7 @@
 // 執行面板：開始／停止／重跑、節點即時狀態、審批、用量
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { DoneRounds, NodeHints, SpillViewer } from './NodeExtras'
+import { DoneRounds, NodeHints, NodeOutputPreview, SpillViewer } from './NodeExtras'
 import type { LiveRun } from './runState'
 import { isTerminal } from './runState'
 import type { WfNode } from './types'
@@ -99,7 +99,7 @@ export function RunPanel({ nodes, live, busy, canRun, onRun, onStop, onRerun, on
                 )}
                 {expanded && (
                   <div className="mt-2 space-y-1">
-                    {st.output && <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-zinc-100 p-1 text-[11px] dark:bg-zinc-800">{st.output}</pre>}
+                    {st.output && <NodeOutputPreview text={st.output} title={`${n.title || n.id}`} className="max-h-72" />}
                     {st.session_id && onOpenConversation && <button className="btn-outline !py-0.5 text-xs" onClick={() => onOpenConversation(st.session_id!)}>{t('wf.panel.conversation')}</button>}
                   </div>
                 )}

@@ -1,11 +1,23 @@
-import { render, screen, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render as rtlRender, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactElement } from 'react'
 import '../../../i18n'
 import i18n from 'i18next'
+import { setFetchImpl, setToken } from '../../../api/client'
+import { MOCK_TOKEN, mockFetch } from '../../../mock/fetch'
 import { en, zhTW } from '../i18n'
 import { RunPanel } from '../RunPanel'
 import { applyWsEvent, emptyRun } from '../runState'
 import type { WfNode } from '../types'
+
+// 節點輸出改用共用預覽元件（走 react-query + /preview/inline），所以要有 QueryClient 與 mock fetch
+beforeEach(() => {
+  setFetchImpl(mockFetch as typeof fetch)
+  setToken(MOCK_TOKEN)
+})
+const render = (ui: ReactElement) =>
+  rtlRender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>)
 
 i18n.addResourceBundle('zh-TW', 'translation', zhTW, true, true)
 i18n.addResourceBundle('en', 'translation', en, true, true)
@@ -71,7 +83,7 @@ describe('RunPanel', () => {
     await userEvent.click(within(a).getByTitle('從此節點重跑'))
     expect(h.onRerun).toHaveBeenCalledWith('a', false)
     await userEvent.click(within(a).getByText('熱點'))
-    expect(within(a).getByText('結果A')).toBeInTheDocument()
+    expect(await within(a).findByText('結果A')).toBeInTheDocument()
     await userEvent.click(within(a).getByRole('button', { name: '開啟對話' }))
     expect(h.onOpenConversation).toHaveBeenCalledWith('s_1')
   })

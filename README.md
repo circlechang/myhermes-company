@@ -136,12 +136,13 @@ docker build -t myhermescompany . && docker run -d -p 8700:8700 \
 ```
 
 對外綁定（`--host 0.0.0.0`）必須設 `STUDIO_SECRET` 且 admin 密碼已改，否則拒絕啟動。
-部署細節在 `docs/DEPLOY.md`。
+部署細節在 `docs/DEPLOY.md`；更新方式在 `INSTALL.md` 的「更新到新版」。
 
 **常用指令**
 
 ```bash
 myhermescompany status | logs -f | restart | stop | version   # 都吃 --port
+myhermescompany update                # 查最新 release → 問 → 裝 → 重啟（--check 只檢查、--yes 不問）
 myhermescompany hermes-check          # Hermes 升版前先跑，確認相容
 myhermescompany precheck [tag]        # 沙盒裝指定版本跑同一套契約
 myhermescompany reset-admin           # 忘記密碼

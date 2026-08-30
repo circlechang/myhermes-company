@@ -10,7 +10,7 @@ import {
 } from '../api/sessions'
 import type { Agent, ApprovalDecision, WsServerEvent } from '../api/types'
 import { Composer } from '../components/chat/Composer'
-import { FilePreview } from '../components/chat/FilePreview'
+import { FilePreview } from '../components/preview'
 import { HermesHistoryList, HermesHistoryView } from '../components/chat/HermesHistoryView'
 import { MessageList } from '../components/chat/MessageList'
 import { ModelBadge, ModelPicker } from '../components/chat/ModelPicker'
@@ -198,7 +198,11 @@ export function WorkbenchPage() {
   )
 
   return (
-    <div className="relative grid h-full grid-cols-1 sm:grid-cols-[260px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)_300px]">
+    <div
+      className={`relative grid h-full grid-cols-1 sm:grid-cols-[260px_minmax(0,1fr)] ${
+        previewPath ? 'lg:grid-cols-[260px_minmax(0,1fr)_minmax(360px,40%)]' : 'lg:grid-cols-[260px_minmax(0,1fr)_300px]'
+      }`}
+    >
       {/* 左：AI 員工 + 對話（手機版改抽屜） */}
       <aside className="hidden min-h-0 flex-col border-r border-zinc-200 sm:flex dark:border-zinc-800" data-testid="sidebar-desktop">{sidebar}</aside>
       {sidebarOpen && (
@@ -278,7 +282,22 @@ export function WorkbenchPage() {
       {/* 右：預覽 or session 資訊（<lg 時預覽用覆蓋層） */}
       {previewPath && (
         <aside className="fixed inset-0 z-30 flex flex-col bg-white lg:static lg:z-auto lg:border-l lg:border-zinc-200 dark:bg-zinc-900 dark:lg:border-zinc-800">
-          <FilePreview path={previewPath} onClose={() => setPreviewPath(undefined)} onAttach={sessionId ? (p) => setExternal([{ name: p.split('/').pop() ?? p, path: p, mime: '', size: 0 }]) : undefined} />
+          <FilePreview
+            source={{ kind: 'path', path: previewPath }}
+            onClose={() => setPreviewPath(undefined)}
+            onOpenFile={setPreviewPath}
+            actions={
+              sessionId ? (
+                <button
+                  type="button"
+                  className="btn-ghost !px-1.5 !py-0.5 text-xs"
+                  onClick={() => setExternal([{ name: previewPath.split('/').pop() ?? previewPath, path: previewPath, mime: '', size: 0 }])}
+                >
+                  {t('chat.preview.attach')}
+                </button>
+              ) : undefined
+            }
+          />
         </aside>
       )}
       {!previewPath && (

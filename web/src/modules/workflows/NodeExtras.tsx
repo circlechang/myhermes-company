@@ -1,8 +1,18 @@
 // 節點附加資訊：溢出輸出（查看完整／下載）、自檢輪次、效果快取／結果未知提示
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { FilePreview } from '../../components/preview'
 import { wfApi } from './api'
 import type { NodeOutput, NodeState } from './types'
+
+/** 節點輸出是純文字（不是檔案）→ 走共用預覽元件的 inline 模式。 */
+export function NodeOutputPreview({ text, title, className = 'max-h-64' }: { text: string; title: string; className?: string }) {
+  return (
+    <div className={`mt-1 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-800 ${className}`} data-testid="node-output-preview">
+      <FilePreview source={{ kind: 'inline', text, title, format: 'markdown' }} title={title} compact />
+    </div>
+  )
+}
 
 export function SpillViewer({ runId, nodeId, state }: { runId: string; nodeId: string; state: NodeState }) {
   const { t } = useTranslation()
@@ -40,7 +50,12 @@ export function SpillViewer({ runId, nodeId, state }: { runId: string; nodeId: s
                 <button className="btn-ghost !py-0.5 text-xs" onClick={() => setFull(null)}>{t('wf.panel.close')}</button>
               </span>
             </div>
-            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded bg-zinc-100 p-2 text-[11px] dark:bg-zinc-800">{full.content}</pre>
+            <div className="min-h-0 flex-1 overflow-hidden rounded border border-zinc-200 dark:border-zinc-800">
+              <FilePreview
+                source={{ kind: 'inline', text: full.content, title: `${nodeId}.output.md`, format: 'markdown' }}
+                title={`${nodeId}.output.md`}
+              />
+            </div>
           </div>
         </div>
       )}

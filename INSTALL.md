@@ -56,9 +56,31 @@ hermes profile import ~/<名稱>.tar.gz
 ## 行業套件
 套件在 repo 的 `packs/`，方式 A 的 wheel 也含在內。到「行業套件」頁按安裝即可；主題資料夾會建在 `~/.myhermescompany/workspace/`。
 
+## 更新到新版
+
+```bash
+myhermescompany update
+```
+
+它會查這個 repo 的最新 release，比對你手上的版本：已是最新就直接說「已是最新版 vX.Y.Z」；
+有新版就印出版號與 release notes 摘要問你要不要裝，答 y 之後下載 wheel、
+用「正在跑的那個 python」`pip install --upgrade`，然後沿用原本的 port 重啟服務。
+
+```bash
+myhermescompany update --check         # 只檢查不安裝（適合排程）
+myhermescompany update --check --json  # 機器可讀
+myhermescompany update --yes           # 不問直接裝
+```
+
+- 安裝失敗不會弄壞現有安裝：pip 的 upgrade 是先備好新版才換掉舊版，失敗時原版原封不動。
+- 站內（管理 → 版本、右上角）也會提示有新版，但**不做站內一鍵更新**——更新要重啟伺服器，
+  等於把正在服務的自己關掉，所以只告訴你指令。
+- 不想讓它連 GitHub：`MHC_UPDATE_CHECK=0`。檢查結果快取 6 小時。
+
 ## 常用指令
 ```bash
 myhermescompany status|stop|restart|logs --port 8700
+myhermescompany update [--check] [--yes] [--json]   # 更新到最新 release
 myhermescompany hermes-check          # Hermes 升版前先跑，確認相容
 myhermescompany reset-admin           # 忘記密碼
 myhermescompany clear-login-locks     # 連續打錯被鎖 15 分鐘時

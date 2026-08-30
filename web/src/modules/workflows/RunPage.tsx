@@ -7,7 +7,7 @@ import { ErrorBox, Loading } from '../../components/QueryState'
 import { wfApi } from './api'
 import { Canvas } from './Canvas'
 import { ConversationModal } from './Conversation'
-import { DoneRounds, NodeHints, SpillViewer } from './NodeExtras'
+import { DoneRounds, NodeHints, NodeOutputPreview, SpillViewer } from './NodeExtras'
 import { describeEvent, replayTo } from './runState'
 import { StatusBadge } from './RunPanel'
 
@@ -69,7 +69,7 @@ export function RunPage() {
                 {st && <NodeHints state={st} />}
                 {st && <SpillViewer runId={d.id} nodeId={selNode.id} state={st} />}
                 {st && <DoneRounds state={st} />}
-                {st?.output && <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-zinc-100 p-2 text-[11px] dark:bg-zinc-800">{st.output}</pre>}
+                {st?.output && <NodeOutputPreview text={st.output} title={selNode.title || selNode.id} className="max-h-72" />}
                 {st?.session_id && <button className="btn-outline !py-0.5 text-xs" onClick={() => setConvo(st.session_id!)}>{t('wf.panel.conversation')}</button>}
               </div>
             )}

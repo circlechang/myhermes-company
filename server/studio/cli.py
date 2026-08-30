@@ -3,6 +3,7 @@
 Commands: start [--port --host --daemon] | stop [--port] | status [--port] | restart [--port --host] | logs [--port]
           | reset-admin | clear-login-locks | version
           | hermes-check [--json --writes --only] | install-skill mhc-search [--profile] | precheck [version] [--json]
+          | update [--check --yes --json --no-cache]
 
 State dir (MHC_HOME／STUDIO_HOME, default ~/.myhermescompany/; 舊 ~/.hermes-studio-tw 會自動搬移): studio.pid, logs/studio.log, studio.db.
 studio.pid 第一行是 pid，之後是 port=/host=（status/stop/restart 不帶 --port 也知道服務在哪個 port）。
@@ -478,6 +479,100 @@ def cmd_version(_args) -> int:
     return 0
 
 
+# ---------- 自我更新 ----------
+
+def _pip_install(wheel: str) -> tuple[int, str]:
+    """用「正在跑的這個 python」所屬環境裝，不要猜 venv。
+    pip 的 upgrade 是先下載＋建好才換掉舊版，失敗時已安裝的版本原封不動。"""
+    proc = subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", wheel],
+                          capture_output=True, text=True)
+    return proc.returncode, (proc.stdout + proc.stderr)
+
+
+def cmd_update(args) -> int:
+    """檢查公開 repo 有沒有新版；有就下載 wheel、pip 升級、重啟。
+
+    exit 0＝已是最新／檢查完成／升級成功；1＝抓不到或升級失敗；2＝使用者取消。
+    """
+    import json as _json
+    import tempfile
+
+    from . import update as up
+
+    as_json = bool(getattr(args, "json", False))
+    repo = getattr(args, "repo", "") or up.public_repo()
+    rel = up.fetch_latest(repo, use_cache=not getattr(args, "no_cache", False))
+
+    if rel is None:
+        st = up.status(__version__, repo, None)
+        st["error"] = "查不到最新版（GitHub 沒回應或還沒有 release）"
+        if as_json:
+            print(_json.dumps(st, ensure_ascii=False, indent=1))
+        else:
+            print(f"查不到 {repo} 的最新版；目前 v{__version__}", file=sys.stderr)
+        return 1
+
+    st = up.status(__version__, repo, rel)
+    newer = st["update_available"]
+
+    if as_json:
+        print(_json.dumps(st, ensure_ascii=False, indent=1))
+    elif newer is False:
+        print(f"已是最新版 v{__version__}")
+    elif newer is None:
+        print(f"版號比不出來（目前 v{__version__}，最新 {rel.tag}）", file=sys.stderr)
+    else:
+        print(f"有新版 {rel.tag}（目前 v{__version__}）")
+        if rel.url:
+            print(f"  {rel.url}")
+        summary = rel.notes_summary()
+        if summary:
+            print("\n" + "\n".join("  " + ln for ln in summary.splitlines()) + "\n")
+
+    if getattr(args, "check", False):
+        return 0
+    if newer is not True:
+        return 0 if newer is False else 1
+
+    if not getattr(args, "yes", False):
+        try:
+            ans = input(f"要現在更新到 {rel.tag} 嗎？[y/N] ").strip().lower()
+        except EOFError:
+            ans = ""
+        if ans not in ("y", "yes"):
+            print("取消，沒有動到目前的版本")
+            return 2
+
+    asset = rel.wheel()
+    if not asset:
+        print(f"release {rel.tag} 沒有附 wheel，請看 {rel.url or repo} 手動更新", file=sys.stderr)
+        return 1
+
+    with tempfile.TemporaryDirectory(prefix="mhc-update-") as tmp:
+        print(f"下載 {asset['name']} …")
+        try:
+            wheel = up.download(asset["url"], asset["name"], tmp)
+        except Exception as e:  # noqa: BLE001 — 下載失敗不該讓 CLI 噴 traceback
+            print(f"下載失敗：{e}", file=sys.stderr)
+            return 1
+        print(f"安裝（{sys.executable} -m pip install --upgrade）…")
+        code, out = _pip_install(wheel)
+        if code != 0:
+            print(out[-2000:], file=sys.stderr)
+            print(f"安裝失敗；目前版本 v{__version__} 仍可用（pip 升級失敗不會動到已安裝版本）", file=sys.stderr)
+            return 1
+
+    print(f"已安裝 {rel.tag}，重新啟動服務…")
+    pf = pid_file()
+    if not running_pid(pf):
+        print("服務原本就沒在跑；下次 `myhermescompany start` 就是新版")
+        return 0
+    args.port = recorded_port(pf)
+    args.host = read_meta(pf).get("host") or None
+    args.daemon = True
+    return cmd_restart(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="myhermescompany", description="MyHermesCompany — 每個人都有一間 AI 公司")
     sub = p.add_subparsers(dest="cmd")
@@ -526,6 +621,15 @@ def build_parser() -> argparse.ArgumentParser:
     pcm.add_argument("--json", action="store_true")
     pcm.set_defaults(fn=cmd_precheck)
     sub.add_parser("version").set_defaults(fn=cmd_version)
+    ud = sub.add_parser("update", help="檢查並更新到公開 repo 的最新 release（--check 只檢查）")
+    ud.add_argument("--check", action="store_true", help="只檢查不安裝（給排程用）")
+    ud.add_argument("--yes", "-y", action="store_true", help="不詢問，直接安裝")
+    ud.add_argument("--json", action="store_true", help="機器可讀輸出")
+    ud.add_argument("--no-cache", action="store_true", help="忽略 6 小時快取，直接打 GitHub")
+    ud.add_argument("--repo", default="", help="覆寫來源 repo（預設 MHC_PUBLIC_REPO）")
+    ud.add_argument("--port", type=int, help=argparse.SUPPRESS)
+    ud.add_argument("--host", help=argparse.SUPPRESS)
+    ud.set_defaults(fn=cmd_update)
     return p
 
 

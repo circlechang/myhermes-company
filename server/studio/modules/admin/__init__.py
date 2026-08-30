@@ -3,6 +3,8 @@
 - MCP：讀 profile config.yaml `mcp_servers`（密鑰遮罩）；新增／刪除／測試走 `hermes [-p profile] mcp add|remove|test`
 - Plugins：`hermes plugins list --json`、`hermes plugins enable|disable <name>`
 - 版本：`hermes --version` 解析 ＋ Studio 版本 ＋ GitHub latest（`STUDIO_UPDATE_CHECK=0` 關閉，快取 1 小時）
+- 自我更新提示：`studio_latest`／`studio_update_available`（公開 repo 的 release，快取 6 小時，`MHC_UPDATE_CHECK=0` 關閉）；
+  `/version/studio` 是不呼叫 hermes CLI 的輕量版，給 TopBar 常駐提示用。站內不做一鍵更新，只告訴使用者跑 `myhermescompany update`。
 - 裝置／區網節點不做（桌面版功能）。
 """
 from __future__ import annotations
@@ -18,6 +20,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from ... import __version__ as STUDIO_VERSION
+from ... import update as studio_update
 from ...auth import Principal, current_principal
 from ...errors import ApiError
 from ...hermes.cli import CliError, HermesCli
@@ -226,6 +229,29 @@ def parse_version(text: str) -> dict[str, Any]:
     return out
 
 
+async def _studio_update_state(check: bool) -> dict[str, Any]:
+    """MyHermesCompany 自己的新版（公開 repo 的 release；快取 6 小時，見 studio/update.py）。"""
+    out: dict[str, Any] = {"studio_latest": None, "studio_update_available": None,
+                           "studio_release": None, "studio_repo": studio_update.public_repo(),
+                           "studio_update_cmd": "myhermescompany update",
+                           "studio_update_check_enabled": studio_update.update_check_enabled()}
+    if not check or not studio_update.update_check_enabled():
+        return out
+    rel = await studio_update.fetch_latest_async()
+    if rel is not None:
+        out["studio_latest"] = rel.version
+        out["studio_update_available"] = studio_update.is_newer(STUDIO_VERSION, rel.tag)
+        out["studio_release"] = {"tag": rel.tag, "url": rel.url}
+    return out
+
+
+@router.get("/version/studio")
+async def version_studio(request: Request, check: int = 1, p: Principal = Depends(current_principal)):
+    """只查 MyHermesCompany 自己的版本（不呼叫 hermes CLI）——給 TopBar 這種常駐提示用。"""
+    state = await _studio_update_state(bool(check) and _update_check_enabled())
+    return {"studio": {"version": STUDIO_VERSION}, **state}
+
+
 @router.get("/version")
 async def version(request: Request, check: int = 1, p: Principal = Depends(current_principal)):
     cli: HermesCli = request.app.state.cli
@@ -249,4 +275,5 @@ async def version(request: Request, check: int = 1, p: Principal = Depends(curre
         except ValueError:
             update_available = None
     return {"studio": {"version": STUDIO_VERSION}, "hermes": hermes, "latest": latest,
-            "update_check_enabled": enabled, "update_available": update_available, "repo": HERMES_REPO}
+            "update_check_enabled": enabled, "update_available": update_available, "repo": HERMES_REPO,
+            **await _studio_update_state(bool(check) and enabled)}

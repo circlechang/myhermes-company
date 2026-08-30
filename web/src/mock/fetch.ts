@@ -2,6 +2,7 @@
 import type { KanbanTask, Message, Session, Workflow } from '../api/types'
 import * as d from './data'
 import { chatMock } from '../modules/chat/mock'
+import { previewMock } from '../components/preview/mock'
 
 let seq = 100
 const nid = (p: string) => `${p}${++seq}`
@@ -100,6 +101,10 @@ export async function mockFetch(input: RequestInfo | URL, init: RequestInit = {}
       { name: 'line_push', enabled: false, description: 'LINE 推播' },
     ])
   }
+
+  // 統一檔案預覽（/preview、/preview/inline）
+  const pv = previewMock(path, method, body, u)
+  if (pv) return ok(pv)
 
   // 聊天模組（session 管理／分類／搜尋／上傳／預覽／模型／Hermes 歷史）先接手，沒接的落回下面
   const chatRes = chatMock(state, path, method, body, u)

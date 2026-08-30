@@ -3,10 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { Markdown } from '../../components/chat/Markdown'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { ErrorBox, Loading } from '../../components/QueryState'
+import { FilePreview, guessKind } from '../../components/preview'
 import { ConversationModal } from '../workflows/Conversation'
 import { packsApi, packsQk, type StageFile, type StageStatus, type TopicStage } from './api'
 
@@ -35,7 +35,7 @@ function fmt(s: string | null | undefined) {
   return isNaN(d.getTime()) ? s : d.toLocaleString()
 }
 
-function FilePreview({ pack, topic, path, onClose }: { pack: string; topic: string; path: string; onClose: () => void }) {
+function StageFilePreview({ pack, topic, path, onClose }: { pack: string; topic: string; path: string; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const q = useQuery({ queryKey: [...packsQk.topic(pack, topic), 'file', path], queryFn: () => packsApi.file(pack, topic, path) })
@@ -46,14 +46,13 @@ function FilePreview({ pack, topic, path, onClose }: { pack: string; topic: stri
     mutationFn: () => packsApi.saveFile(pack, topic, path, text),
     onSuccess: () => { setEditing(false); qc.invalidateQueries({ queryKey: packsQk.topic(pack, topic) }) },
   })
-  const isMd = path.endsWith('.md')
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} data-testid="file-preview">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} data-testid="pack-file-preview">
       <div className="card flex max-h-[85vh] w-full max-w-3xl flex-col p-4" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center gap-2">
-          <code className="text-xs">{path}</code>
-          {q.data && <span className="text-[11px] text-zinc-600 dark:text-zinc-400">{q.data.size} B</span>}
-          <div className="ml-auto flex gap-1">
+          <code className="min-w-0 flex-1 truncate text-xs" title={path}>{path}</code>
+          {q.data && <span className="shrink-0 text-[11px] text-zinc-600 dark:text-zinc-400">{q.data.size} B</span>}
+          <div className="ml-auto flex shrink-0 gap-1">
             {!editing && !q.data?.binary && <button className="btn-outline !py-0.5 text-xs" onClick={() => setEditing(true)}>{t('packs.board.edit')}</button>}
             {editing && <button className="btn-primary !py-0.5 text-xs" disabled={save.isPending} onClick={() => save.mutate()}>{t('packs.board.save')}</button>}
             <button className="btn-ghost !py-0.5 text-xs" onClick={onClose}>{t('packs.board.close')}</button>
@@ -64,10 +63,13 @@ function FilePreview({ pack, topic, path, onClose }: { pack: string; topic: stri
         {q.data?.binary && <div className="text-xs text-zinc-600 dark:text-zinc-400">binary</div>}
         {q.data && !q.data.binary && (editing ? (
           <textarea className="input min-h-[50vh] flex-1 font-mono text-xs" value={text} onChange={(e) => setText(e.target.value)} />
-        ) : isMd ? (
-          <div className="overflow-auto text-sm"><Markdown text={q.data.content} /></div>
         ) : (
-          <pre className="overflow-auto whitespace-pre-wrap text-xs">{q.data.content}</pre>
+          <div className="min-h-0 flex-1 overflow-hidden rounded border border-zinc-200 dark:border-zinc-800">
+            <FilePreview
+              source={{ kind: 'inline', text: q.data.content, title: path.split('/').pop() ?? path, format: guessKind(path) }}
+              title={path.split('/').pop() ?? path}
+            />
+          </div>
         ))}
         {save.error && <div className="mt-1 text-xs text-rose-600 dark:text-rose-400">{String(save.error)}</div>}
       </div>
@@ -315,7 +317,7 @@ export function StageBoard() {
           )}
         </aside>
       </div>
-      {preview && topic.data && <FilePreview pack={name} topic={topic.data.id} path={preview} onClose={() => setPreview(null)} />}
+      {preview && topic.data && <StageFilePreview pack={name} topic={topic.data.id} path={preview} onClose={() => setPreview(null)} />}
       {conv && <ConversationModal sessionId={conv} onClose={() => setConv(null)} />}
     </div>
   )

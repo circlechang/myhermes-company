@@ -150,9 +150,9 @@ describe('StageBoard', () => {
     await userEvent.keyboard('{Escape}')
     // 產出檔案預覽
     await userEvent.click(within(screen.getByTestId('stage-topics')).getByTestId('file-topic.md'))
-    expect(await screen.findByTestId('file-preview')).toBeInTheDocument()
+    expect(await screen.findByTestId('pack-file-preview')).toBeInTheDocument()
     expect(await screen.findByText('角度一')).toBeInTheDocument()
-    await userEvent.click(within(screen.getByTestId('file-preview')).getByRole('button', { name: '關閉' }))
+    await userEvent.click(within(screen.getByTestId('pack-file-preview')).getByRole('button', { name: '關閉' }))
     // 退回
     expect(brief.getByTestId('reject-brief')).toBeDisabled()
     await userEvent.type(brief.getByPlaceholderText(/退回意見/), '受眾太寬')

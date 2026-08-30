@@ -7,6 +7,7 @@ import { Empty, ErrorBox, Loading } from '../../components/QueryState'
 import { CodeEditor } from '../../components/admin2/CodeEditor'
 import { fmtSize, fmtTime } from '../../components/admin2/Tabs'
 import { getToken } from '../../api/client'
+import { FilePreview } from '../../components/preview'
 import { dispatchAttach, filesApi, type FileEntry } from './api'
 
 const zhTW = {
@@ -38,11 +39,14 @@ const zhTW = {
     size: '大小',
     mtime: '修改時間',
     selectFile: '選一個檔案預覽或編輯',
+    modePreview: '預覽',
+    modeEdit: '編輯',
+    editUnavailable: '這個檔案不能在這裡編輯（二進位或過大）',
     empty: '空目錄',
     missingRoot: '（目錄不存在）',
   },
 }
-const en = { nav: { files: 'Files' }, files: { title: 'Files', subtitle: 'Browse local Hermes workspace / profiles / uploads', up: 'Up', upload: 'Upload', save: 'Save', attach: 'Attach to chat' } }
+const en = { nav: { files: 'Files' }, files: { title: 'Files', subtitle: 'Browse local Hermes workspace / profiles / uploads', up: 'Up', upload: 'Upload', save: 'Save', attach: 'Attach to chat', modePreview: 'Preview', modeEdit: 'Edit', editUnavailable: 'This file cannot be edited here (binary or too large)' } }
 
 export function FilesPage() {
   const { t } = useTranslation()
@@ -51,6 +55,7 @@ export function FilesPage() {
   const [dir, setDir] = useState<string>('')
   const [selected, setSelected] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [mode, setMode] = useState<'preview' | 'edit'>('preview')
   const [notice, setNotice] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -58,6 +63,7 @@ export function FilesPage() {
     if (!dir && rootsQ.data?.length) setDir(rootsQ.data.find((r) => r.exists)?.id ?? rootsQ.data[0].id)
   }, [rootsQ.data, dir])
 
+  useEffect(() => setMode('preview'), [selected])
   const listQ = useQuery({ queryKey: ['files', 'list', dir], queryFn: () => filesApi.list(dir), enabled: !!dir })
   const fileQ = useQuery({ queryKey: ['files', 'read', selected], queryFn: () => filesApi.read(selected!), enabled: !!selected })
   useEffect(() => {
@@ -165,7 +171,7 @@ export function FilesPage() {
           </ul>
         </div>
       </aside>
-      <section className="flex min-h-0 flex-col p-4">
+      <section className="flex min-h-0 flex-col">
         {!selected ? (
           <Empty text={t('files.selectFile')} />
         ) : fileQ.isLoading ? (
@@ -173,54 +179,61 @@ export function FilesPage() {
         ) : fileQ.error ? (
           <ErrorBox error={fileQ.error} />
         ) : fileQ.data ? (
-          <>
-            <div className="mb-2 flex items-center gap-3 text-sm">
-              <span className="font-medium">{fileQ.data.name}</span>
-              <span className="text-xs text-zinc-600 dark:text-zinc-400">{fmtSize(fileQ.data.size)} · {fmtTime(fileQ.data.mtime)} · {fileQ.data.mime}</span>
-              <div className="ml-auto flex gap-2">
-                <button className="btn-outline" onClick={() => attach({ name: fileQ.data!.name, path: fileQ.data!.path, kind: 'file', size: 0, mtime: 0 })}>{t('files.attach')}</button>
-                {!fileQ.data.binary && !fileQ.data.truncated && (
-                  <button className="btn-primary" disabled={!dirty || !writable || save.isPending} onClick={() => save.mutate()}>{t('files.save')}</button>
-                )}
+          (() => {
+            const f = fileQ.data
+            const editable = !f.binary && !f.truncated
+            const modeButtons = (
+              <>
+                <button
+                  type="button"
+                  className={`btn-ghost !px-1.5 !py-0.5 text-xs ${mode === 'preview' ? 'bg-zinc-200 dark:bg-zinc-800' : ''}`}
+                  onClick={() => setMode('preview')}
+                  data-testid="files-mode-preview"
+                >
+                  {t('files.modePreview')}
+                </button>
+                <button
+                  type="button"
+                  className={`btn-ghost !px-1.5 !py-0.5 text-xs ${mode === 'edit' ? 'bg-zinc-200 dark:bg-zinc-800' : ''}`}
+                  disabled={!editable}
+                  title={editable ? undefined : t('files.editUnavailable')}
+                  onClick={() => setMode('edit')}
+                  data-testid="files-mode-edit"
+                >
+                  {t('files.modeEdit')}
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost !px-1.5 !py-0.5 text-xs"
+                  onClick={() => attach({ name: f.name, path: f.path, kind: 'file', size: 0, mtime: 0 })}
+                >
+                  {t('files.attach')}
+                </button>
+              </>
+            )
+            if (mode === 'preview')
+              return <FilePreview source={{ kind: 'path', path: f.path }} actions={modeButtons} />
+            return (
+              <div className="flex min-h-0 flex-1 flex-col p-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="min-w-0 truncate font-medium" title={f.path}>{f.name}</span>
+                  <span className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400">{fmtSize(f.size)} · {fmtTime(f.mtime)} · {f.mime}</span>
+                  <div className="ml-auto flex shrink-0 items-center gap-1">
+                    {modeButtons}
+                    <button className="btn-primary !py-0.5 text-xs" disabled={!dirty || !writable || save.isPending} onClick={() => save.mutate()}>{t('files.save')}</button>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1">
+                  {f.truncated && <div className="mb-1 text-xs text-amber-700">{t('files.truncated')}</div>}
+                  <CodeEditor value={draft} onChange={setDraft} filename={f.name} readOnly={!writable || f.truncated} ariaLabel="editor" />
+                </div>
               </div>
-            </div>
-            {fileQ.data.binary ? (
-              fileQ.data.mime.startsWith('image/') ? (
-                <ImagePreview path={fileQ.data.path} />
-              ) : (
-                <Empty text={t('files.binary', { size: fmtSize(fileQ.data.size) })} />
-              )
-            ) : (
-              <div className="min-h-0 flex-1">
-                {fileQ.data.truncated && <div className="mb-1 text-xs text-amber-700">{t('files.truncated')}</div>}
-                <CodeEditor value={draft} onChange={setDraft} filename={fileQ.data.name} readOnly={!writable || fileQ.data.truncated} ariaLabel="editor" />
-              </div>
-            )}
-          </>
+            )
+          })()
         ) : null}
       </section>
     </div>
   )
-}
-
-function ImagePreview({ path }: { path: string }) {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let alive = true
-    let obj: string | null = null
-    fetch(filesApi.downloadUrl(path), { headers: { Authorization: `Bearer ${getToken() ?? ''}` } })
-      .then((r) => r.blob())
-      .then((b) => {
-        if (!alive) return
-        obj = URL.createObjectURL(b)
-        setUrl(obj)
-      })
-    return () => {
-      alive = false
-      if (obj) URL.revokeObjectURL(obj)
-    }
-  }, [path])
-  return url ? <img src={url} alt={path} className="max-h-[80vh] max-w-full rounded-md object-contain" /> : <Loading />
 }
 
 const mod: StudioModule = {

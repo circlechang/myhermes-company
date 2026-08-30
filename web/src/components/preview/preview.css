@@ -1,0 +1,31 @@
+/* DOCX 轉出的 HTML（後端已跳脫，內容只有白名單標籤） */
+.doc-rich { line-height: 1.6; }
+.doc-rich h1 { font-size: 1.4em; font-weight: 700; margin: 0.9em 0 0.4em; }
+.doc-rich h2 { font-size: 1.2em; font-weight: 650; margin: 0.8em 0 0.35em; }
+.doc-rich h3 { font-size: 1.08em; font-weight: 600; margin: 0.7em 0 0.3em; }
+.doc-rich h4, .doc-rich h5, .doc-rich h6 { font-weight: 600; margin: 0.6em 0 0.25em; }
+.doc-rich > :first-child { margin-top: 0; }
+.doc-rich p { margin: 0.45em 0; }
+.doc-rich ul { list-style: disc; padding-left: 1.5em; margin: 0.4em 0; }
+.doc-rich ol { list-style: decimal; padding-left: 1.5em; margin: 0.4em 0; }
+.doc-rich li { margin: 0.15em 0; }
+.doc-rich blockquote { border-left: 3px solid rgb(161 161 170 / 0.6); padding-left: 0.8em; color: rgb(113 113 122); margin: 0.5em 0; }
+.doc-rich a { color: rgb(79 70 229); text-decoration: underline; }
+.doc-rich img { max-width: 100%; height: auto; border-radius: 4px; margin: 0.5em 0; }
+.doc-rich .img-skipped { color: rgb(113 113 122); font-size: 0.85em; }
+.doc-rich table { border-collapse: collapse; margin: 0.7em 0; font-size: 0.9em; display: block; max-width: 100%; overflow-x: auto; }
+.doc-rich th, .doc-rich td { border: 1px solid rgb(161 161 170 / 0.55); padding: 4px 8px; vertical-align: top; }
+.doc-rich th { background: rgb(244 244 245); font-weight: 600; text-align: left; }
+@media (prefers-color-scheme: dark) {
+  .doc-rich a { color: rgb(165 180 252); }
+  .doc-rich th { background: rgb(39 39 42); }
+}
+
+/* 程式碼檢視：行號槽與內容用同一個 line-height 才對得齊 */
+.code-view, .code-view pre, .code-gutter { line-height: 1.5; font-size: 12px; }
+.code-view pre { margin: 0; }
+.code-gutter { user-select: none; text-align: right; }
+
+/* 圖片檢視：抓取中的游標 */
+.img-stage { cursor: grab; touch-action: none; }
+.img-stage:active { cursor: grabbing; }
