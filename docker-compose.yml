@@ -1,0 +1,48 @@
+# MyHermesCompany ＋ 官方 Hermes Agent 同機一起起（部署方式 b，見 docs/DEPLOY.md）
+#
+#   cp .env.example .env   # 填 API_SERVER_KEY / STUDIO_SECRET / STUDIO_ADMIN_PASSWORD
+#   HERMES_UID=$(id -u) HERMES_GID=$(id -g) docker compose up -d
+#
+# 兩個服務共用一個 bridge network：myhermescompany 用 http://hermes:8642 打 Hermes API server。
+# ~/.hermes 掛給 hermes 當 /opt/data（官方慣例）；同一目錄唯讀掛給 myhermescompany 當 /hermes，
+# 讓 myhermescompany 讀 profiles/ 與 .env 裡的 API_SERVER_KEY（也可改用 HERMES_API_KEY 直接給）。
+services:
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes
+    restart: unless-stopped
+    volumes:
+      - ${HERMES_DATA:-~/.hermes}:/opt/data
+    environment:
+      - HERMES_UID=${HERMES_UID:-10000}
+      - HERMES_GID=${HERMES_GID:-10000}
+      - API_SERVER_ENABLED=true
+      - API_SERVER_HOST=0.0.0.0
+      - API_SERVER_PORT=8642
+      - API_SERVER_KEY=${API_SERVER_KEY:?set API_SERVER_KEY in .env}
+    expose:
+      - "8642"
+    command: ["gateway", "run"]
+
+  myhermescompany:
+    build: .
+    image: myhermescompany
+    container_name: myhermescompany
+    restart: unless-stopped
+    depends_on:
+      - hermes
+    ports:
+      - "${STUDIO_PORT:-8700}:8700"
+    volumes:
+      - studio-data:/data
+      - ${HERMES_DATA:-~/.hermes}:/hermes:ro
+    environment:
+      - STUDIO_HOST=0.0.0.0
+      - STUDIO_SECRET=${STUDIO_SECRET:?set STUDIO_SECRET in .env}
+      - STUDIO_ADMIN_PASSWORD=${STUDIO_ADMIN_PASSWORD:?set STUDIO_ADMIN_PASSWORD in .env}
+      - HERMES_API_URL=http://hermes:8642
+      - HERMES_API_KEY=${API_SERVER_KEY}
+      - HERMES_HOME=/hermes
+
+volumes:
+  studio-data:

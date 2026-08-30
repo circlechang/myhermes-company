@@ -1,0 +1,44 @@
+[project]
+name = "myhermescompany"
+version = "0.1.0"
+description = "MyHermesCompany — 每個人都有一間 AI 公司。Hermes Agent 生態的第三方工作臺伺服器"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "sqlmodel>=0.0.22",
+  "httpx>=0.27",
+  "PyJWT>=2.9",
+  "bcrypt>=4.1",
+  "websockets>=12",
+  "python-dotenv>=1.0",
+  "pyyaml>=6.0",
+  "ptyprocess>=0.7",
+  "python-multipart>=0.0.9",
+  "python-docx>=1.1",
+  "openpyxl>=3.1",
+  "python-pptx>=0.6.23",
+  "ruamel.yaml>=0.18",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "respx>=0.21", "httpx-sse>=0.4"]
+tts = ["edge-tts>=6.1"]  # 後備 TTS（P 語音模組）；GPL-3.0，故做成可選
+
+[project.scripts]
+myhermescompany = "studio.cli:main"
+studio-tw = "studio.cli:main"  # 舊名別名，過渡期保留
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["studio*"]
+
+[tool.setuptools.package-data]
+studio = ["web_dist/**/*", "web_dist/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

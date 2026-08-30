@@ -1,0 +1,61 @@
+name: 回報問題 / Bug report
+description: 有東西壞了或行為不如預期
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        貼 log 之前請先把 API key、token、個資塗掉。
+  - type: textarea
+    id: what
+    attributes:
+      label: 發生什麼事
+      description: 你做了什麼、預期看到什麼、實際看到什麼。
+      placeholder: |
+        我在「工作流」按執行，預期跑到閘門停住，實際上直接 failed。
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重現步驟
+      placeholder: |
+        1. 開 http://127.0.0.1:8700/workflows
+        2. 載入範例工作流，按儲存
+        3. 按執行
+    validations: { required: true }
+  - type: input
+    id: mhc-version
+    attributes:
+      label: MyHermesCompany 版本
+      description: "`myhermescompany version` 的輸出"
+    validations: { required: true }
+  - type: input
+    id: hermes-version
+    attributes:
+      label: Hermes Agent 版本
+      description: "`hermes --version` 的輸出"
+    validations: { required: true }
+  - type: dropdown
+    id: install
+    attributes:
+      label: 安裝方式
+      options: [wheel（release）, 原始碼, Docker / compose, 其他]
+    validations: { required: true }
+  - type: input
+    id: os
+    attributes:
+      label: 作業系統與 Python 版本
+      placeholder: macOS 15.5 / Python 3.12.13
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相關 log
+      description: "`myhermescompany logs` 或瀏覽器 console 的片段（記得塗掉金鑰）"
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 先確認過
+      options:
+        - label: "`myhermescompany hermes-check` 我跑過了"
+        - label: 我已經把金鑰與個資從貼上的內容中移除

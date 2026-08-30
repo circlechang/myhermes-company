@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#0F172A" opacity="0"/>
+  <!-- 人（橘）在上，三個 AI 員工在下，連成一間公司 -->
+  <circle cx="32" cy="19" r="5.5" fill="#F97316"/>
+  <path d="M32 24.5v6.5M18 40v-4a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v4" stroke="#0F172A" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="18" cy="45" r="5" fill="#0F172A"/>
+  <circle cx="32" cy="45" r="5" fill="#0F172A"/>
+  <circle cx="46" cy="45" r="5" fill="#0F172A"/>
+  <path d="M32 31v9" stroke="#0F172A" stroke-width="2.6" stroke-linecap="round"/>
+</svg>

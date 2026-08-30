@@ -1,0 +1,32 @@
+{
+  "format": "myhermescompany.workflow",
+  "format_version": 1,
+  "workflow": {
+    "name": "0 收集素材",
+    "description": "內容生產線階段「0 收集素材」：單節點，任務內容由套件在執行時以 [外部輸入] 帶入（含主題資料夾絕對路徑）。",
+    "profile": "",
+    "nodes": [
+      {
+        "id": "sources",
+        "title": "0 收集素材",
+        "kind": "hermes",
+        "agent": "evidence-radar",
+        "prompt": "依上方「外部輸入」的指示執行：用檔案工具讀取指定的主題資料夾，把產出直接寫成指定路徑的檔案。只做這一個階段的工作，不要重做其他階段；不確定的事實標「待查證」，不要編造。\n先列出既有 sources/ 檔名，再用搜尋工具找外部素材；每筆一個檔，開頭三行 front matter（來源／日期／類型）。判斷條件：沒有來源與日期的不寫。",
+        "tool_approval": "allow",
+        "position": {
+          "x": 80,
+          "y": 80
+        }
+      }
+    ],
+    "edges": [],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "budget": {
+      "deadline_seconds": 1800
+    }
+  }
+}

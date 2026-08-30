@@ -1,0 +1,31 @@
+# 行銷套件：選題 → Brief → 文案 → 素材 → 發布 → 成效，六階段、資料夾當資料庫。
+name: marketing
+version: 0.1.0
+title: 行銷套件
+description: 四個 AI 員工（證據雷達、研究策略、內容文案、創意製作）分工推進一個行銷主題；每個主題是工作區下一個資料夾，Brief 與文案完成後需人核准。
+requires:
+  studio: ">=0.1"
+  modules: [workflows, inbox, events]
+workspace_dir: marketing
+profiles: [evidence-radar, research-strategist, content-copywriter, creative-producer]
+agents:
+  - profile: evidence-radar
+    name: 證據雷達
+    title: 研究與證據雷達
+    description: 找出真正新的、可驗證、值得行動的訊號；只看證據強度不看熱度。
+  - profile: research-strategist
+    name: 研究策略
+    title: 市場情報與策略研究員
+    description: 把模糊的市場問題轉成可追溯的證據、假設與下一個小測試。
+  - profile: content-copywriter
+    name: 內容文案
+    title: 內容策略與社群文案專員
+    description: 把核准的 Brief 轉成平台原生、可審核的草稿；不自行發布。
+  - profile: creative-producer
+    name: 創意製作
+    title: 視覺與短影音創意專員
+    description: 把核准的文案轉成畫面、分鏡、生成 Prompt 與輸出規格。
+workflows: [topics.json, brief.json, copy.json, assets.json, publish.json, analytics.json]
+skills: [marketing-folder-ops]
+stages: stages.yaml
+hooks: hooks.py

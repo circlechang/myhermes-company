@@ -1,0 +1,55 @@
+/* Markdown 內文 + highlight.js 精簡配色（跟隨系統深淺色） */
+.md-body { line-height: 1.55; word-break: break-word; }
+.md-body > :first-child { margin-top: 0; }
+.md-body > :last-child { margin-bottom: 0; }
+.md-body p { margin: 0.35em 0; }
+.md-body h1, .md-body h2, .md-body h3, .md-body h4 { font-weight: 600; margin: 0.8em 0 0.3em; }
+.md-body h1 { font-size: 1.25em; }
+.md-body h2 { font-size: 1.15em; }
+.md-body h3 { font-size: 1.05em; }
+.md-body ul { list-style: disc; padding-left: 1.4em; margin: 0.3em 0; }
+.md-body ol { list-style: decimal; padding-left: 1.4em; margin: 0.3em 0; }
+.md-body li { margin: 0.15em 0; }
+.md-body blockquote { border-left: 3px solid rgb(161 161 170 / 0.6); padding-left: 0.75em; color: rgb(113 113 122); margin: 0.4em 0; }
+.md-body hr { border-color: rgb(161 161 170 / 0.4); margin: 0.8em 0; }
+.md-body input[type='checkbox'] { margin-right: 0.4em; }
+
+.hljs { color: inherit; }
+.hljs-comment, .hljs-quote { color: #6a737d; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-subst { color: #d73a49; }
+.hljs-number, .hljs-literal, .hljs-variable, .hljs-template-variable, .hljs-tag .hljs-attr { color: #005cc5; }
+.hljs-string, .hljs-doctag, .hljs-regexp { color: #032f62; }
+.hljs-title, .hljs-section, .hljs-selector-id, .hljs-function .hljs-title { color: #6f42c1; font-weight: 600; }
+.hljs-type, .hljs-class .hljs-title, .hljs-built_in, .hljs-builtin-name { color: #e36209; }
+.hljs-attribute, .hljs-name, .hljs-tag { color: #22863a; }
+.hljs-meta { color: #735c0f; }
+.hljs-addition { background: #e6ffed; }
+.hljs-deletion { background: #ffeef0; }
+@media (prefers-color-scheme: dark) {
+  .hljs-comment, .hljs-quote { color: #8b949e; }
+  .hljs-keyword, .hljs-selector-tag, .hljs-subst { color: #ff7b72; }
+  .hljs-number, .hljs-literal, .hljs-variable, .hljs-template-variable, .hljs-tag .hljs-attr { color: #79c0ff; }
+  .hljs-string, .hljs-doctag, .hljs-regexp { color: #a5d6ff; }
+  .hljs-title, .hljs-section, .hljs-selector-id, .hljs-function .hljs-title { color: #d2a8ff; }
+  .hljs-type, .hljs-class .hljs-title, .hljs-built_in, .hljs-builtin-name { color: #ffa657; }
+  .hljs-attribute, .hljs-name, .hljs-tag { color: #7ee787; }
+  .hljs-meta { color: #e3b341; }
+  .hljs-addition { background: rgb(46 160 67 / 0.2); }
+  .hljs-deletion { background: rgb(248 81 73 / 0.2); }
+}
+
+/* 預覽面板：docx/pptx 轉出的 HTML */
+.doc-preview h1 { font-size: 1.3em; font-weight: 600; margin: 0.6em 0 0.3em; }
+.doc-preview h2 { font-size: 1.15em; font-weight: 600; margin: 0.6em 0 0.3em; }
+.doc-preview h3 { font-size: 1.05em; font-weight: 600; margin: 0.5em 0 0.25em; }
+.doc-preview p { margin: 0.3em 0; }
+.doc-preview li { margin-left: 1.2em; list-style: disc; }
+.doc-preview table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.85em; }
+.doc-preview td { border: 1px solid rgb(161 161 170 / 0.5); padding: 2px 6px; }
+.doc-preview .slide { border: 1px solid rgb(161 161 170 / 0.4); border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+.doc-preview .slide h3 { margin-top: 0; color: rgb(113 113 122); font-size: 0.8em; }
+.doc-preview .notes { color: rgb(113 113 122); font-size: 0.85em; }
+
+/* 進行中 spinner */
+@keyframes chat-spin { to { transform: rotate(360deg); } }
+.chat-spinner { display: inline-block; width: 10px; height: 10px; border-radius: 9999px; border: 2px solid currentColor; border-right-color: transparent; animation: chat-spin 0.8s linear infinite; }

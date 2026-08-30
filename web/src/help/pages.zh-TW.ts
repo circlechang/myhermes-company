@@ -1,0 +1,264 @@
+// 每頁「？」說明抽屜的內容（繁中）。依 docs/USER_GUIDE.md 與各模組實際行為；短句、講可觀察的動作
+import type { HelpPage } from './types'
+
+export const pagesZhTW: HelpPage[] = [
+  {
+    path: '/', title: '工作臺',
+    what: ['這裡是你跟一位 AI 員工的聊天室。', '左邊是對話清單（依分類與 LINE 來源分組），右邊是訊息與輸入框。'],
+    how: ['左上角下拉選一位 AI 員工。', '按「+ 新對話」，輸入任務後 Enter 送出。', '回覆串流中可按「停止」；輸入框旁的「插話」能在跑到一半時補指示。', 'AI 要執行危險指令時會彈出核准卡，按核准或拒絕。', '訊息上的「回覆」「編輯」「重新產生」可改上一輪；Ctrl/⌘+K 搜尋所有對話。', '輸入框可拖檔案或貼圖片當附件。'],
+    faq: [
+      { q: '為什麼下拉裡沒有我的 profile？', a: '只有在「AI 員工」頁啟用的 profile 才會出現；預設只開 default。' },
+      { q: '對話會存在哪？', a: 'Studio 自己的資料庫。Hermes 原本的歷史在側欄最下面「Hermes」分組，匯入後才能接著聊。' },
+      { q: '一輪要花多少？', a: '一輪 Hermes 通常 25k–110k tokens；到「用量」頁看實際數字。' },
+    ],
+    related: [{ to: '/agents', label: 'AI 員工' }, { to: '/inbox', label: '收件匣' }, { to: '/usage', label: '用量' }],
+  },
+  {
+    path: '/agents', title: 'AI 員工',
+    what: ['每個 Hermes profile 在這裡對應一位員工。', '名稱、職稱、說明只給同事看，不影響 Hermes；SOUL.md 才是人設。'],
+    how: ['把要用的 profile 開關打開（只有啟用的會出現在工作臺）。', '填名稱與職稱，儲存。', '點「SOUL.md」直接編輯 ~/.hermes/profiles/<p>/SOUL.md，存檔即生效（下次對話）。', '「版本歷史」可看 diff 與回滾。', '要換模型或技能，去「模型」「Skills」頁。'],
+    faq: [
+      { q: '怎麼新增員工？', a: '到「Profile」頁建立（可從既有 profile 複製），會自動出現在這裡。' },
+      { q: '兩家公司用同一個 profile，記憶會混嗎？', a: '會。Hermes 端只有一份記憶，記憶是共用的。' },
+      { q: 'member 看不到任何員工？', a: '到「Profile」頁的「帳號綁定」指派 profile；member 預設什麼都看不到。' },
+    ],
+    related: [{ to: '/profiles', label: 'Profile' }, { to: '/models', label: '模型' }, { to: '/skills', label: 'Skills' }, { to: '/soul-history', label: 'SOUL 版本' }],
+  },
+  {
+    path: '/profiles', title: 'Profile 管理',
+    what: ['一個 profile 是一個獨立的 Hermes 工作身分：SOUL、config、記憶、skills 各一份。', '這頁建立、複製、刪除 profile，並決定哪個帳號看得到哪些 profile。'],
+    how: ['按「建立」，輸入名稱（英數、底線、連字號）。', '可勾「從既有 profile 複製」，把 SOUL 與設定帶過來。', '建好後到「AI 員工」頁啟用它。', '「帳號綁定」區把 profile 指派給 admin／member。'],
+    faq: [
+      { q: '刪掉 profile 會刪 Hermes 的檔案嗎？', a: '會刪 ~/.hermes/profiles/<p>。刪前先確認沒有排程或工作流還在用它。' },
+      { q: 'admin 沒指派看得到什麼？', a: 'admin 沒指派＝看全部；member 沒指派＝看不到。' },
+    ],
+    related: [{ to: '/agents', label: 'AI 員工' }, { to: '/skills', label: 'Skills' }],
+  },
+  {
+    path: '/models', title: '模型',
+    what: ['從 ~/.hermes/auth.json、.env、config.yaml 自動發現有哪些供應商與模型。', '這頁改每個 profile 的預設模型；金鑰只留在後端。'],
+    how: ['選一個 profile。', '在清單挑模型，儲存（寫進該 profile 的 config.yaml model.*）。', '聊天時也能在對話上方臨時切模型，只影響那個 session。', '缺供應商時到「Hermes 狀態」確認 auth.json 有登入。'],
+    faq: [
+      { q: '為什麼看不到某家供應商？', a: 'Hermes 沒有它的憑證。先 `hermes auth` 登入或在 .env 加 key，再回來重新整理。' },
+      { q: '訂閱制模型（codex）成本顯示 0？', a: 'Hermes 回 0；「用量」頁用價格表算「若走 API 等值」，不想看就把該模型價格設 0。' },
+    ],
+    related: [{ to: '/agents', label: 'AI 員工' }, { to: '/usage', label: '用量' }, { to: '/settings', label: 'Hermes 狀態' }],
+  },
+  {
+    path: '/skills', title: 'Skills 與記憶',
+    what: ['看每個 profile 有哪些 skill，可開關、寫筆記。', '「記憶」分頁看 MEMORY.md／USER.md；「Journey」畫出 skill 之間的關係。'],
+    how: ['選 profile。', '「Skills」分頁：開關某個 skill，或在筆記寫使用心得。', '「Bundles」分頁：成套安裝／移除。', '「記憶」分頁：直接編輯記憶檔，存檔即生效。'],
+    faq: [
+      { q: '關掉 skill 會刪檔案嗎？', a: '不會，只是標記停用。' },
+      { q: '記憶改了，正在跑的對話會用到嗎？', a: '下一次 run 才讀。' },
+    ],
+    related: [{ to: '/agents', label: 'AI 員工' }, { to: '/files', label: '檔案' }],
+  },
+  {
+    path: '/groupchat', title: '群聊',
+    what: ['把兩位以上 AI 員工放進同一間房，也能邀同事進來。', '用 @名字 指定誰回；沒 @ 時依房間政策（不回／輪流／主持人）。'],
+    how: ['按「+ 新房間」，勾要進來的 AI 員工，選政策。', '輸入「@名字 問題」，可一次 @ 多位。', '每位 AI 成員可在設定裡各自改顯示名、模型、角色提示。', '訊息多了按「壓縮」讓一位 AI 寫摘要，之後只帶摘要＋新訊息。', '把邀請碼（8 碼）給同事，他在「加入」貼上即可。'],
+    faq: [
+      { q: 'AI 為什麼不互相接話？', a: 'AI 自己的話沒 @ 不會觸發別人，避免自言自語；AI 互 @ 有深度上限（預設 3）。' },
+      { q: '麥克風沒反應？', a: 'Chrome／Safari 用瀏覽器語音；其他瀏覽器退回後端 whisper，要先在「語音」頁裝好。' },
+    ],
+    related: [{ to: '/', label: '工作臺' }, { to: '/voice', label: '語音' }],
+  },
+  {
+    path: '/workflows', title: '工作流',
+    what: ['把多位 AI 員工串成一條流水線，中間可放審批閘門、條件、迴圈、投遞。', '這頁是清單；點進去是畫布，右側有節點、執行、觸發三個分頁。'],
+    how: ['按「+ 新建」或載入範例。', '畫布上加節點（AI 員工／閘門／條件／迴圈／投遞），拖出連線。', '點節點改 prompt 與員工；Ctrl/⌘+S 存檔。', '按「執行」；跑到閘門會變 waiting_approval，到「審批」頁核准或退回。', '「觸發」分頁設預算（max_tokens 請以十萬計）、cron 排程、webhook。', '完成後點節點看該輪對話；「快照」逐步回放。'],
+    faq: [
+      { q: '第二個節點就 budget_exceeded？', a: 'max_tokens 設太小。一輪通常 25k–110k，建議 200000 起跳。' },
+      { q: '投遞到 LINE 失敗？', a: '本機沒設 LINE token。到「頻道」頁填好再跑，節點不會靜默失敗。' },
+      { q: '退回會怎樣？', a: '閘門上游節點帶著你的意見重跑一次，再回到閘門。' },
+    ],
+    related: [{ to: '/workflows/approvals', label: '審批' }, { to: '/inbox', label: '收件匣' }, { to: '/limits', label: '成本護欄' }],
+  },
+  {
+    path: '/workflows/approvals', title: '審批',
+    what: ['所有停在閘門的工作流都列在這裡。', '看上游輸出，決定核准或退回。'],
+    how: ['展開一筆看上游節點的輸出。', '核准：可附意見，下游節點會收到 [審批意見]。', '退回：上游節點帶著意見重跑一次。'],
+    faq: [{ q: '跟收件匣差在哪？', a: '收件匣把閘門、危險指令、卡住的卡片全部匯在一起；這頁只有工作流閘門。' }],
+    related: [{ to: '/workflows', label: '工作流' }, { to: '/inbox', label: '收件匣' }],
+  },
+  {
+    path: '/workflows/runs', title: '執行快照',
+    what: ['一次執行的逐步回放。', '拉滑桿看每一步哪條邊走過、哪個節點在跑。'],
+    how: ['拖滑桿或按左右鍵逐步前進。', '點節點看該輪完整對話。', '「重跑」可從某個節點重新開始。'],
+    faq: [{ q: '為什麼有節點是 skipped？', a: '預算超過或條件不成立時，其餘節點會被跳過。' }],
+    related: [{ to: '/workflows', label: '工作流' }],
+  },
+  {
+    path: '/kanban', title: '看板',
+    what: ['跟 `hermes kanban` 是同一份 kanban.db，CLI 建的卡這裡都看得到。', '拖拉換欄；「派工」把卡交給 Hermes dispatcher 跑。'],
+    how: ['按「+ 新任務」填標題、內容、指派 profile、優先權、標籤。', '拖卡片換欄（ready→review 等）；「執行中」欄不能手動拖進去。', '打開卡片按「派工」＝assign → promote → dispatch；先用 dry-run 看會派給誰。', '留言、附件都在卡片抽屜；畫面每 8 秒刷新。'],
+    faq: [
+      { q: '板頂黃色橫幅是什麼？', a: '`hermes kanban diagnostics` 的結果，例如卡在 blocked 太久。' },
+      { q: '標籤去哪了？', a: '標籤是 Studio 自己存的，不進 kanban.db，CLI 看不到。' },
+    ],
+    related: [{ to: '/inbox', label: '收件匣' }, { to: '/agents', label: 'AI 員工' }],
+  },
+  {
+    path: '/coding', title: 'Coding Agents',
+    what: ['在 Studio 裡裝、設定、啟動 Claude Code／Codex／Pi。', '每個 session 有輸出與檔案 diff 兩個分頁。'],
+    how: ['沒裝的按「一鍵安裝」（需要 npm）。', '「設定」填工作區、模型、API 模式（直連或走 Hermes proxy）、最多回合、預算。', '「新開 Session」，輸入任務按執行；隨時「中止」。', '「檔案 diff」分頁看執行前後 git diff。'],
+    faq: [
+      { q: 'proxy 模式為什麼沒有預算上限？', a: 'Claude Code 會用 Anthropic 牌價誤判，走 Hermes 時不帶 max_budget。' },
+      { q: '工作區不是 git repo？', a: 'diff 分頁會顯示無法比對，輸出仍正常。' },
+    ],
+    related: [{ to: '/workflows', label: '工作流' }, { to: '/files', label: '檔案' }],
+  },
+  {
+    path: '/inbox', title: '收件匣',
+    what: ['所有需要人決定的事都匯在這裡：工作流閘門、對話危險指令、看板卡住、群聊點名、用量超額。', '處理完就從清單消失；頂欄的數字是未處理數。'],
+    how: ['用上方分類鈕篩選。', '閘門項目直接按核准／退回。', '其他項目按「前往」跳到原頁面處理，再按「已處理」。', '有黃色警告代表某個來源暫時讀不到。'],
+    faq: [
+      { q: '數字不會自己更新？', a: '目前只在進頁面時抓一次，按「重新整理」或換頁就會更新。' },
+      { q: '空的代表什麼？', a: '沒有事等你。可以去工作臺或看板繼續派工。' },
+    ],
+    related: [{ to: '/workflows/approvals', label: '審批' }, { to: '/kanban', label: '看板' }, { to: '/events', label: '事件' }],
+  },
+  {
+    path: '/events', title: '事件時間軸',
+    what: ['進入中樞的每件事都留一筆：來源、時間、對象、處理的 AI 員工、人類決策、投遞結果。', '只存事件，不存交易內容。'],
+    how: ['用來源／種類／員工／成員下拉縮小範圍。', '改日期區間（預設最近 7 天）。', '關鍵字搜尋。', '「匯出 CSV」把目前篩選結果下載。'],
+    faq: [
+      { q: '為什麼是空的？', a: '這段時間沒事件。把日期拉大，或先去工作臺跑一次對話。' },
+      { q: '事件會被刪嗎？', a: '不會，事件流不可變。' },
+    ],
+    related: [{ to: '/inbox', label: '收件匣' }, { to: '/logs', label: '日誌' }],
+  },
+  {
+    path: '/channels', title: '頻道',
+    what: ['把 Hermes 接到 LINE、Telegram、Discord、Slack 等平台。', 'Studio 只把憑證寫進 ~/.hermes/.env 並重啟 gateway，憑證不會回到瀏覽器。'],
+    how: ['先看上方 gateway 是否在跑。', '選平台（LINE 優先），填 token／secret／LINE_PUBLIC_URL（你對外的 https 網址）。', '儲存後按「重啟 gateway」。', '把頁面顯示的 webhook URL 貼回 LINE Developers 並開啟 Use webhook。', '用手機傳一句話，工作臺側欄「LINE」分組會出現 session。'],
+    faq: [
+      { q: 'LINE_PUBLIC_URL 要填什麼？', a: '能從外網打到本機 8646 的 https 網址，例如 Cloudflare Tunnel 或 ngrok。' },
+      { q: '想讓某關鍵字找特定員工？', a: '目前沒做，用 Hermes 自己的 profile 綁定。' },
+    ],
+    related: [{ to: '/', label: '工作臺' }, { to: '/settings', label: 'Hermes 狀態' }],
+  },
+  {
+    path: '/cron', title: '排程',
+    what: ['Hermes cron：定時讓 AI 員工執行任務並投遞到平台。', '走 gateway /api/jobs，跟 `hermes cron list` 同一份。'],
+    how: ['按「新增」，填名稱、cron 五欄（伺服器本地時間）或選預設。', '選 profile、寫 prompt、選投遞平台。', '可暫停／恢復／立即執行。'],
+    faq: [
+      { q: '跟工作流排程差在哪？', a: '這裡是單一 prompt 的定時任務；工作流排程在工作流「觸發」分頁，跑整條流水線。' },
+      { q: '時區？', a: '伺服器本地時間。' },
+    ],
+    related: [{ to: '/workflows', label: '工作流' }, { to: '/channels', label: '頻道' }],
+  },
+  {
+    path: '/files', title: '檔案',
+    what: ['瀏覽本機 Hermes workspace、各 profile 目錄與上傳區。', '可上傳、編輯文字檔、把檔案附到對話。'],
+    how: ['左邊切根目錄（workspace／profile／uploads）。', '點資料夾進入，「上一層」回去。', '文字檔可直接編輯後儲存。', '「附到對話」會帶到工作臺輸入框。'],
+    faq: [{ q: 'Docker／SSH 跑 Hermes 看不到？', a: '這頁只支援本機檔案系統。' }],
+    related: [{ to: '/', label: '工作臺' }, { to: '/skills', label: 'Skills' }],
+  },
+  {
+    path: '/usage', title: '用量',
+    what: ['讀 Hermes state.db（唯讀）＋ Studio 對話，算 30 日總 token、成本、快取命中率。', '可依模型／來源／profile 分組看。'],
+    how: ['切時間範圍。', '勾「只算本公司 Studio 產生的」排除 CLI 用量。', '訂閱制模型不想看到等值成本，把該模型價格設 0。'],
+    faq: [
+      { q: '數字跟帳單對不上？', a: '這裡用價格表估算，快取與訂閱制都會有落差。' },
+      { q: '要限制花費？', a: '去「成本護欄」設每日上限；工作流也可各自設預算。' },
+    ],
+    related: [{ to: '/limits', label: '成本護欄' }, { to: '/models', label: '模型' }],
+  },
+  {
+    path: '/limits', title: '成本護欄',
+    what: ['設公司或單一 AI 員工的每日 token／美元上限。', '超過就自動停用（或只通知），事件與收件匣都留紀錄。'],
+    how: ['選範圍：整間公司或某位員工。', '填每日 token 與美元上限。', '選超過時的動作：停用或只通知。', '儲存；隔日自動重置。'],
+    faq: [
+      { q: '被停用的員工怎麼恢復？', a: '到「AI 員工」頁重新啟用，或等隔日重置。' },
+      { q: '跟工作流預算差在哪？', a: '工作流預算是單次 run 的上限；這裡是每日累計。' },
+    ],
+    related: [{ to: '/usage', label: '用量' }, { to: '/inbox', label: '收件匣' }],
+  },
+  {
+    path: '/soul-history', title: 'SOUL 版本',
+    what: ['每次透過 Studio 寫 SOUL.md 都存一版。', '可看 diff、回滾；回滾也是新版本，歷史不刪。'],
+    how: ['選 profile。', '點兩個版本看 diff。', '按「回滾」把舊內容寫回 SOUL.md。'],
+    faq: [{ q: '用編輯器直接改的會有版本嗎？', a: '不會，只記錄從 Studio 存的。' }],
+    related: [{ to: '/agents', label: 'AI 員工' }],
+  },
+  {
+    path: '/theme', title: '外觀',
+    what: ['亮／暗、介面風格、字級、顏色與背景圖。', '存在你的帳號，跨裝置同步；本機另有快取。'],
+    how: ['選模式（亮／暗／跟隨系統）。', '調字級與主色。', '「重設」回預設。'],
+    faq: [{ q: '頂欄的太陽／月亮鈕跟這頁一樣嗎？', a: '一樣，只是快速切亮暗。' }],
+    related: [{ to: '/settings', label: 'Hermes 狀態' }],
+  },
+  {
+    path: '/logs', title: '日誌',
+    what: ['Hermes logs、各 profile logs 與 Studio 自己的 log。', '可依等級／關鍵字篩選並即時追蹤。'],
+    how: ['選檔案。', '選等級或輸入關鍵字。', '開「追蹤」持續滾動。'],
+    faq: [{ q: '出錯先看哪個？', a: '工作臺對話不回：看 Hermes gateway log；頁面 500：看 Studio log。' }],
+    related: [{ to: '/events', label: '事件' }, { to: '/settings', label: 'Hermes 狀態' }],
+  },
+  {
+    path: '/voice', title: '語音',
+    what: ['瀏覽器語音優先；伺服器端 whisper.cpp／edge-tts 為後備。', '這頁測試與安裝後備引擎。'],
+    how: ['按麥克風測試辨識。', '按朗讀測試 TTS。', '瀏覽器不支援時，依指示裝 whisper.cpp／`pip install myhermescompany[tts]`。'],
+    faq: [{ q: '為什麼 edge-tts 沒預裝？', a: 'GPL-3.0 授權，所以另外裝。' }],
+    related: [{ to: '/groupchat', label: '群聊' }],
+  },
+  {
+    path: '/admin', title: '管理',
+    what: ['Web 終端、MCP 伺服器、Plugins 與版本。', '成員與密碼在右上角「成員」。'],
+    how: ['「Terminal」分頁開瀏覽器終端。', '「MCP」列出並開關 Hermes 的 MCP server。', '「Plugins」看已裝 plugin。', '「版本」看 Hermes 與 Studio 版本。'],
+    faq: [{ q: '第一次登入要做什麼？', a: '先把 admin/admin 密碼改掉，再建其他人的帳號。' }],
+    related: [{ to: '/settings', label: 'Hermes 狀態' }, { to: '/logs', label: '日誌' }],
+  },
+  {
+    path: '/search', title: '全站搜尋',
+    what: ['一個搜尋框找遍對話、群聊、工作流節點輸出與事件（SQLite FTS5，中文可搜）。', '結果附片段與連結，點了直接跳到那則訊息或那筆事件。'],
+    how: ['輸入關鍵字（兩個字以上；英文可打前綴）。', '用「範圍」切換只看對話／群聊／工作流／事件。', '可加時間區間或指定 AI 員工。', '想讓 AI 員工也能查：終端機跑 `myhermescompany install-skill mhc-search --profile <p>`，或在事件頁用「安裝搜尋 skill」。'],
+    faq: [
+      { q: '剛送出的訊息搜不到？', a: '索引每幾秒同步一次；到事件頁看 /search/status 的 dirty 是否歸零。' },
+      { q: 'member 看得到全公司嗎？', a: '看不到，只搜自己可見的員工與對話；機器 token 則等同發 token 的 owner。' },
+    ],
+    related: [{ to: '/events', label: '事件時間軸' }, { to: '/', label: '工作臺' }],
+  },
+  {
+    path: '/compat', title: 'Hermes 相容性',
+    what: ['Studio 碰到 Hermes 的每一個點（gateway 端點、CLI、檔案、DB 欄位）都列成契約，逐項對真的 Hermes 驗。', '判定「相容／部分相容／不相容」，並列出受影響的功能。'],
+    how: ['按「立即檢查」對本機 Hermes 跑一遍（唯讀，約 1 分鐘）。', '升級前先按「預檢」填版本（或 latest）：在暫存目錄裝新版、起沙盒 gateway 跑同一套測試，不碰 ~/.hermes。', '「能力狀態」看哪個模組因為哪一項失敗而降級。', '排程預設每週六 22:00 盯 GitHub 新 tag，可改或關。', '終端機等價：`myhermescompany hermes-check`、`myhermescompany precheck v2026.8.27`。'],
+    faq: [
+      { q: '預檢要多久？', a: '約 1 分鐘（clone、uv 安裝、起 gateway、35 秒契約測試）；上限 15 分鐘。' },
+      { q: '「部分相容」能不能用？', a: '能。只有標 critical 的項目（health、建 run、.env）失敗才是不相容；其他失敗只影響列出的模組。' },
+      { q: '會動我的 Hermes 嗎？', a: '不會。唯讀檢查；`--writes` 才會建測試資料（建完立刻清）。' },
+    ],
+    related: [{ to: '/settings', label: 'Hermes 狀態' }, { to: '/events', label: '事件時間軸' }],
+  },
+  {
+    path: '/packs', title: '行業套件',
+    what: ['一個套件＝一組 AI 員工（SOUL.md）＋每階段的工作流＋接行業系統的 skills＋階段定義。', '裝到公司後，每個「主題」是工作區裡的一個資料夾，階段一格一格往前推。'],
+    how: ['在清單按「安裝」（owner／admin）。套件的 profile 不存在才會建立，既有 profile 完全不動。', '進套件頁「+ 新主題」，填標題與備註。', '每個階段按「執行」；有閘門的階段跑完會進「待核准」，也會出現在收件匣。', '核准進下一階段；退回可附意見，AI 員工會帶著意見重跑。', '產出檔在主題資料夾裡（右欄顯示路徑，缺檔會標「缺少」）。'],
+    faq: [
+      { q: '移除套件會刪什麼？', a: '只刪套件建立的工作流；AI 員工、profile、主題資料夾都保留。' },
+      { q: '可以跳過前一個階段嗎？', a: '預設要前一階段 done；勾「強制」可跳過。' },
+      { q: '怎麼寫自己的套件？', a: '複製 packs/marketing 改名，見 docs/PACKS.md。' },
+    ],
+    related: [{ to: '/workflows', label: '工作流' }, { to: '/inbox', label: '收件匣' }, { to: '/agents', label: 'AI 員工' }],
+  },
+  {
+    path: '/setup', title: '設定精靈',
+    what: ['第一次啟動的五步：檢查 Hermes → 開 API 門 → 啟用 AI 員工 → 改管理員密碼 → 完成。', '只有 owner 看得到；沒做完之前其他頁會提示「請管理員完成設定」。'],
+    how: ['① 確認 hermes 已安裝、~/.hermes 存在。', '② 按「一鍵開門」：產生隨機 key 寫進 ~/.hermes/.env（先備份），重啟 gateway，等 /v1/health 回應。', '③ 勾要啟用的 profile。', '④ 改掉 admin/admin。', '⑤ 完成後進入工作臺導覽。'],
+    faq: [
+      { q: '顯示「key 錯誤」？', a: 'gateway 有回應但拒絕 Studio 的 key。讓 HERMES_API_KEY 與 .env 的 API_SERVER_KEY 一致後重啟 Studio；或刪掉 .env 那行再按一次開門。' },
+      { q: 'gateway 重啟後多久可用？', a: '約 20–70 秒；精靈會輪詢到 90 秒。' },
+      { q: '之後還能回來嗎？', a: '能，直接開 /setup。' },
+    ],
+    related: [{ to: '/settings', label: 'Hermes 狀態' }, { to: '/agents', label: 'AI 員工' }, { to: '/compat', label: '相容性' }],
+  },
+  {
+    path: '/settings', title: 'Hermes 狀態',
+    what: ['看 gateway 是否連得上、版本、API server 位址、各 profile 的模型與 gateway 狀態。', '出問題時先來這裡。'],
+    how: ['gateway 顯示「無法連線」：確認 ~/.hermes/.env 有 API_SERVER_ENABLED=true 與 API_SERVER_KEY，然後 `hermes gateway restart`。', '按「重新整理」再看。', 'profile 沒在跑：到「頻道」頁按「重啟 gateway」。'],
+    faq: [{ q: 'Hermes 在另一台機器？', a: 'Studio 端設 HERMES_API_URL＋HERMES_API_KEY；看板／profile 等 CLI 功能會降級。' }],
+    related: [{ to: '/channels', label: '頻道' }, { to: '/logs', label: '日誌' }, { to: '/admin', label: '管理' }],
+  },
+]

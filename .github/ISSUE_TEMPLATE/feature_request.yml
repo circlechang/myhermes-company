@@ -1,0 +1,35 @@
+name: 功能建議 / Feature request
+description: 想要一個還沒有的功能
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解決的問題
+      description: 先講問題與現在怎麼繞過去，不要只講想要的做法。
+      placeholder: |
+        現在要看某個 profile 這個月花多少，只能在用量頁自己切篩選再心算。
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望它怎麼運作
+      description: 具體到「按了什麼、畫面上會出現什麼」。
+    validations: { required: true }
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 想過哪些替代做法
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影響哪一塊
+      options: [工作臺／聊天, 工作流, 看板, 群聊, 收件匣, 用量與成本, 頻道, 排程, 模型, Profile／Skills, Coding Agents, 行業套件, 安裝／部署, 其他]
+    validations: { required: true }
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 範圍確認
+      options:
+        - label: 這個功能不需要修改 Hermes Agent 本體
+        - label: 我知道商業使用需要另外取得授權（BSL 1.1）

@@ -1,0 +1,27 @@
+import { test, expect } from '@playwright/test'
+import { collect, login, shot } from './helpers'
+
+test('admin: 終端 echo、MCP、Plugins、版本', async ({ page }) => {
+  await login(page)
+  const c = collect(page)
+  await page.goto('/admin')
+  await page.getByRole('tab', { name: '終端' }).click()
+  await page.getByRole('button', { name: '連線' }).click()
+  await expect(page.getByTestId('term-status')).toHaveText('已連線', { timeout: 20_000 })
+  await page.getByTestId('terminal-host').click()
+  await page.keyboard.type('echo E2E_TERM_OK_$((40+2))\n')
+  const host = page.getByTestId('terminal-host')
+  await expect.poll(async () => await host.innerText(), { timeout: 20_000 }).toContain('E2E_TERM_OK_42')
+  await shot(page, 'admin-terminal')
+  await page.getByRole('tab', { name: 'MCP' }).click()
+  await expect(page.getByLabel(/名稱|name/i).first()).toBeVisible()
+  await shot(page, 'admin-mcp')
+  await page.getByRole('tab', { name: 'Plugins' }).click()
+  await page.waitForLoadState('networkidle')
+  await shot(page, 'admin-plugins')
+  await page.getByRole('tab', { name: '版本' }).click()
+  await expect(page.getByTestId('hermes-version')).toContainText(/\d+\.\d+/, { timeout: 30_000 })
+  await shot(page, 'admin-version')
+  expect(c.errors).toEqual([])
+  expect(c.badResponses).toEqual([])
+})

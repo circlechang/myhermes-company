@@ -1,0 +1,105 @@
+# 階段定義：id 順序即推進順序；gate=true 的階段跑完進「待核准」，人核准後才算 done。
+# prompt 可用變數：{title} {topic_id} {topic_dir} {notes} {outputs} {inputs} {feedback} {stage} {stage_title}
+topic_files:
+  topic.md: |
+    # {title}
+
+    - 建立：{created_at}
+    - 主題代號：{topic_id}
+
+    ## 備註
+    {notes}
+
+    ## 選題方向（由「選題」階段填寫）
+    _（尚未執行）_
+
+stages:
+  - id: topics
+    title: 選題
+    description: 蒐集這個主題近期可驗證的訊號，列出 3–5 個切入角度與證據。
+    agent: evidence-radar
+    workflow: topics.json
+    outputs: [topic.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      先用檔案工具讀 {topic_dir}/topic.md（含備註），然後**把結果直接寫回同一個檔案** {topic_dir}/topic.md：
+      保留原有標題與備註，把「## 選題方向」段落換成 3–5 個切入角度，每個角度附：一句主張、可查證的來源或觀察、證據強度（高／中／低）。
+      沒有真正的證據就寫「待查證」，不要編造。寫完檔案後只回覆一行「已寫入 topic.md」。
+
+  - id: brief
+    title: Brief
+    description: 把選題轉成一頁內容 Brief：目標、受眾情境、單一訊息、主張與證據、CTA。
+    agent: research-strategist
+    workflow: brief.json
+    inputs: [topic.md]
+    outputs: [brief.md]
+    gate: true
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/topic.md，選一個最有證據的角度，寫一頁 Content Brief 到 {topic_dir}/brief.md（Markdown）：
+      ## 目標 / ## 受眾情境 / ## 單一訊息 / ## 主張與證據（每條主張標來源或「待確認」）/ ## CTA / ## 禁用與風險 / ## 待人確認。
+      推論與事實分開寫。寫完檔案後只回覆一行「已寫入 brief.md」。
+
+  - id: copy
+    title: 文案
+    description: 依核准的 Brief 產出 FB／IG／LINE 三個平台的原生草稿。
+    agent: content-copywriter
+    workflow: copy.json
+    inputs: [brief.md]
+    outputs: [copy/fb.md, copy/ig.md, copy/line.md]
+    gate: true
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/brief.md（已由人核准）。依平台各寫一份草稿，分別寫到：
+      {outputs}
+      每份包含：Hook、主文、CTA、facts_used（引用 brief 的哪幾條主張）、needs_human_review（true/false 與原因）。
+      三個平台不可互相複製貼上；不捏造價格、數字、見證。寫完三個檔案後只回覆一行「已寫入 copy/」。
+
+  - id: assets
+    title: 素材
+    description: 依核准文案產出視覺 Brief、生成 Prompt 與輸出規格。
+    agent: creative-producer
+    workflow: assets.json
+    inputs: [brief.md, copy/fb.md, copy/ig.md, copy/line.md]
+    outputs: [assets/visual-brief.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/brief.md 與 {topic_dir}/copy/ 下三個檔案，寫 {topic_dir}/assets/visual-brief.md：
+      ## 唯一視覺訊息 / ## 每平台尺寸與格式 / ## 構圖與畫面（最多 3 個變體）/ ## 生成 Prompt（可直接貼用）/ ## 字幕與疊字 / ## 授權與合規風險。
+      不虛構產品或人物。寫完檔案後只回覆一行「已寫入 assets/visual-brief.md」。
+
+  - id: publish
+    title: 發布
+    description: 整理發布計畫（時間、平台、負責人、檢查清單）；實際發布由人執行。
+    agent: content-copywriter
+    workflow: publish.json
+    inputs: [copy/fb.md, copy/ig.md, copy/line.md, assets/visual-brief.md]
+    outputs: [publish.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/copy/ 與 {topic_dir}/assets/visual-brief.md，寫 {topic_dir}/publish.md：
+      ## 發布排程表（平台｜日期時間｜貼文檔案｜素材｜負責人）/ ## 發布前檢查清單 / ## 發布後 24 小時要看的指標。
+      你不登入任何社群帳號、不實際發布。寫完檔案後只回覆一行「已寫入 publish.md」。
+
+  - id: analytics
+    title: 成效
+    description: 依 publish.md 的指標設計成效回顧表與下一步小測試。
+    agent: research-strategist
+    workflow: analytics.json
+    inputs: [brief.md, publish.md]
+    outputs: [analytics.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/brief.md 與 {topic_dir}/publish.md，寫 {topic_dir}/analytics.md：
+      ## 指標對照表（指標｜目標｜實際（留空給人填）｜判讀）/ ## 三個假設與驗證方式 / ## 下一個小測試（通過／不通過條件）。
+      沒有實際數據就留空，不要編造。寫完檔案後只回覆一行「已寫入 analytics.md」。

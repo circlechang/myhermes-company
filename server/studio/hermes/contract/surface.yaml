@@ -1,0 +1,712 @@
+# Hermes 接觸面清單（MyHermesCompany ↔ Hermes Agent）
+# ---------------------------------------------------------------
+# 每一項是 Studio 真的碰到 Hermes 的一個點。改 Hermes 版本時 `myhermescompany hermes-check`
+# 會逐項驗；`affects` 是失敗時會壞掉的 Studio 模組（server/studio/modules/<name> 或 studio/api）。
+#
+# kind:   endpoint | cli | file | db
+# risk:   low    = Hermes 公開 gateway API（有版本承諾，最不容易斷）
+#         medium = CLI 帶 --json 的輸出（結構穩定但沒有正式契約）
+#         high   = 解析 CLI 表格／人類文字、直接讀 Hermes 內部檔案或 SQLite 欄位（最容易被升級打斷）
+# probe:  endpoint: route（用假 id／空 body 打，只驗「路由存在＋回結構化 JSON 錯誤」，不寫任何資料）
+#                   live（真的呼叫；需要建資料的會清掉；正式環境預設不跑，加 --writes 才跑；預檢沙盒一律跑）
+#         cli:      run（真的執行，唯讀）| help（只跑 `<argv> --help` 驗子命令與旗標存在）| live（會寫資料，同上規則）
+#         file/db:  exists（不存在→ optional 時 skip、否則 fail）
+# critical: true 的項目失敗 → 整體判定「不相容」；其餘失敗 → 「部分相容」。
+#
+# 沙盒（預檢）的 HERMES_HOME 是全新的：config.yaml/.env/profiles 都不存在，這類項目要標 optional: true。
+
+version: 1
+hermes_tested: "0.20.5"
+
+modules:
+  hermes_status: Hermes 狀態列（studio/api/hermes_status.py）
+  agents: AI 員工＝profile 綁定（studio/api/agents.py）
+  chat: 工作臺對話（studio/api/chat_ws.py、modules/chat）
+  workflows: 視覺化工作流執行器
+  groupchat: 群聊
+  inbox: 收件匣（審批轉送、看板阻塞）
+  cron: 排程（gateway /api/jobs）
+  models: 模型管理（config.yaml providers、auth.json、hermes auth）
+  coding_agents: Coding agent 代理（/v1/chat/completions、/v1/responses）
+  kanban: 看板（hermes kanban CLI）
+  profiles: 多 profile 管理
+  channels: 平台頻道（.env、gateway status/restart）
+  skills: 技能（skills/ 目錄、config.yaml skills.disabled、bundles）
+  memory: 記憶（memories/、hermes memory status）
+  journey: 學習旅程圖（hermes journey --json）
+  logs: 日誌檢視（~/.hermes/logs）
+  files: 檔案瀏覽器（workspace/、profile 目錄）
+  usage: 用量（state.db sessions）
+  events: 事件流（看板輪詢）
+  soul_history: SOUL.md 版本
+  admin: 管理（MCP、plugins、版本）
+  compat: 本模組（契約測試本身）
+
+items:
+  # ====================================================================
+  # A. Gateway API server（risk=low）
+  # ====================================================================
+  - id: gw.health
+    kind: endpoint
+    risk: low
+    critical: true
+    label: GET /v1/health
+    method: GET
+    path: /v1/health
+    probe: live
+    expect: { status: [200], keys: [status, version] }
+    affects: [hermes_status, compat]
+    note: 不需要 key 也會回 200；Studio 讀 status=="ok" 與 version。
+
+  - id: gw.auth.reject
+    kind: endpoint
+    risk: low
+    label: Bearer 錯誤 → JSON error（gateway_auth_failed）
+    method: GET
+    path: /v1/models
+    probe: live
+    auth: wrong
+    expect: { status: [200, 401, 403], error_code: gateway_auth_failed }
+    affects: [hermes_status, chat, cron, models]
+    note: 0.20.5 對錯 key 回 HTTP 200＋error body（不是 401）；GatewayClient._raise 只看 >=400，所以 key 錯時各功能會拿到空資料而非明確錯誤。
+
+  - id: gw.health.profile_prefix
+    kind: endpoint
+    risk: low
+    label: /p/{profile} 前綴可用
+    method: GET
+    path: /p/{profile}/v1/health
+    probe: live
+    expect: { status: [200], keys: [status] }
+    affects: [chat, cron, models, coding_agents, agents, workflows, groupchat]
+    note: 多 profile 全靠這個前綴；{profile} 用 default（或 profiles/ 裡第一個）。
+
+  - id: gw.prefix.default
+    kind: endpoint
+    risk: low
+    label: /p/default 前綴也接受（Studio 統一「有 profile 就加前綴」）
+    method: GET
+    path: /p/default/v1/models
+    probe: live
+    expect: { status: [200], keys: [data] }
+    affects: [chat, cron, models, workflows]
+    note: round3 把 gateway.py／cron／models 的前綴規則統一成「有 profile 就加 /p/{profile}，含 default」；這項盯著 Hermes 對 /p/default 的接受度。
+
+  - id: gw.models
+    kind: endpoint
+    risk: low
+    label: GET /v1/models
+    method: GET
+    path: /v1/models
+    probe: live
+    expect: { status: [200], keys: [data], list_item_keys: { data: [id] } }
+    affects: [chat, coding_agents]
+
+  - id: gw.skills
+    kind: endpoint
+    risk: low
+    label: GET /v1/skills
+    method: GET
+    path: /v1/skills
+    probe: live
+    expect: { status: [200], keys: [data], list_item_keys: { data: [name] } }
+    affects: [agents]
+    note: 讀 data[].name / description / category / disabled。
+
+  - id: gw.model.options
+    kind: endpoint
+    risk: low
+    label: GET /api/model/options
+    method: GET
+    path: /api/model/options
+    query: { refresh: "1" }
+    probe: live
+    expect: { status: [200], keys: [providers], list_item_keys: { providers: [slug, models] } }
+    affects: [chat, models]
+    note: 主要模型清單來源；讀 providers[].slug/name/models/is_current/authenticated/pricing 與頂層 model/provider。
+
+  - id: gw.runs.create
+    kind: endpoint
+    risk: low
+    writes: true
+    critical: true
+    label: POST /v1/runs
+    method: POST
+    path: /v1/runs
+    probe: live
+    body: { input: "hermes-contract ping（可忽略）" }
+    route_body: {}
+    route_expect: { status: [400], error_json: true }
+    expect: { status: [200, 201, 202], keys_any: [run_id, id] }
+    provides: run_id
+    cleanup: stop_run
+    affects: [chat, workflows, groupchat]
+    note: 對話／工作流／群聊全靠它；沙盒沒有 provider 時 run 會 failed，但 POST 仍要回 run_id。
+
+  - id: gw.runs.status
+    kind: endpoint
+    risk: low
+    writes: true
+    label: GET /v1/runs/{run_id}
+    method: GET
+    path: /v1/runs/{run_id}
+    probe: live
+    needs: run_id
+    route_path: /v1/runs/run_contract_bogus
+    route_expect: { status: [404], error_json: true }
+    expect: { status: [200], keys: [status] }
+    affects: [chat, workflows, groupchat]
+    note: 讀 status / output / usage / error。
+
+  - id: gw.runs.events
+    kind: endpoint
+    risk: low
+    writes: true
+    label: GET /v1/runs/{run_id}/events（SSE）
+    method: GET
+    path: /v1/runs/{run_id}/events
+    probe: live
+    sse: true
+    needs: run_id
+    route_path: /v1/runs/run_contract_bogus/events
+    route_expect: { status: [404], error_json: true }
+    expect: { status: [200], sse_event_key_any: [event, type], sse_terminal: [run.completed, run.failed, run.cancelled] }
+    affects: [chat, workflows, groupchat]
+    note: 事件名從 data JSON 的 event/type 讀；消費 message.delta、tool.started/completed、approval.request、reasoning.available、subagent.complete、run.completed/failed/cancelled。
+
+  - id: gw.runs.approval
+    kind: endpoint
+    risk: low
+    label: POST /v1/runs/{run_id}/approval
+    method: POST
+    path: /v1/runs/run_contract_bogus/approval
+    probe: route
+    body: { choice: deny, all: false }
+    route_expect: { status: [404], error_json: true }
+    affects: [chat, inbox, workflows]
+
+  - id: gw.runs.stop
+    kind: endpoint
+    risk: low
+    label: POST /v1/runs/{run_id}/stop
+    method: POST
+    path: /v1/runs/run_contract_bogus/stop
+    probe: route
+    body: {}
+    route_expect: { status: [404], error_json: true }
+    affects: [chat, workflows]
+
+  - id: gw.runs.steer
+    kind: endpoint
+    risk: low
+    label: POST /v1/runs/{run_id}/steer
+    method: POST
+    path: /v1/runs/run_contract_bogus/steer
+    probe: route
+    body: { input: x }
+    route_expect: { status: [404], error_json: true }
+    affects: [chat]
+
+  - id: gw.jobs.list
+    kind: endpoint
+    risk: low
+    label: GET /api/jobs
+    method: GET
+    path: /api/jobs
+    query: { include_disabled: "true" }
+    probe: live
+    expect: { status: [200], keys: [jobs] }
+    affects: [cron]
+    note: 讀 jobs[].schedule / schedule_display / state / enabled。
+
+  - id: gw.jobs.create
+    kind: endpoint
+    risk: low
+    label: POST /api/jobs
+    method: POST
+    path: /api/jobs
+    probe: live
+    writes: true
+    body: { name: studio-contract-probe, schedule: "0 3 1 1 *", prompt: "契約測試用，請忽略", deliver: local }
+    route_body: {}
+    route_expect: { status: [400], error_json: true }
+    expect: { status: [200, 201], keys_any: [job, id] }
+    provides: job_id
+    cleanup: delete_job
+    affects: [cron]
+
+  - id: gw.jobs.get
+    kind: endpoint
+    risk: low
+    label: GET /api/jobs/{id}
+    method: GET
+    path: /api/jobs/{job_id}
+    probe: live
+    writes: true
+    needs: job_id
+    route_path: /api/jobs/job_contract_bogus
+    route_expect: { status: [400, 404], error_json: true }
+    expect: { status: [200], keys_any: [job, id] }
+    affects: [cron]
+
+  - id: gw.jobs.update
+    kind: endpoint
+    risk: low
+    label: PATCH /api/jobs/{id}
+    method: PATCH
+    path: /api/jobs/{job_id}
+    probe: live
+    writes: true
+    needs: job_id
+    body: { name: studio-contract-probe-2 }
+    route_path: /api/jobs/job_contract_bogus
+    route_expect: { status: [400, 404], error_json: true }
+    expect: { status: [200], keys_any: [job, id] }
+    affects: [cron]
+
+  - id: gw.jobs.pause_resume
+    kind: endpoint
+    risk: low
+    label: POST /api/jobs/{id}/pause|resume
+    method: POST
+    path: /api/jobs/{job_id}/pause
+    then: /api/jobs/{job_id}/resume
+    probe: live
+    writes: true
+    needs: job_id
+    body: {}
+    route_path: /api/jobs/job_contract_bogus/pause
+    route_expect: { status: [400, 404], error_json: true }
+    expect: { status: [200], keys_any: [job, id] }
+    affects: [cron]
+
+  - id: gw.jobs.run
+    kind: endpoint
+    risk: low
+    label: POST /api/jobs/{id}/run
+    method: POST
+    path: /api/jobs/job_contract_bogus/run
+    probe: route
+    body: {}
+    route_expect: { status: [400, 404], error_json: true }
+    affects: [cron]
+    note: 只驗路由；真的 run 會呼叫模型。
+
+  - id: gw.jobs.delete
+    kind: endpoint
+    risk: low
+    label: DELETE /api/jobs/{id}
+    method: DELETE
+    path: /api/jobs/{job_id}
+    probe: live
+    writes: true
+    needs: job_id
+    route_path: /api/jobs/job_contract_bogus
+    route_expect: { status: [400, 404], error_json: true }
+    expect: { status: [200, 204] }
+    consumes: job_id
+    affects: [cron]
+
+  - id: gw.chat.completions
+    kind: endpoint
+    risk: low
+    label: POST /v1/chat/completions
+    method: POST
+    path: /v1/chat/completions
+    probe: route
+    body: {}
+    route_expect: { status: [400], error_json: true }
+    affects: [coding_agents]
+    note: 只驗路由（真的呼叫會用模型）；讀 choices[0].message.content、usage.prompt_tokens/completion_tokens，串流讀 choices[].delta.content 與 [DONE]。
+
+  - id: gw.responses
+    kind: endpoint
+    risk: low
+    label: POST /v1/responses
+    method: POST
+    path: /v1/responses
+    probe: route
+    body: {}
+    route_expect: { status: [400], error_json: true }
+    affects: [coding_agents]
+
+  # ====================================================================
+  # B. CLI（--json = medium；表格／文字解析 = high）
+  # ====================================================================
+  - id: cli.version
+    kind: cli
+    risk: high
+    label: hermes --version（文字 regex）
+    argv: [--version]
+    probe: run
+    parse: regex
+    pattern: 'v?(\d+\.\d+\.\d+)'
+    affects: [admin, compat]
+    note: admin 另外 regex 抓 (YYYY.M.D)、upstream <sha>、commits behind；預檢用 (YYYY.M.D) 對應 git tag vYYYY.M.D。
+
+  - id: cli.kanban.list
+    kind: cli
+    risk: medium
+    label: hermes kanban list --json
+    argv: [kanban, list, --json]
+    probe: run
+    parse: json
+    expect: { type: list_or_dict, dict_keys_any: [tasks, data] }
+    affects: [kanban, inbox, events]
+    note: 每張卡讀 id/title/status/assignee/priority/body/block_reason/updated_at/blocked_at/created_at；events 模組每 60 秒輪詢一次。
+
+  - id: cli.kanban.diagnostics
+    kind: cli
+    risk: medium
+    label: hermes kanban diagnostics --json
+    argv: [kanban, diagnostics, --json]
+    probe: run
+    parse: json
+    expect: { type: list_or_dict }
+    affects: [kanban, inbox]
+
+  - id: cli.kanban.show
+    kind: cli
+    risk: medium
+    label: hermes kanban show <id> --json
+    argv: [kanban, show]
+    probe: help
+    flags: [--json]
+    affects: [kanban]
+
+  - id: cli.kanban.create
+    kind: cli
+    risk: medium
+    label: hermes kanban create <title> --json
+    argv: [kanban, create]
+    probe: help
+    flags: [--json, --body, --assignee, --priority, --skill, --model, --max-runtime, --parent, --triage]
+    live_argv: [kanban, create, studio-contract-probe, --json, --body, 契約測試用]
+    live_parse: json
+    live_expect: { id_regex: 't_[0-9a-f]{6,}' }
+    provides: task_id
+    cleanup: archive_task
+    affects: [kanban]
+    note: 正式環境加 --writes 才會真的建卡（建完 archive）。
+
+  - id: cli.kanban.move_verbs
+    kind: cli
+    risk: medium
+    label: hermes kanban complete|block|unblock|promote|request-review|schedule|archive
+    argv: [kanban]
+    probe: help
+    subcommands: [complete, block, unblock, promote, request-review, schedule, archive, assign, comment, edit, attach, attachments, attach-rm, stats, dispatch]
+    affects: [kanban, inbox]
+
+  - id: cli.kanban.dispatch
+    kind: cli
+    risk: medium
+    label: hermes kanban dispatch --json --dry-run --max
+    argv: [kanban, dispatch]
+    probe: help
+    flags: [--json, --dry-run, --max]
+    affects: [kanban]
+
+  - id: cli.kanban.board_flag
+    kind: cli
+    risk: medium
+    label: hermes kanban --board <slug>
+    argv: [kanban]
+    probe: help
+    flags: [--board]
+    affects: [kanban]
+
+  - id: cli.profile.list
+    kind: cli
+    risk: high
+    label: hermes profile list（表格解析）
+    argv: [profile, list]
+    probe: run
+    parse: regex
+    pattern: '^\s*[◆*>]?\s*([A-Za-z0-9_.-]+)\s+(\S+)\s+(\S+)'
+    affects: [hermes_status, agents, profiles]
+    note: 第 2、3 欄當 model／gateway；表頭列 "Profile" 跳過；失敗時退回掃 profiles/ 目錄。
+
+  - id: cli.profile.mutations
+    kind: cli
+    risk: medium
+    label: hermes profile create|rename|delete|use|export|import
+    argv: [profile]
+    probe: help
+    subcommands: [create, rename, delete, use, export, import]
+    subcommand_flags:
+      create: [--no-alias, --clone-from, --description, --no-skills]
+      delete: [-y]
+      export: [-o]
+      import: [--name]
+    affects: [profiles]
+
+  - id: cli.gateway.status
+    kind: cli
+    risk: high
+    label: hermes gateway status（文字解析）
+    argv: [gateway, status]
+    probe: run
+    parse: regex
+    pattern: '(?i)gateway is (supervised|running)|✓ Gateway|not running|stopped|No gateway'
+    allow_nonzero: true
+    affects: [channels]
+    note: 抓 PID (\d+)、stale、launchd/systemd；沙盒裡看到的是使用者本機的 launchd 狀態（此指令不吃 HERMES_HOME）。
+
+  - id: cli.gateway.restart
+    kind: cli
+    risk: medium
+    label: hermes gateway restart
+    argv: [gateway, restart]
+    probe: help
+    affects: [channels]
+
+  - id: cli.plugins.list
+    kind: cli
+    risk: medium
+    label: hermes plugins list --json
+    argv: [plugins, list, --json]
+    probe: run
+    parse: json_first_bracket
+    expect: { type: list }
+    affects: [admin]
+    note: 讀每項 status（enabled*/active/loaded 視為啟用）。
+
+  - id: cli.plugins.toggle
+    kind: cli
+    risk: medium
+    label: hermes plugins enable|disable
+    argv: [plugins]
+    probe: help
+    subcommands: [enable, disable]
+    affects: [admin]
+
+  - id: cli.mcp
+    kind: cli
+    risk: medium
+    label: hermes [-p] mcp add|remove|test
+    argv: [mcp]
+    probe: help
+    subcommands: [add, remove, test]
+    subcommand_flags:
+      add: [--url, --command, --auth, --connect-timeout, --env, --args]
+    affects: [admin]
+
+  - id: cli.global_profile_flag
+    kind: cli
+    risk: medium
+    label: hermes -p <profile>（全域旗標）
+    argv: []
+    probe: help
+    flags: [-p]
+    affects: [admin, memory, journey]
+
+  - id: cli.memory.status
+    kind: cli
+    risk: high
+    label: hermes memory status（文字直出）
+    argv: [memory, status]
+    probe: run
+    parse: text
+    affects: [memory]
+
+  - id: cli.journey
+    kind: cli
+    risk: medium
+    label: hermes journey --json
+    argv: [journey, --json]
+    probe: run
+    parse: json
+    expect: { type: dict, dict_keys: [edges] }
+    affects: [journey]
+    note: 讀 edges[].source / target。
+
+  - id: cli.bundles
+    kind: cli
+    risk: medium
+    label: hermes bundles create|delete
+    argv: [bundles]
+    probe: help
+    subcommands: [create, delete]
+    subcommand_flags:
+      create: [--force, --skill, --description, --instruction]
+    affects: [skills]
+
+  - id: cli.auth
+    kind: cli
+    risk: high
+    label: hermes auth add|logout|status（互動文字解析）
+    argv: [auth]
+    probe: help
+    subcommands: [add, logout, status]
+    subcommand_flags:
+      add: [--type, --no-browser]
+    affects: [models]
+    note: add 走 stdin/stdout 串流，regex 抓 URL 與 device code；status 用 "logged in|active|✓" 判斷。
+
+  # ====================================================================
+  # C. HERMES_HOME 檔案與目錄（risk=high：內部結構沒有契約）
+  # ====================================================================
+  - id: file.env
+    kind: file
+    risk: high
+    critical: true
+    label: ~/.hermes/.env（API_SERVER_KEY）
+    path: .env
+    format: env
+    keys: [API_SERVER_KEY]
+    optional: true
+    affects: [hermes_status, chat, cron, models, channels, workflows]
+    note: Studio 啟動時讀 API_SERVER_KEY；channels/models 會就地改寫平台與 provider 金鑰（保留其他行、0600）。沙盒沒有這個檔（key 用環境變數）→ skip。
+
+  - id: file.config
+    kind: file
+    risk: high
+    label: config.yaml（model / providers / skills.disabled / mcp_servers / 平台區段）
+    path: config.yaml
+    format: yaml
+    keys_any: [model, providers, skills, mcp_servers, platforms]
+    optional: true
+    affects: [models, profiles, skills, channels, agents, admin]
+    note: 兩套讀寫器（modules/profiles/files.py 與 modules/skills/hermes_config.py），ruamel 原地改寫。
+
+  - id: file.auth_json
+    kind: file
+    risk: high
+    label: auth.json（providers / credential_pool / active_provider）
+    path: auth.json
+    format: json
+    keys_any: [providers, credential_pool, active_provider]
+    optional: true
+    affects: [models]
+
+  - id: file.active_profile
+    kind: file
+    risk: high
+    label: active_profile
+    path: active_profile
+    format: text
+    optional: true
+    affects: [profiles]
+
+  - id: dir.profiles
+    kind: file
+    risk: high
+    label: profiles/<name>/{SOUL.md,config.yaml,...}
+    path: profiles
+    format: dir
+    optional: true
+    profile_layout: [SOUL.md, config.yaml]
+    affects: [agents, profiles, chat, usage, logs, files, memory, skills, soul_history]
+    note: default profile 就是 HERMES_HOME 本身；其他在 profiles/<name>/。
+
+  - id: file.soul
+    kind: file
+    risk: high
+    label: SOUL.md
+    path: SOUL.md
+    format: text
+    affects: [agents, soul_history]
+
+  - id: dir.memories
+    kind: file
+    risk: high
+    label: memories/
+    path: memories
+    format: dir
+    affects: [memory, journey]
+
+  - id: dir.skills
+    kind: file
+    risk: high
+    label: skills/**/SKILL.md（frontmatter name/description）
+    path: skills
+    format: skills_dir
+    affects: [skills]
+
+  - id: dir.builtin_skills
+    kind: file
+    risk: high
+    label: hermes-agent/skills/（內建技能來源）
+    path: hermes-agent/skills
+    format: dir
+    optional: true
+    affects: [skills]
+
+  - id: dir.logs
+    kind: file
+    risk: high
+    label: logs/
+    path: logs
+    format: dir
+    affects: [logs]
+
+  - id: dir.cron
+    kind: file
+    risk: high
+    label: cron/（jobs、output/<job>/、executions.db）
+    path: cron
+    format: dir
+    affects: [cron]
+
+  - id: dir.workspace
+    kind: file
+    risk: high
+    label: workspace/（Studio 檔案瀏覽器根）
+    path: workspace
+    format: dir
+    optional: true
+    affects: [files, chat]
+
+  - id: dir.skill_bundles
+    kind: file
+    risk: high
+    label: skill-bundles/*.yaml
+    path: skill-bundles
+    format: dir
+    optional: true
+    affects: [skills]
+
+  # ====================================================================
+  # D. SQLite（唯讀 mode=ro）
+  # ====================================================================
+  - id: db.state.sessions
+    kind: db
+    risk: high
+    label: state.db sessions 欄位
+    path: state.db
+    table: sessions
+    columns: [id, source, title, model, started_at, ended_at, last_activity_at, message_count, tool_call_count, input_tokens, output_tokens]
+    columns_optional: [display_name, archived, user_id, chat_id, cache_read_tokens, cache_write_tokens, reasoning_tokens, estimated_cost_usd, api_call_count, billing_provider]
+    affects: [chat, usage]
+    note: usage 缺欄位時用 NULL AS <col> 補；chat 歷史用 PRAGMA table_info 動態判斷。
+
+  - id: db.state.messages
+    kind: db
+    risk: high
+    label: state.db messages 欄位
+    path: state.db
+    table: messages
+    columns: [id, session_id, role, content, timestamp, tool_calls, tool_call_id, tool_name]
+    columns_optional: [reasoning, reasoning_content]
+    affects: [chat, skills]
+
+  - id: db.kanban
+    kind: file
+    risk: medium
+    label: kanban.db 存在（只透過 CLI 存取）
+    path: kanban.db
+    format: file
+    optional: true
+    affects: [kanban]
+
+  - id: db.cron.executions
+    kind: db
+    risk: high
+    label: cron/executions.db executions 欄位
+    path: cron/executions.db
+    table: executions
+    columns: [id, job_id, status, claimed_at, started_at, finished_at, error]
+    columns_optional: [source]
+    optional: true
+    affects: [cron]

@@ -1,0 +1,35 @@
+# 內容生產線：素材 → 選題（分數門檻）→ 研究 → 母稿 → 社群 → 影片 → Email/廣告（可關）→ 主編審核（可退回到任一節點）→ 發布 → 回收數據。
+name: content-pipeline
+version: 0.1.0
+title: 內容生產線
+description: 一個主題從素材到發布回收十個節點；每節點固定「判斷條件／負責角色／交付物」。選題總分 ≥18 才過閘門，審稿主編只挑錯不改寫，任一項 fail 可退回到指定節點重跑。
+requires:
+  studio: ">=0.1"
+  modules: [workflows, inbox, events]
+workspace_dir: content-pipeline
+profiles: [evidence-radar, research-strategist, content-copywriter, creative-producer, chief-editor]
+agents:
+  - profile: evidence-radar
+    name: 證據雷達
+    title: 研究與證據雷達
+    description: 找可驗證的外部素材與發布後數據；只看證據強度不看熱度。
+  - profile: research-strategist
+    name: 研究策略
+    title: 市場情報與策略研究員
+    description: 選題評分、研究簡報；每條事實附來源。
+  - profile: content-copywriter
+    name: 內容文案
+    title: 內容策略與社群文案專員
+    description: 母稿、社群、Email、廣告；只用 brief 裡的事實。
+  - profile: creative-producer
+    name: 創意製作
+    title: 視覺與短影音創意專員
+    description: 60 秒影片腳本與分鏡表。
+  - profile: chief-editor
+    name: 審稿主編
+    title: 審稿主編（只挑錯不改寫）
+    description: 四項檢核逐項 pass/fail，任一 fail 給退回節點建議；不改寫任何稿件。
+workflows: [sources.json, pick.json, research.json, master.json, social.json, video.json, extras.json, review.json, publish.json, analytics.json]
+skills: []
+stages: stages.yaml
+hooks: hooks.py

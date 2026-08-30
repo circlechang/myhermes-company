@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light dark; }
+html, body, #root { height: 100%; }
+
+@layer base {
+  /* 版面基準：長字串（slug／路徑／URL）一律可斷行，避免撐爆 flex/grid 容器。
+     overflow-wrap:anywhere 同時會縮小 min-content 寬度，這正是我們要的（flex 子項才縮得下去）。
+     truncate（white-space:nowrap）的元素不受影響，nowrap 優先。 */
+  body {
+    overflow-wrap: anywhere;
+    /* 中文標點不落行首（、。，」等） */
+    line-break: strict;
+  }
+  /* 需要保留原樣的地方不套 anywhere（程式碼／終端／畫布自行處理） */
+  pre, code, kbd, samp, .xterm, .cm-editor, .react-flow { overflow-wrap: normal; }
+  /* 表單輸入照原本的量測行為（按鈕保留 anywhere，卡片標題才不會被長網址撐爆） */
+  input, select, textarea { overflow-wrap: normal; }
+  /* 表格：短字串不要被硬拆成一字一行 */
+  th, td { overflow-wrap: break-word; }
+
+  /* 中文標題斷行更均勻，避免最後一行只剩一個字 */
+  h1, h2, h3 { text-wrap: balance; }
+  p { text-wrap: pretty; }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary { @apply btn bg-indigo-600 text-white hover:bg-indigo-500; }
+  .btn-ghost { @apply btn bg-transparent hover:bg-zinc-200 dark:hover:bg-zinc-800; }
+  .btn-danger { @apply btn bg-rose-600 text-white hover:bg-rose-500; }
+  .btn-outline { @apply btn border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800; }
+  .input { @apply w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900; }
+  .card { @apply rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900; }
+  .panel-title { @apply px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400; }
+
+  /* 狀態標籤：永遠單行、不被 flex 壓縮 */
+  .badge { @apply inline-flex shrink-0 items-center whitespace-nowrap rounded px-1.5 py-0.5 text-xs leading-5; }
+
+  /* ID／slug：等寬 + 單行截斷（呼叫端補 title） */
+  .id-text { @apply min-w-0 truncate font-mono text-xs; }
+  /* 檔案路徑：等寬、可折行、但不撐爆容器 */
+  .path-text { @apply min-w-0 break-all font-mono text-xs; }
+
+  /* 表格外層：窄螢幕橫向捲動，而不是把欄位擠成一字一行 */
+  .table-wrap { @apply min-w-0 max-w-full overflow-x-auto; }
+  .table-wrap > table { @apply min-w-full; }
+  /* 動作欄／狀態欄不要折行 */
+  .nowrap-cell { @apply whitespace-nowrap; }
+
+  /* 頁面標題列：窄螢幕自動換行，右側動作不要把標題擠成一字一行 */
+  .page-head { @apply mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2; }
+}

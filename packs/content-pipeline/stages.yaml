@@ -1,0 +1,247 @@
+# 內容生產線：每個節點固定「判斷條件（criteria）／負責角色（role）／交付物（deliverables）」，三欄都會顯示在階段卡上。
+# prompt 可用變數：{title} {topic_id} {topic_dir} {workspace_dir} {notes} {outputs} {inputs} {feedback} {stage} {stage_title} {skipped_stages}
+topic_files:
+  topic.md: |
+    # {title}
+
+    - 建立：{created_at}
+    - 主題代號：{topic_id}
+
+    ## 備註（給 AI 員工的背景）
+    {notes}
+  sources/README.md: |
+    # 素材夾
+
+    一筆素材一個檔（`sources/<來源>_<日期>.md`），開頭固定：
+
+    ```
+    ---
+    來源：<網址或內部文件名>
+    日期：<YYYY-MM-DD>
+    類型：內部 / 外部
+    ---
+    ```
+
+    人可以直接把內部素材丟進來；「收集素材」階段會請證據雷達再補外部素材。
+
+stages:
+  - id: sources
+    title: 0 收集素材
+    description: 人先丟內部素材，證據雷達依主題關鍵字找外部素材，一筆一檔寫進 sources/。
+    criteria: sources/ 至少 3 筆（含人丟的），每筆都有來源與日期；沒來源的不算。
+    role: 人＋證據雷達（evidence-radar）
+    deliverables: ["sources/*.md：一筆一檔，開頭有來源／日期／類型"]
+    agent: evidence-radar
+    workflow: sources.json
+    inputs: [topic.md, sources/README.md]
+    outputs: [sources/]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      備註：{notes}
+      先讀 {topic_dir}/topic.md 與 {topic_dir}/sources/ 既有檔案（人已放的內部素材，不要動）。
+      任務：依主題關鍵字找 3–5 筆**外部**素材（備註有指定數量就照備註），每筆各寫一個檔到 {topic_dir}/sources/<來源簡稱>_<YYYYMMDD>.md，
+      開頭固定三行 front matter：來源（網址或文件名）／日期／類型：外部；內文 100–200 字摘要＋一句「對本主題的用處」。
+      判斷條件：沒有來源與日期的素材不能寫；找不到就少寫，不要編造。寫完後只回覆一行「已寫入 sources/（N 筆）」。
+
+  - id: pick
+    title: 1 選題
+    description: 讀 sources/ 與過去的 _learnings.md，五項評分（1–5）決定做不做。
+    criteria: 五項各 1–5 分：受眾相關／品牌契合／時效／差異化／可產出形式數。總分 ≥18 進閘門待人核准；<18 自動封存並寫理由。
+    role: 研究策略（research-strategist）→ 人核准
+    deliverables: ["topic-scorecard.md：五項分數、總分、一句選題主張、封存理由（<18 時）"]
+    agent: research-strategist
+    workflow: pick.json
+    inputs: [topic.md, sources/]
+    outputs: [topic-scorecard.md]
+    gate: true
+    branch:
+      file: topic-scorecard.md
+      pattern: "總分[：:]\\s*(\\d+)"
+      min: 18
+      on_fail: archived
+      reason_pattern: "封存理由[：:]\\s*(.+)"
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/topic.md 與 {topic_dir}/sources/ 全部檔案。若 {workspace_dir}/_learnings.md 存在，先讀它（過去發布後的選題權重調整），評分要反映它。
+      寫 {topic_dir}/topic-scorecard.md，格式固定：
+      ## 評分（1–5）
+      | 項目 | 分數 | 理由（引用哪筆素材） |
+      五項：受眾相關、品牌契合、時效、差異化、可產出形式數。
+      然後**單獨一行** `總分：<整數>`（五項相加）。
+      ## 選題主張（一句）
+      ## 建議切角（最多 3 個）
+      若總分 < 18，再加**單獨一行** `封存理由：<一句>`。
+      判斷條件：≥18 才進人核准；<18 系統會自動封存。不要為了過門檻灌分，理由必須引用素材。寫完只回覆一行「已寫入 topic-scorecard.md」。
+
+  - id: research
+    title: 2 篩選研究
+    description: 把素材整理成研究簡報：事實清單（每條附來源）、3 個同題內容比較、我們的角度、禁用主張。
+    criteria: 每條事實都附來源檔或網址；沒有來源的主張不得進母稿，要列進「禁用主張」。
+    role: 研究策略（research-strategist）
+    deliverables: ["research-brief.md：事實清單（附來源）／3 個同題內容比較／我們的角度／禁用主張"]
+    agent: research-strategist
+    workflow: research.json
+    inputs: [topic-scorecard.md, sources/]
+    outputs: [research-brief.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/topic-scorecard.md（人已核准）與 {topic_dir}/sources/ 全部檔案，寫 {topic_dir}/research-brief.md：
+      ## 事實清單：每條一行 `- [F1] <事實> — 來源：<sources/檔名 或 網址>`；沒有來源的不能列在這裡。
+      ## 同題內容比較：找 3 個別人做過的同題內容（素材裡有就引用，沒有就標「待查證」），各一行：誰／怎麼講／少了什麼。
+      ## 我們的角度：一段，說明和上面 3 個的差別。
+      ## 禁用主張：所有想講但沒來源的說法，逐條列出，母稿不得使用。
+      判斷條件：事實清單每條必須有來源，這是硬規則；自檢時逐條確認。寫完只回覆一行「已寫入 research-brief.md」。
+
+  - id: master
+    title: 3 內容母稿
+    description: 1,200–2,000 字母稿，結構「問題→機制→案例→行動」，只用 brief 的事實。
+    criteria: 字數 1,200–2,000；四段結構齊全；每個數字或主張能對回 brief 的 [F 編號]；不用禁用主張。
+    role: 內容文案（content-copywriter）
+    deliverables: ["master.md：四段結構母稿，段落標題固定為 問題／機制／案例／行動，文末列「使用的事實編號」"]
+    agent: content-copywriter
+    workflow: master.json
+    inputs: [research-brief.md]
+    outputs: [master.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      只讀 {topic_dir}/research-brief.md（不要再讀別的來源、不要上網）。寫 {topic_dir}/master.md，繁體中文，1,200–2,000 字：
+      # 標題
+      ## 問題 / ## 機制 / ## 案例 / ## 行動  四段都要有。
+      每處用到 brief 事實的地方在句尾標 [F 編號]；文末加「## 使用的事實編號」列出全部。
+      判斷條件：不得出現 brief「禁用主張」裡的說法；沒有 [F] 標記的數字視為違規。寫完先數字數，不在範圍就改到範圍內。只回覆一行「已寫入 master.md（N 字）」。
+
+  - id: social
+    title: 4 社群
+    description: 從母稿拆出 FB／IG／Threads／LINE 四份貼文，每檔末尾標取自母稿哪一段。
+    criteria: 四檔齊全；每檔末尾一行「取自母稿：§<段落名>」；平台間不互相複製；不新增母稿沒有的事實。
+    role: 內容文案（content-copywriter）
+    deliverables: ["social/fb.md", "social/ig.md", "social/threads.md", "social/line.md（各含 Hook／主文／CTA，末尾標取自母稿 §段落）"]
+    agent: content-copywriter
+    workflow: social.json
+    inputs: [master.md]
+    outputs: [social/fb.md, social/ig.md, social/threads.md, social/line.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/master.md，依平台各寫一份，分別寫到：
+      {outputs}
+      FB：150–300 字含 Hook＋CTA；IG：圖說 100 字內＋5 個 hashtag；Threads：3 則串文各 ≤100 字；LINE：官方帳號推播 ≤120 字＋按鈕文字。
+      每檔**最後一行**固定：`取自母稿：§<問題|機制|案例|行動>`（可列多段，逗號分隔）。
+      判斷條件：只能用母稿裡的內容，不新增事實或數字。寫完四檔只回覆一行「已寫入 social/」。
+
+  - id: video
+    title: 5 影片
+    description: 60 秒影片腳本（逐句時間碼）與分鏡表。
+    criteria: 鉤子在 0–3 秒；每句有時間碼且總長 ≤60 秒；分鏡表每格有畫面／字幕／音效；旁白只用母稿內容。
+    role: 創意製作（creative-producer）
+    deliverables: ["video/script.md：60 秒逐句時間碼（鉤子 3 秒／主體／CTA）", "video/storyboard.md：分鏡表（鏡號｜秒數｜畫面｜字幕｜音效）"]
+    agent: creative-producer
+    workflow: video.json
+    inputs: [master.md]
+    outputs: [video/script.md, video/storyboard.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/master.md，寫兩個檔：
+      1. {topic_dir}/video/script.md：60 秒腳本，表格 `| 時間碼 | 旁白（逐句） | 段落 |`，段落分鉤子（00:00–00:03）／主體／CTA（最後 5–8 秒）；總長不得超過 60 秒。
+      2. {topic_dir}/video/storyboard.md：分鏡表 `| 鏡號 | 秒數 | 畫面 | 字幕 | 音效 |`，鏡號與腳本時間碼對得上。
+      判斷條件：旁白只能用母稿內容；畫面不可要求不存在的產品或人物。寫完只回覆一行「已寫入 video/」。
+
+  - id: extras
+    title: 6 Email＋廣告
+    description: 可關閉（預設開）。一封 Email 與 3 組廣告文案。
+    criteria: Email 有主旨／預覽文字／正文／CTA；廣告 3 組各含標題（≤30 字）／內文（≤90 字）／CTA；不新增母稿沒有的事實。
+    role: 內容文案（content-copywriter）
+    deliverables: ["email.md：主旨／預覽文字／正文／CTA", "ads.md：3 組廣告（標題／內文／CTA／適用平台）"]
+    agent: content-copywriter
+    workflow: extras.json
+    inputs: [master.md]
+    outputs: [email.md, ads.md]
+    gate: false
+    optional: true
+    default_enabled: true
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/master.md，寫：
+      1. {topic_dir}/email.md：主旨（≤25 字）／預覽文字／正文（300 字內）／CTA。
+      2. {topic_dir}/ads.md：3 組廣告，每組：標題 ≤30 字／內文 ≤90 字／CTA／適用平台；三組切角要不同（問題、機制、案例各一）。
+      判斷條件：只能用母稿內容，不新增事實或數字，不寫價格。寫完只回覆一行「已寫入 email.md 與 ads.md」。
+
+  - id: review
+    title: 7 審核
+    description: 審稿主編 AI 預審四項（事實對照 brief／品牌語氣／法規敏感詞／CTA），人核准或退回到指定節點。
+    criteria: 四項逐項 pass/fail 附證據；任一 fail 必寫「建議退回到：<節點>」；人在階段卡或收件匣核准，或選節點退回（該節點及其後重跑）。
+    role: 審稿主編（chief-editor）預審 → 人核准
+    deliverables: ["review.md：檢核表（項目｜pass/fail｜證據）＋一行「建議退回到：<節點 id 或 無>」"]
+    agent: chief-editor
+    workflow: review.json
+    inputs: [research-brief.md, master.md, social/fb.md, social/ig.md, social/threads.md, social/line.md, video/script.md, email.md, ads.md]
+    outputs: [review.md]
+    gate: true
+    hint:
+      file: review.md
+      pattern: "建議退回到[：:]\\s*([a-z_]+)"
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      你只挑錯不改寫。讀 {topic_dir}/research-brief.md（事實與禁用主張的唯一依據），再逐一讀稿件：
+      {inputs}
+      （已關閉、不存在的檔案略過；本主題已關閉的階段：{skipped_stages}）
+      寫 {topic_dir}/review.md：
+      ## 檢核表
+      | 項目 | 結果 | 證據（引用原句或指出缺什麼） |
+      四項：事實對照 brief／品牌語氣／法規敏感詞／CTA。每份稿件都要看，任一份出錯該項就是 fail。
+      ## 退回建議
+      **單獨一行** `建議退回到：<research|master|social|video|extras|無>`，用小寫 id；全部 pass 寫「無」。規則：事實錯在來源層→research；母稿錯→master；只有衍生稿錯→該節點。
+      寫完只回覆一行「已寫入 review.md」。
+
+  - id: publish
+    title: 8 發布
+    description: 產生發布清單（平台｜檔案｜排程｜負責人｜實際連結留空給人填）。實際發布由人執行。
+    criteria: 每個要發的形式一列；「實際連結」欄留白；發布前檢查清單有 review.md 全 pass 這一項。
+    role: 內容文案（content-copywriter）→ 人實際發布並回填連結
+    deliverables: ["publish.md：發布清單（平台｜檔案｜排程｜負責人｜實際連結）＋發布前檢查清單"]
+    agent: content-copywriter
+    workflow: publish.json
+    inputs: [review.md, social/fb.md, video/script.md, email.md, ads.md]
+    outputs: [publish.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/review.md（人已核准）與資料夾裡實際存在的稿件（social/、video/、email.md、ads.md；已關閉的階段：{skipped_stages}）。
+      寫 {topic_dir}/publish.md：
+      ## 發布清單
+      | 平台／形式 | 檔案 | 建議排程 | 負責人 | 實際連結（人填） | 數據（人填：觸及／互動／點擊） |
+      ## 發布前檢查清單（含「review.md 四項全 pass」）
+      你不登入任何帳號、不實際發布；「實際連結」與「數據」欄一律留空。寫完只回覆一行「已寫入 publish.md」。
+
+  - id: analytics
+    title: 8b 回收數據
+    description: 人回填連結或數字後，證據雷達整理成 analytics.md，並把選題權重建議追加到 _learnings.md。
+    criteria: publish.md 至少一列有實際連結或數字才有意義；沒有數據就寫「資料不足」不要編；建議必須能改成下次評分的權重。
+    role: 證據雷達（evidence-radar）
+    deliverables: ["analytics.md：哪個形式最好／為什麼／下次選題五項權重怎麼調", "<工作區>/content-pipeline/_learnings.md：追加一段（日期＋主題＋建議）"]
+    agent: evidence-radar
+    workflow: analytics.json
+    inputs: [publish.md, topic-scorecard.md]
+    outputs: [analytics.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      讀 {topic_dir}/publish.md（人已回填連結或數字）與 {topic_dir}/topic-scorecard.md。連結能讀就讀公開數據；讀不到就只用人填的數字。
+      寫 {topic_dir}/analytics.md：
+      ## 各形式成效（平台｜數據｜判讀）/ ## 哪個形式最好、為什麼 / ## 下次選題權重（五項各寫 +1／0／−1 與理由）
+      然後把「## 下次選題權重」那段，加上日期與主題名，**追加**（不覆蓋）到 {workspace_dir}/_learnings.md（檔案不存在就建立）。
+      判斷條件：沒有數據就寫「資料不足」，不要編造。寫完只回覆一行「已寫入 analytics.md 並追加 _learnings.md」。
