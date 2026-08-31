@@ -31,6 +31,7 @@ from sqlmodel import Session, select
 from ...hermes.gateway import GatewayClient, GatewayError
 from ...models import (Agent, ChatSession, Message, Workflow, WorkflowApproval, WorkflowRun, WorkflowRunNode, new_id, now)
 from ...workflow_validate import loop_body, node_kind
+from ..coding_agents import staff
 from . import doc_nodes, runners
 from .conditions import evaluate_rule, parse_yes_no
 from .hub import WorkflowHub
@@ -423,7 +424,13 @@ class WorkflowEngine:
         branch: Optional[str] = None
         try:
             if kind == "hermes":
-                output = await self._run_hermes(ctx, nid, node)
+                _, _, ag = self._agent_for(node)
+                if ag is not None and staff.is_coding(staff.runtime_of(ag)):
+                    # 這位 AI 員工「就是」一個 coding agent：同一個「誰做」下拉選到他就跑 CLI
+                    output = await self._run_coding(ctx, nid, {**node, "tool": ag.runtime,
+                                                               "cwd": node.get("cwd") or ag.workspace or ""})
+                else:
+                    output = await self._run_hermes(ctx, nid, node)
             elif kind == "coding-agent":
                 output = await self._run_coding(ctx, nid, node)
             elif kind == "gate":

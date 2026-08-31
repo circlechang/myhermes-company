@@ -100,7 +100,9 @@ export function StationCard(props: StationCardProps) {
           >
             <option value="">{t('wf.station.who_.unset')}</option>
             {agents.map((a) => (
-              <option key={a.id} value={a.id}>{a.title ? `${a.name}（${a.title}）` : a.name}</option>
+              <option key={a.id} value={a.id} data-testid={`station-agent-option-${a.id}`}>
+                {(a.title ? `${a.name}（${a.title}）` : a.name) + (a.runtime && a.runtime !== 'hermes' ? ` · ${a.runtime_name ?? a.runtime}` : '')}
+              </option>
             ))}
           </select>
         ) : kind === 'coding-agent' ? (

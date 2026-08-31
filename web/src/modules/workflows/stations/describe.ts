@@ -56,7 +56,10 @@ export function whoOf(node: WfNode, kind: NodeKind, agents: Agent[], t: T): stri
   if (kind === 'coding-agent') return `${node.tool ?? 'claude-code'}${node.cwd ? ` · ${node.cwd}` : ''}`
   if (kind === 'condition' && node.mode !== 'ai') return t('wf.station.who_.rule')
   const a = agents.find((x) => x.id === node.agent_id)
-  if (a) return a.title ? `${a.name}（${a.title}）` : a.name
+  if (a) {
+    const suffix = a.runtime && a.runtime !== 'hermes' ? `（${a.runtime_name ?? a.runtime}）` : a.title ? `（${a.title}）` : ''
+    return `${a.name}${suffix}`
+  }
   return node.profile || t('wf.station.who_.unset')
 }
 

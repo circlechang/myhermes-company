@@ -94,6 +94,7 @@ def status(request: Request, p: Principal = Depends(current_principal)):
 
 class TokenBody(BaseModel):
     label: str = ""
+    can_write: bool = False  # 讓 mhc-code 可以派工作給 coding 員工（寫入動作），預設 false＝唯讀
 
 
 def _require_owner(p: Principal) -> None:
@@ -105,10 +106,10 @@ def _require_owner(p: Principal) -> None:
 def create_token(body: TokenBody, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
     """發一個唯讀機器 token；明文只回這一次。"""
     _require_owner(p)
-    row, raw = issue_token(db, p.member, body.label)
+    row, raw = issue_token(db, p.member, body.label, can_write=body.can_write)
     try:
         from ..events import record
-        record("search.token.created", "studio", f"search_token:{row.id}", {"label": row.label}, member_id=p.member.id,
+        record("search.token.created", "studio", f"search_token:{row.id}", {"label": row.label, "can_write": row.can_write}, member_id=p.member.id,
                company_id=p.company_id, db=db)
     except Exception:
         pass
@@ -146,8 +147,10 @@ def revoke_token(token_id: str, p: Principal = Depends(current_principal), db: S
 
 class InstallBody(BaseModel):
     profile: str = ""  # 空＝default（~/.hermes/skills/）
-    write_env: bool = False  # 把 MHC_STUDIO_URL／MHC_SEARCH_TOKEN 寫進該 profile 的 .env
+    name: str = "mhc-search"  # mhc-search（唯讀查詢）| mhc-code（派工作給 coding 員工）
+    write_env: bool = False  # 把 MHC_STUDIO_URL／token 寫進該 profile 的 .env
     create_token: bool = False  # write_env 時順便發一個新 token（否則只寫 URL）
+    can_write: bool = False  # 發的 token 可不可以派工作（mhc-code 需要）
     studio_url: str = ""  # 空＝依本伺服器 host/port
 
 
@@ -157,22 +160,29 @@ def install_skill(body: InstallBody, request: Request, p: Principal = Depends(cu
     _require_owner(p)
     settings = request.app.state.settings
     home = Path(getattr(settings, "hermes_home", "~/.hermes")).expanduser()
+    name = (body.name or installer.SKILL_NAME).strip()
+    if name not in installer.SKILL_TOKEN_ENV:
+        raise bad_request(f"未知的 skill：{name}", "unknown_skill")
     try:
-        dst = installer.install_skill(home, body.profile or None)
+        dst = installer.install_skill(home, body.profile or None, name)
     except FileNotFoundError as e:
         raise not_found(str(e))
-    out: dict[str, Any] = {"ok": True, "installed_to": str(dst), "profile": body.profile or "default", "env_written": False}
+    out: dict[str, Any] = {"ok": True, "skill": name, "installed_to": str(dst), "profile": body.profile or "default",
+                           "env_written": False}
     if body.write_env:
         url = body.studio_url or f"http://{getattr(settings, 'host', '127.0.0.1')}:{getattr(settings, 'port', 8700)}"
         raw = None
         if body.create_token:
-            row, raw = issue_token(db, p.member, f"skill:{body.profile or 'default'}")
+            can_write = body.can_write or name == "mhc-code"
+            row, raw = issue_token(db, p.member, f"{name}:{body.profile or 'default'}", can_write=can_write)
             out["token_id"] = row.id
-        path = installer.write_env(home, body.profile or None, raw, url)
-        out.update({"env_written": True, "env_file": str(path), "studio_url": url, "token_created": raw is not None})
+            out["token_can_write"] = can_write
+        path = installer.write_env(home, body.profile or None, raw, url, name=name)
+        out.update({"env_written": True, "env_file": str(path), "studio_url": url, "token_created": raw is not None,
+                    "env_key": installer.SKILL_TOKEN_ENV[name]})
     try:
         from ..events import record
-        record("search.skill.installed", "studio", f"profile:{body.profile or 'default'}", {"path": str(dst), "env": out["env_written"]},
+        record("search.skill.installed", "studio", f"profile:{body.profile or 'default'}", {"skill": name, "path": str(dst), "env": out["env_written"]},
                member_id=p.member.id, company_id=p.company_id, db=db)
     except Exception:
         pass

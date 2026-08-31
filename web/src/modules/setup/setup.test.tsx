@@ -100,11 +100,11 @@ describe('首次設定精靈', () => {
     await waitFor(() => expect(screen.getByTestId('setup-next')).toBeEnabled())
     await user.click(screen.getByTestId('setup-next'))
 
-    // ③ 員工：mock 有 3 位，客服未啟用 → 勾起來會打 PATCH
+    // ③ 員工：mock 有 4 位（3 位 Hermes ＋ 1 位 coding），客服未啟用 → 勾起來會打 PATCH
     const list = await screen.findByTestId('setup-agents')
-    expect(await within(list).findAllByRole('checkbox')).toHaveLength(3)
+    expect(await within(list).findAllByRole('checkbox')).toHaveLength(4)
     await user.click(within(list).getByLabelText('客服'))
-    await waitFor(() => expect(screen.getByTestId('agents-enabled-count')).toHaveTextContent('已啟用 3 位'))
+    await waitFor(() => expect(screen.getByTestId('agents-enabled-count')).toHaveTextContent('已啟用 4 位'))
     await user.click(screen.getByTestId('setup-next'))
 
     // ④ 密碼：先試跳過會警告；再輸入不一致；最後成功

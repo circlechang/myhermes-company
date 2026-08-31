@@ -1,5 +1,5 @@
 import type {
-  Agent, AgentSkill, ApiError, Company, HermesStatus, KanbanTask, LoginResponse, Member, Message, Session, Workflow,
+  Agent, AgentSkill, ApiError, Company, HermesStatus, KanbanTask, LoginResponse, Member, Message, RuntimeCatalog, Session, Workflow,
 } from './types'
 
 export const TOKEN_KEY = 'mhc.token'
@@ -87,7 +87,8 @@ export const api = {
   company: { current: () => request<Company>('/companies/current') },
   agents: {
     list: () => request<Agent[]>('/agents'),
-    create: (body: Partial<Agent>) => request<Agent>('/agents', { method: 'POST', body: json(body) }),
+    runtimes: () => request<RuntimeCatalog>('/agents/runtimes'),
+    create: (body: Record<string, unknown>) => request<Agent>('/agents', { method: 'POST', body: json(body) }),
     update: (id: string, body: Partial<Agent>) => request<Agent>(`/agents/${id}`, { method: 'PATCH', body: json(body) }),
     remove: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
     soul: (id: string) => request<{ content: string }>(`/agents/${id}/soul`),

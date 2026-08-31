@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlmodel import Session, or_, select
 
 from ..auth import Principal, current_principal, get_db
 from ..errors import bad_request, not_found
 from ..models import Agent, ChatSession, Message, SessionCategory, new_id, now
+from ..modules.coding_agents import staff
 
 router = APIRouter(tags=["sessions"])
 
@@ -87,15 +88,22 @@ class SessionCreate(BaseModel):
 
 
 @router.post("/sessions", status_code=201)
-def create_session(body: SessionCreate, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+def create_session(body: SessionCreate, request: Request, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
     a = db.get(Agent, body.agent_id)
     if a is None or a.company_id != p.company_id:
         raise not_found("agent")
+    runtime = staff.runtime_of(a)
+    coding = staff.is_coding(runtime)
+    # coding 員工的對話照樣落在 sessions（source=coding:<cli>），續談靠 coding_session_meta 記外部 session id
+    source = f"coding:{staff.cli_id(runtime)}" if coding and (body.source or "workbench") == "workbench" else (body.source or "workbench")
     s = ChatSession(company_id=p.company_id, member_id=p.member.id, agent_id=a.id,
-                    title=body.title or f"與 {a.name} 的對話", source=body.source or "workbench",
-                    hermes_session_id=new_id("studio"), model=body.model or "", category_id=body.category_id,
-                    doc_id=(body.doc_id or ""))
+                    title=body.title or f"與 {a.name} 的對話", source=source,
+                    hermes_session_id="" if coding else new_id("studio"), model=body.model or "",
+                    category_id=body.category_id, doc_id=(body.doc_id or ""))
     db.add(s)
+    db.flush()
+    if coding:
+        staff.get_or_create_meta(db, s.id, a)
     db.commit()
     db.refresh(s)
     return session_public(s)

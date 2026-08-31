@@ -6,11 +6,13 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from . import models as _models  # noqa: F401  (註冊資料表)
+from .jobs import router as _jobs_router
 from .proxy import router as _proxy_router
 from .router import router as _rest_router, shutdown, ws_router as _ws_router
 
 router = APIRouter()
 router.include_router(_rest_router)
+router.include_router(_jobs_router)
 router.include_router(_proxy_router)
 router.include_router(_ws_router)
 

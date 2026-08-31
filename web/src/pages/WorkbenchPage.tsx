@@ -18,6 +18,7 @@ import { ModelBadge, ModelPicker } from '../components/chat/ModelPicker'
 import { SearchPalette } from '../components/chat/SearchPalette'
 import { SessionSidebar } from '../components/chat/SessionSidebar'
 import { Empty, ErrorBox, Loading } from '../components/QueryState'
+import { RuntimeBadge, isCoding } from '../components/agents/RuntimeBadge'
 import { useChatSocket } from '../ws/chatSocket'
 import { addUserMessage, applyEvent, dropLastTurn, emptyChat, fromMessages, markApprovalDecided, type ChatState, type TextItem } from '../ws/chatState'
 
@@ -329,7 +330,10 @@ export function WorkbenchPage() {
               {status === 'open' ? t('workbench.wsConnected') : status === 'connecting' ? t('workbench.wsConnecting') : t('workbench.wsDisconnected')}
             </Info>
             <Info k={t('workbench.agent')}>{agent?.name ?? '—'}</Info>
-            <Info k={t('workbench.profile')}><code>{agent?.profile ?? '—'}</code></Info>
+            <Info k={agent && isCoding(agent) ? t('agents.workspace') : t('workbench.profile')}>
+              <code className="break-all">{(agent && isCoding(agent) ? agent.workspace : agent?.profile) || '—'}</code>
+            </Info>
+            {agent && isCoding(agent) && <Info k={t('agents.runtime')}><RuntimeBadge agent={agent} /></Info>}
             <Info k={t('workbench.model')}>{session?.model || agent?.model || '—'}{session && !session.model && <span className="text-zinc-600 dark:text-zinc-400"> ({t('chat.model.default')})</span>}</Info>
             <Info k={t('workbench.sessionId')}><code className="break-all">{session?.id ?? '—'}</code></Info>
             <Info k={t('workbench.source')}>{session?.source ?? '—'}</Info>
@@ -422,9 +426,14 @@ function AgentRow({ agent, active, onClick }: { agent: Agent; active: boolean; o
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200">
         {agent.avatar || agent.name.slice(0, 1)}
       </span>
-      <span className="min-w-0">
-        <span className="block truncate font-medium">{agent.name}</span>
-        <span className="block truncate text-xs text-zinc-600 dark:text-zinc-400">{agent.title || agent.profile}</span>
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="min-w-0 truncate font-medium">{agent.name}</span>
+          {isCoding(agent) && <RuntimeBadge agent={agent} />}
+        </span>
+        <span className="block truncate text-xs text-zinc-600 dark:text-zinc-400">
+          {isCoding(agent) ? agent.workspace || '—' : agent.title || agent.profile}
+        </span>
       </span>
     </button>
   )

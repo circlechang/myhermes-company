@@ -100,7 +100,7 @@ export function NodePanel({ node, edge, agents, env, readOnly, onNode, onEdge, o
             <select className="input" value={node.agent_id ?? ''} disabled={dis} onChange={(e) => { const a = agents.find((x) => x.id === e.target.value); set({ agent_id: e.target.value || undefined, profile: a?.profile }) }} aria-label={t('wf.node.agent')}>
               <option value="">—</option>
               {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}（{a.profile}）</option>
+                <option key={a.id} value={a.id}>{a.name}（{a.runtime && a.runtime !== 'hermes' ? (a.runtime_name ?? a.runtime) : a.profile}）</option>
               ))}
             </select>
           </Field>

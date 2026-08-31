@@ -19,6 +19,15 @@ export interface Company {
   created_at: string
 }
 
+export type AgentRuntime = 'hermes' | 'claude-code' | 'codex' | 'pi'
+
+export interface CodingConfig {
+  model?: string
+  api_mode?: 'direct' | 'hermes'
+  hermes_profile?: string
+  extra?: Record<string, unknown>
+}
+
 export interface Agent {
   id: string
   name: string
@@ -29,6 +38,31 @@ export interface Agent {
   model?: string
   enabled: boolean
   soul_excerpt?: string
+  /** AI 員工的執行環境：hermes＝Hermes profile；其餘＝該 coding CLI */
+  runtime?: AgentRuntime
+  runtime_name?: string
+  workspace?: string
+  /** 檔案瀏覽器看得懂的虛擬路徑（`<root>/<rel>`）；空＝不在任何根底下 */
+  workspace_vpath?: string
+  installed?: boolean | null
+  install_cmd?: string
+  coding_config?: CodingConfig | null
+}
+
+export interface RuntimeOption {
+  id: AgentRuntime
+  name: string
+  installed: boolean
+  install_cmd: string
+  version?: string
+  path?: string
+  docs?: string
+  kind: 'hermes' | 'coding'
+}
+
+export interface RuntimeCatalog {
+  runtimes: RuntimeOption[]
+  workspace_roots: { id: string; label: string; path: string }[]
 }
 
 export interface AgentSkill {

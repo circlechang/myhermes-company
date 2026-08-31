@@ -8,6 +8,7 @@ export const qk = {
   agents: ['agents'] as const,
   soul: (id: string) => ['agents', id, 'soul'] as const,
   skills: (id: string) => ['agents', id, 'skills'] as const,
+  runtimes: ['agents', 'runtimes'] as const,
   sessions: (agentId?: string) => ['sessions', agentId ?? 'all'] as const,
   messages: (id: string) => ['sessions', id, 'messages'] as const,
   kanban: ['kanban'] as const,
@@ -16,6 +17,8 @@ export const qk = {
 }
 
 export const useAgents = () => useQuery({ queryKey: qk.agents, queryFn: api.agents.list })
+export const useRuntimes = (enabled = true) =>
+  useQuery({ queryKey: qk.runtimes, queryFn: api.agents.runtimes, enabled })
 export const useSoul = (id?: string) =>
   useQuery({ queryKey: qk.soul(id ?? ''), queryFn: () => api.agents.soul(id!), enabled: !!id })
 export const useSkills = (id?: string) =>
@@ -37,6 +40,20 @@ export function useSaveSoul(id: string) {
       qc.invalidateQueries({ queryKey: qk.soul(id) })
       qc.invalidateQueries({ queryKey: qk.agents })
     },
+  })
+}
+export function useCreateAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.agents.create(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.agents }),
+  })
+}
+export function useDeleteAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.agents.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.agents }),
   })
 }
 export function useUpdateAgent() {

@@ -43,6 +43,9 @@ from ..errors import ApiError
 from ..hermes.gateway import GatewayClient, GatewayError
 from ..models import Agent, ChatSession, Message, now
 from ..modules import inbox as inbox_svc
+from ..modules.coding_agents import staff
+from ..modules.coding_agents.models import CodingRun
+from ..modules.coding_agents.router import PROCESSES
 from ..modules.docs import chat_link as doc_link
 from .sessions import get_owned_session
 
@@ -131,6 +134,7 @@ class ChatBridge:
         self.gateway: GatewayClient = ws.app.state.gateway
         self.engine = ws.app.state.engine
         self.runs: dict[str, dict[str, Any]] = {}  # run_id -> {session_id, profile, task, doc}
+        self.coding_runs: dict[str, dict[str, Any]] = {}  # coding 員工的 run_id -> {session_id, task}
         self._send_lock = asyncio.Lock()
 
     @property
@@ -238,6 +242,10 @@ class ChatBridge:
             if agent is None:
                 await self.error("agent not found", "not_found", session_id=session_id)
                 return
+            if staff.is_coding(staff.runtime_of(agent)):
+                # AI 員工「就是」一個 coding agent：走 CLI，不打 gateway；事件型別一模一樣
+                await self.start_coding_run(db, s, agent, msg, text, attachments, reply_to)
+                return
             profile = agent.profile
             model = str(msg.get("model") or "").strip() or s.model or agent.model or None
             provider = str(msg.get("provider") or "").strip() or s.provider or None
@@ -303,6 +311,60 @@ class ChatBridge:
                          "attachments": attachments, "reply_to": reply_to, "model": model or "",
                          "doc_id": (doc_ctx or {}).get("doc_id", "")})
 
+    # -- coding 員工（runtime = claude-code / codex / pi）--------------------
+    async def start_coding_run(self, db: Session, s: ChatSession, agent: Agent, msg: dict[str, Any], text: str,
+                               attachments: list[dict[str, Any]], reply_to: Optional[str]) -> None:
+        session_id = s.id
+        meta = staff.get_or_create_meta(db, session_id, agent)
+        if meta.status == "running":
+            await self.error("這個對話還在回覆中", "busy", session_id=session_id)
+            return
+        quote = None
+        if reply_to:
+            q = db.get(Message, reply_to)
+            quote = q.content[:2000] if (q is not None and q.session_id == session_id) else None
+        prompt = compose_input(text, attachments, quote)
+        images = [a["path"] for a in attachments if str(a.get("mime") or "").startswith("image/")]
+        try:
+            spec = staff.build_spec(self.app, agent, prompt, workspace=meta.workspace or agent.workspace,
+                                    resume_id=(meta.external_session_id if bool(msg.get("resume", True)) else ""),
+                                    images=images, db=db)
+        except ApiError as e:
+            self._set_status(session_id, "failed")
+            await self.send({"type": "run.failed", "session_id": session_id, "run_id": "", "error": e.message, "code": e.code})
+            return
+        run = CodingRun(session_id=session_id, agent=spec.agent, prompt=text)
+        db.add(run)
+        db.flush()
+        run_id = run.id
+        user_msg = Message(session_id=session_id, role="user", content=text, reply_to=reply_to,
+                           attachments=json.dumps(attachments, ensure_ascii=False) if attachments else None,
+                           run_id=run_id)
+        db.add(user_msg)
+        db.flush()
+        user_msg_id = user_msg.id
+        meta.status = "running"
+        s.last_run_id = run_id
+        s.run_status = "running"
+        s.last_message_at = now()
+        s.updated_at = now()
+        db.add(meta)
+        db.add(s)
+        db.commit()
+
+        async def _go() -> None:
+            try:
+                await staff.run_chat_turn(engine=self.engine, session_id=session_id, run_id=run_id, spec=spec,
+                                          send=self.send, registry=PROCESSES)
+            finally:
+                self.coding_runs.pop(run_id, None)
+
+        task = asyncio.create_task(_go())
+        self.coding_runs[run_id] = {"session_id": session_id, "task": task}
+        await self.send({"type": "run.started", "session_id": session_id, "run_id": run_id, "message_id": user_msg_id,
+                         "attachments": attachments, "reply_to": reply_to, "model": spec.model or "",
+                         "runtime": agent.runtime, "workspace": spec.workspace, "doc_id": ""})
+
     @staticmethod
     def _run_body(input_: Any, hermes_session_id: str, history: list, model: Optional[str], provider: Optional[str],
                   instructions: Optional[str] = None) -> dict[str, Any]:
@@ -338,6 +400,15 @@ class ChatBridge:
 
     async def control(self, kind: str, msg: dict[str, Any]) -> None:
         run_id = str(msg.get("run_id") or "")
+        if run_id in self.coding_runs:
+            if kind != "stop":
+                await self.error("coding 員工只支援停止（不支援插話／核准）", "unsupported", run_id=run_id)
+                return
+            ap = PROCESSES.get(run_id)
+            if ap is not None:
+                await ap.stop()
+            await self.send({"type": "stop.ack", "session_id": self.coding_runs[run_id]["session_id"], "run_id": run_id})
+            return
         info = self.runs.get(run_id)
         if info is None:
             await self.error(f"unknown run_id: {run_id}", "unknown_run", run_id=run_id)
@@ -553,6 +624,7 @@ class ChatBridge:
     async def close(self) -> None:
         for info in list(self.runs.values()):
             info["task"].cancel()
+        # coding 員工的子程序不砍：讓它跑完並落庫，重連後從歷史看得到結果
 
 
 @router.websocket("/ws/chat")

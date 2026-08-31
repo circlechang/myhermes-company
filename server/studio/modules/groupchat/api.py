@@ -64,7 +64,7 @@ def _orch(request: Request) -> Orchestrator:
 async def on_startup(app) -> None:
     hub = Hub()
     app.state.groupchat_hub = hub
-    app.state.groupchat = Orchestrator(app.state.engine, app.state.gateway, hub.broadcast)
+    app.state.groupchat = Orchestrator(app.state.engine, app.state.gateway, hub.broadcast, app=app)
 
 
 async def on_shutdown(app) -> None:

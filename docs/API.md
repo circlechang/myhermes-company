@@ -14,12 +14,25 @@ Base: `http://127.0.0.1:8700`。除 `/auth/login`、`/health`、`/webhooks/wf/{t
 - `GET /companies/current` → `{id,name,created_at}`
 - `GET /members`、`POST /members {username,password,role}`、`PATCH /members/{id}`、`DELETE /members/{id}`（owner/admin）
 
-## Agents（AI 員工 = Hermes profile 綁定）
-- `GET /agents` → `[{id,name,profile,title,description,avatar,model,enabled,soul_excerpt}]`
+## Agents（AI 員工＝Hermes profile **或** 一個 Coding Agent）
+- `GET /agents` → `[{id,name,profile,title,description,avatar,model,enabled,soul_excerpt,runtime,runtime_name,workspace,workspace_vpath,installed,install_cmd,coding_config}]`
   伺服器啟動時掃 `hermes profile list`／`~/.hermes/profiles/*` 自動同步為 agents（未綁定者 enabled=false）。
-- `POST /agents {name,profile,title,description}`、`PATCH /agents/{id}`、`DELETE /agents/{id}`
-- `GET /agents/{id}/soul` → `{content}`；`PUT /agents/{id}/soul {content}`（寫 `~/.hermes/profiles/<p>/SOUL.md`）
-- `GET /agents/{id}/skills` → `[{name,enabled,description}]`（gateway `/p/<profile>/v1/skills`）
+  `runtime`：`hermes`（預設，＝一個 Hermes profile）| `claude-code` | `codex` | `pi`。既有資料庫啟動時自動補欄位，舊列一律 `hermes`。
+  coding 員工：`profile=""`、`workspace` 是它的工作目錄（`workspace_vpath` 是檔案瀏覽器用的虛擬路徑）、`coding_config={model,api_mode,hermes_profile,extra}`、`installed` 是那支 CLI 在不在。
+  coding 員工不綁 profile，所以不受 H 帳號綁定（`allowed_profiles`）過濾。
+- `GET /agents/runtimes` → `{runtimes:[{id,name,installed,version,path,install_cmd,docs,kind:hermes|coding}], workspace_roots:[{id,label,path}]}`
+  建立員工的下拉選單資料：未安裝的 runtime `installed=false` 並附安裝指令；`workspace_roots` 是允許的工作目錄根。
+- `POST /agents {name, runtime?="hermes", profile?, title?, description?, workspace?, model?, coding_config?}`（admin）
+  `runtime=hermes` → `profile` 必填且必須存在。
+  `runtime=claude-code|codex|pi` → CLI 必須已安裝（否則 400 `agent_not_installed`，訊息帶安裝指令）；`workspace` 必填（400 `workspace_required`）、必須存在（`workspace_missing`）、且**必須落在檔案模組的根白名單內**（`workspace_not_allowed`）——白名單＝`STUDIO_FILE_ROOTS`、Hermes workspace、profile 目錄、Studio uploads。
+- `PATCH /agents/{id}`（admin，可改 `workspace`／`coding_config`，對 Hermes 員工改這兩個回 400 `not_a_coding_agent`）、`DELETE /agents/{id}`
+- `GET /agents/{id}/soul` → `{content}`；`PUT /agents/{id}/soul {content}`（寫 `~/.hermes/profiles/<p>/SOUL.md`）。coding 員工沒有 SOUL.md，回 400 `not_a_hermes_agent`。
+- `GET /agents/{id}/skills` → `[{name,enabled,description}]`（gateway `/p/<profile>/v1/skills`）。coding 員工同上 400。
+
+### runtime 分派（同一組事件，前端不必分辨）
+- **聊天**：`POST /sessions {agent_id}` 遇到 coding 員工時 `source` 自動變 `coding:<claude|codex|pi>`、`hermes_session_id=""`，並建一列 `coding_session_meta`。`WS /ws/chat` 的 `run` 依 `agent.runtime` 分派：`hermes` 走 gateway；其餘跑 CLI，事件型別與 Hermes 相同（`run.started`／`message.delta`／`tool.started`／`tool.completed`／`run.completed`／`run.failed`／`run.cancelled`），另外 `run.started` 多帶 `runtime`、`workspace`，收尾事件多帶 `diff:{before,after,files,is_git}`。第二輪起自動 `--resume`（外部 session id 存在 `coding_session_meta`）。coding 員工只支援 `stop`，`approval`／`steer` 回 `error{code:unsupported}`。
+- **工作流**：`kind=hermes` 的節點只要「誰做」選到 coding 員工，引擎就改跑 CLI（`tool=<runtime>`、`cwd=node.cwd 或員工 workspace`）；既有的 `kind=coding-agent` 節點型別保留相容。
+- **群聊**：coding 員工可以加進房間、被 `@`；回覆走同一條 `post`（`ai.started`／`ai.delta`／`ai.tool`／`ai.done`／`ai.failed`）。
 
 ## Chat（A 聊天／工作臺對話）
 ### Session 管理
@@ -206,6 +219,11 @@ CRUD（`studio/api/workflows.py`）：
   - server→client（都帶 `session_id`、`run_id`）：`ready`、`run.started{command}`、`session.init{external_session_id,model?}`、`message.delta{delta}`、`tool.started{name,args,call_id}`、`tool.completed{name,result,call_id,error}`、`log{text,stream?}`（stderr／不認得的行）、`run.completed{output,usage,diff:{before,after,files,is_git},exit_code,external_session_id}`、`run.failed{error,output?,diff}`、`run.cancelled{output?,diff}`、`stop.ack`、`error{code,message}`
   - 第二輪起自動續接：claude `--resume <session_id>`、codex `exec resume <thread_id>`、pi `--session`。
   - 執行指令：claude `claude -p <prompt> --output-format stream-json --verbose [--model] [--resume] --permission-mode … [--max-turns] [--max-budget-usd]`；codex `codex exec --json --skip-git-repo-check -C <ws> [-m] -s <sandbox> [-i img] [resume <id>] <prompt>`；pi `pi -p --mode json [--model] [--session] <prompt>`。
+### 派工作給 coding 員工（給 Hermes 員工的 `mhc-code` skill 用）
+- `GET /coding/staff` → `[{id,name,title,runtime,workspace,enabled,installed,model}]`（只列 coding 員工）。接受 JWT 或機器 token（唯讀也可以）。
+- `POST /coding/jobs {agent_id?|agent?(名稱), task, workspace?, timeout_seconds?=600}` → 201 job。**寫入動作**：機器 token 必須是 owner 發的 `can_write` token，唯讀 token 回 403。工作目錄一律過根白名單；派給 Hermes 員工回 400 `not_a_coding_agent`；`timeout_seconds` 上限 3600。
+- `GET /coding/jobs?limit=`、`GET /coding/jobs/{id}` → `{id,agent_id,agent,runtime,workspace,task,status:queued|running|completed|failed|cancelled,done,output,error,exit_code,files,changes:[{path,added,removed}],usage,created_at,started_at,finished_at}`
+- `GET /coding/jobs/{id}/diff` → `{id,workspace,changes,diff,files}`（完整 unified diff）
 - 相容 proxy（給沒有 Anthropic／OpenAI key 的人用 Hermes 模型跑 CLI；驗證用 `x-api-key` 或 `Authorization: Bearer <proxy token 或 Studio JWT>`）：
   - `POST /coding/proxy/anthropic/v1/messages`（Anthropic Messages，支援 `stream`）→ Hermes `/p/<profile>/v1/chat/completions`；`POST …/messages/count_tokens` 回估算值。
   - `POST /coding/proxy/openai/v1/responses`、`POST …/chat/completions`（直通、去掉 `tools`/`model`）、`GET …/models`。
@@ -308,8 +326,10 @@ CRUD（`studio/api/workflows.py`）：
 - 同步：來源表 trigger（insert／update／delete）只寫 `search_dirty(scope, ref, op)`（純 SQL），模組在每次 `GET /search` 前、背景每 `STUDIO_SEARCH_SYNC_SECONDS`=15 秒、啟動時吃掉；索引空的時候全量重建。
 - `GET /search?q=&scope=chat|group|workflow|events|all（可逗號並列）&from=&to=&agent=&limit=20&offset=0` → `{items:[{scope,ref,title,snippet,ts,agent,member_id,score,link,meta}],total,q,scopes,match}`；`score` 越大越相關（bm25 取負）；`link` 是前端路徑（chat `/?session=&message=`、group `/groupchat?room=&message=`、workflow `/workflows/runs/{run}?node=`、events `/events?subject=&event=`）。壞 scope 400 `bad_scope`、壞時間 400 `bad_time`。可見性：company 內；member 套 profile 可見性且 `chat` 只看自己的 session；owner/admin 看全公司。
 - `GET /search/status` → `{documents, by_scope, dirty}`；`POST /search/reindex`（admin）→ `{indexed}`。
-- **唯讀機器 token（owner）**：`POST /search/tokens {label?}` → 201 `{id,label,…,token:"mhc_…"}`（明文只回這一次，DB 只存 sha256）；`GET /search/tokens`；`DELETE /search/tokens/{id}` 撤銷。拿 `mhc_` token 打 API＝以發 token 的 owner 身分，但只有 `GET /search`、`GET /events*` 接受；其他端點 401。
-- **安裝 skill（owner）**：`POST /search/install-skill {profile?="", write_env?=false, create_token?=false, studio_url?}` → `{installed_to, profile, env_written, env_file?, token_id?, token_created?}`：把 repo `hermes-skills/mhc-search/` 複製到 `~/.hermes/skills/mhc-search`（default）或 `~/.hermes/profiles/<p>/skills/mhc-search`；`write_env` 才會把 `MHC_STUDIO_URL`（＋ `create_token` 時新發的 `MHC_SEARCH_TOKEN`）寫進該 profile 的 `.env`（同名鍵覆寫、其他行保留、0600、token 不回顯）。skill 原始碼位置可用 `MHC_SKILLS_DIR` 覆寫（pip 安裝時 repo 不在）。
+- **機器 token（owner）**：`POST /search/tokens {label?, can_write?=false}` → 201 `{id,label,can_write,…,token:"mhc_…"}`（明文只回這一次，DB 只存 sha256）；`GET /search/tokens`；`DELETE /search/tokens/{id}` 撤銷。拿 `mhc_` token 打 API＝以發 token 的 owner 身分，但只有 `GET /search`、`GET /events*`、`GET /coding/staff`、`GET /coding/jobs*` 接受；其他端點 401。
+  `can_write=true` 的 token 額外可以 `POST /coding/jobs`（派工作給 coding 員工＝在使用者機器上跑指令改檔案）；唯讀 token 打這支回 403。
+- **安裝 skill（owner）**：`POST /search/install-skill {name?="mhc-search"|"mhc-code", profile?="", write_env?=false, create_token?=false, can_write?=false, studio_url?}` → `{skill, installed_to, profile, env_written, env_file?, env_key?, token_id?, token_created?, token_can_write?}`：把 repo `hermes-skills/<name>/` 複製到 `~/.hermes/skills/<name>`（default）或 `~/.hermes/profiles/<p>/skills/<name>`；`write_env` 才會把 `MHC_STUDIO_URL`（＋ `create_token` 時新發的 token）寫進該 profile 的 `.env`（同名鍵覆寫、其他行保留、0600、token 不回顯）。token 的環境變數名依 skill 而定：`mhc-search` → `MHC_SEARCH_TOKEN`（唯讀）、`mhc-code` → `MHC_CODE_TOKEN`（自動發 `can_write` token）。skill 原始碼位置可用 `MHC_SKILLS_DIR` 覆寫（pip 安裝時 repo 不在）。
+  CLI 等價指令：`myhermescompany install-skill mhc-code [--profile <p>] [--url <studio>] [--token-stdin]`。
   等價 CLI：`server/.venv/bin/python -m studio.modules.search.install mhc-search [--profile NAME] [--hermes-home ~/.hermes] [--url http://127.0.0.1:8700] [--token-stdin]`。
 - **skill `mhc-search`**（`hermes-skills/mhc-search/`）：`scripts/mhc_search.py search "文案" [--scope] [--since 7d] [--agent] [--limit] [--text]`、`events [--kind approval.*] [--subject] [--since]`、`chain <event_id>`；token 依序讀環境變數 `MHC_SEARCH_TOKEN` → `$HERMES_HOME/profiles/$HERMES_PROFILE/.env` → `~/.hermes/.env`；沒 token exit 2。
 

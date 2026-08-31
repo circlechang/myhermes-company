@@ -67,9 +67,18 @@ export async function mockFetch(input: RequestInfo | URL, init: RequestInit = {}
 
   // agents
   let m: RegExpMatchArray | null
+  if (path === '/agents/runtimes') return ok(d.mockRuntimeCatalog)
+  if (path === '/profiles' && method === 'GET') return ok(d.mockProfileList)
   if (path === '/agents' && method === 'GET') return ok(state.agents)
   if (path === '/agents' && method === 'POST') {
-    const a = { id: nid('a'), enabled: true, ...body }
+    const runtime = body.runtime ?? 'hermes'
+    const cat = d.mockRuntimeCatalog.runtimes.find((r) => r.id === runtime)
+    if (!cat) return fail(400, 'bad_runtime', `runtime 不合法: ${runtime}`)
+    if (!cat.installed) return fail(400, 'agent_not_installed', `${cat.name} 尚未安裝，先跑：${cat.install_cmd}`)
+    if (runtime !== 'hermes' && !d.mockRuntimeCatalog.workspace_roots.some((r) => String(body.workspace ?? '').startsWith(r.path))) {
+      return fail(400, 'workspace_not_allowed', '工作目錄不在允許清單內')
+    }
+    const a = { id: nid('a'), enabled: true, runtime, runtime_name: cat.name, installed: cat.installed, ...body }
     state.agents.push(a)
     return ok(a, 201)
   }

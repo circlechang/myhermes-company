@@ -14,7 +14,9 @@ from typing import Any, Awaitable, Callable, Optional
 from sqlmodel import Session, select
 
 from ...hermes.gateway import GatewayClient, GatewayError
-from ...models import now
+from ...models import Agent, new_id, now
+from ..coding_agents import staff
+from ..coding_agents.router import PROCESSES
 from .models import Room, RoomMember, RoomMessage, RoomSummary
 
 log = logging.getLogger("studio.groupchat")
@@ -129,10 +131,11 @@ Broadcast = Callable[[str, dict[str, Any]], Awaitable[None]]
 class Orchestrator:
     """一個 app 一個實例，掛在 app.state.groupchat。"""
 
-    def __init__(self, engine, gateway: GatewayClient, broadcast: Broadcast):
+    def __init__(self, engine, gateway: GatewayClient, broadcast: Broadcast, app=None):
         self.engine = engine
         self.gateway = gateway
         self.broadcast = broadcast
+        self.app = app
         self.tasks: set[asyncio.Task] = set()
         self._room_locks: dict[str, asyncio.Lock] = {}
 
@@ -230,6 +233,10 @@ class Orchestrator:
                                        "trigger_id": trigger.id})
         messages, summary = self._messages_after_summary(room_id, exclude_id=trigger.id)
         ctx = build_context(room, members, target, messages, summary, trigger)
+        coding_agent = self._coding_agent_for(target)
+        if coding_agent is not None:
+            await self._reply_coding(room_id, target, trigger, depth, ctx, coding_agent)
+            return
         text_parts: list[str] = []
         run_id: Optional[str] = None
         try:
@@ -283,6 +290,54 @@ class Orchestrator:
         await self.broadcast(room_id, {"type": "ai.done", "member_id": target.id, "run_id": run_id})
         # 透過 post 走同一條路：存檔、廣播 message.new、再看有沒有 @ 別的 AI（深度 +1）
         await self.post(room_id, target, content, depth=depth, run_id=run_id)
+
+    # -- coding 員工（runtime = claude-code / codex / pi）---------------------
+    def _coding_agent_for(self, target: RoomMember) -> Optional[Agent]:
+        """這位群聊 AI 成員背後的 AI 員工如果是 coding runtime，回那筆 Agent；否則 None。"""
+        if target.kind != "ai" or not target.agent_id or self.app is None:
+            return None
+        with Session(self.engine) as db:
+            a = db.get(Agent, target.agent_id)
+            if a is None or not staff.is_coding(staff.runtime_of(a)):
+                return None
+            db.expunge(a)
+            return a
+
+    async def _reply_coding(self, room_id: str, target: RoomMember, trigger: RoomMessage, depth: int,
+                            ctx: "Context", agent: Agent) -> None:
+        """coding 員工在群聊裡回話：跑一次 CLI，把輸出當成一則群聊訊息（走同一條 post）。"""
+        history = "\n".join(f"{h['role']}: {h['content']}" for h in ctx.history[-8:])
+        prompt = f"{ctx.instructions}\n\n[近期對話]\n{history}\n\n[現在這則]\n{ctx.input_text}"
+        run_id = new_id("crun")
+        failed: Optional[str] = None
+        output = ""
+        try:
+            with Session(self.engine) as db:
+                spec = staff.build_spec(self.app, agent, prompt, workspace=agent.workspace, db=db)
+            await self.broadcast(room_id, {"type": "ai.started", "member_id": target.id, "run_id": run_id})
+
+            async def on_event(ev: dict[str, Any]) -> None:
+                if ev.get("type") == "message.delta":
+                    await self.broadcast(room_id, {"type": "ai.delta", "member_id": target.id, "run_id": run_id,
+                                                   "delta": str(ev.get("delta") or "")})
+                elif ev.get("type") == "tool.started":
+                    await self.broadcast(room_id, {"type": "ai.tool", "member_id": target.id, "run_id": run_id,
+                                                   "tool": ev.get("name")})
+
+            result = await staff.execute(spec, run_id, on_event, registry=PROCESSES, timeout=1800.0)
+            output = str(result.get("output") or "")
+            if result.get("status") != "completed":
+                failed = str(result.get("error") or result.get("status") or "failed")
+        except Exception as e:
+            log.exception("groupchat coding reply failed")
+            failed = str(getattr(e, "message", None) or e)
+        if failed is not None:
+            m = self.save_message(room_id, target, f"（回覆失敗：{failed}）", depth=depth, run_id=run_id, status="failed")
+            await self.broadcast(room_id, {"type": "ai.failed", "member_id": target.id, "run_id": run_id,
+                                           "error": failed, "message": m.to_dict()})
+            return
+        await self.broadcast(room_id, {"type": "ai.done", "member_id": target.id, "run_id": run_id})
+        await self.post(room_id, target, output.strip() or "（沒有輸出）", depth=depth, run_id=run_id)
 
     # -- compression --------------------------------------------------------------
     async def maybe_compress(self, room: Room, members: list[RoomMember], *, force: bool = False) -> Optional[RoomSummary]:

@@ -29,25 +29,30 @@ class SearchToken(SQLModel, table=True):
     created_at: datetime = Field(default_factory=now)
     last_used_at: Optional[datetime] = None
     revoked: bool = False
+    # 派工作（mhc-code 的 run）是寫入動作，只有標了 can_write 的 token 能做；預設仍是唯讀
+    can_write: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id, "label": self.label, "company_id": self.company_id, "member_id": self.member_id,
-                "created_at": self.created_at, "last_used_at": self.last_used_at, "revoked": self.revoked}
+                "created_at": self.created_at, "last_used_at": self.last_used_at, "revoked": self.revoked,
+                "can_write": bool(self.can_write)}
 
 
 @dataclass
 class MachinePrincipal(Principal):
     token_id: str = ""
     readonly: bool = True
+    can_write: bool = False
 
 
 def _hash(tok: str) -> str:
     return hashlib.sha256(tok.encode("utf-8")).hexdigest()
 
 
-def issue_token(db: Session, member: Member, label: str = "") -> tuple[SearchToken, str]:
+def issue_token(db: Session, member: Member, label: str = "", can_write: bool = False) -> tuple[SearchToken, str]:
     raw = PREFIX + secrets.token_urlsafe(32)
-    row = SearchToken(token_hash=_hash(raw), company_id=member.company_id, member_id=member.id, label=label or "")
+    row = SearchToken(token_hash=_hash(raw), company_id=member.company_id, member_id=member.id, label=label or "",
+                      can_write=bool(can_write))
     db.add(row)
     db.flush()
     return row, raw
@@ -65,4 +70,5 @@ def resolve_machine_token(tok: str, db: Session) -> Principal:
     row.last_used_at = now()
     db.add(row)
     db.commit()
-    return MachinePrincipal(member=member, token_id=row.id)
+    return MachinePrincipal(member=member, token_id=row.id, readonly=not bool(row.can_write),
+                            can_write=bool(row.can_write))

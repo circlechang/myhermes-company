@@ -48,6 +48,10 @@ class Agent(SQLModel, table=True):
     enabled: bool = True
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
+    # --- coding staff（AI 員工可以「就是」一個 coding agent；啟動時自動補欄位，既有資料一律 hermes）---
+    runtime: str = "hermes"  # hermes | claude-code | codex | pi
+    workspace: str = ""  # coding 員工的預設工作目錄（必須在檔案模組的根白名單內）
+    coding_config_json: str = "{}"  # {model, api_mode, hermes_profile, extra:{...}}（沿用 coding_agents 設定形狀）
 
 
 class ChatSession(SQLModel, table=True):

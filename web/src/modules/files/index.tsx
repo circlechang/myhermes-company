@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { StudioModule } from '../registry'
@@ -53,7 +54,9 @@ export function FilesPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const rootsQ = useQuery({ queryKey: ['files', 'roots'], queryFn: filesApi.roots })
-  const [dir, setDir] = useState<string>('')
+  const [params] = useSearchParams()
+  // ?path=<虛擬路徑>：讓「開啟工作目錄」之類的連結直接落在那個目錄
+  const [dir, setDir] = useState<string>(params.get('path') ?? '')
   const [selected, setSelected] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [mode, setMode] = useState<'preview' | 'edit'>('preview')
