@@ -1,0 +1,38 @@
+{
+  "format": "myhermescompany.workflow",
+  "format_version": 1,
+  "workflow": {
+    "name": "0 訪談補洞",
+    "description": "規格建構器階段「0 訪談補洞」：doc transform，產生 spec.md 第一版（七節骨架＋待確認問題）。",
+    "profile": "",
+    "nodes": [
+      {
+        "id": "intake",
+        "title": "0 訪談補洞",
+        "kind": "hermes",
+        "agent": "research-strategist",
+        "io_mode": "doc",
+        "doc_op": "transform",
+        "doc_new": true,
+        "doc_path": "{topic_dir}/spec.md",
+        "doc_glob": "{topic_dir}/spec.md",
+        "doc_stage": "intake",
+        "prompt": "依上方「外部輸入」的指示執行。這是工作流的文件模式：文件內容由系統餵給你，你也只要輸出文件，不要自己讀寫檔案。\n產生規格文件第一版：七節骨架，每節不是寫清楚就是列出具體的「待確認問題」。不要編造數字、期限、人名。",
+        "tool_approval": "deny",
+        "position": {
+          "x": 80,
+          "y": 80
+        }
+      }
+    ],
+    "edges": [],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "budget": {
+      "deadline_seconds": 1800
+    }
+  }
+}

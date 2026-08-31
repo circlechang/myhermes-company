@@ -5,6 +5,7 @@ import {
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
 import { PageHeader } from '../../components/PageHeader'
+import { CollapsiblePanel, PanelGroup, WorkArea } from '../../components/layout/index'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorBox, Loading } from '../../components/QueryState'
 import '../../guide/i18n'
@@ -62,17 +63,22 @@ export function KanbanBoard() {
   }
 
   return (
-    <div className="flex h-full flex-col p-2 sm:p-4">
+    <PanelGroup>
+      <CollapsiblePanel id="kanban.filters" side="left" title={t('panels.kanbanFilters')} icon="Filter" defaultWidth={220} min={180} max={360}>
+        <div className="panel-filters">
+          <select className="input w-auto" value={assignee} onChange={(e) => setAssignee(e.target.value)} aria-label={t('kanban.filterProfile')}>
+            <option value="">{t('kanban.allProfiles')}</option>
+            {q.data?.profiles.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <label className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{t('kanban.showArchived')}</label>
+        </div>
+      </CollapsiblePanel>
+      <WorkArea className="p-2 sm:p-4">
       <PageHeader
         title={t('kanban.title')}
         subtitle={t('kanban.subtitle')}
         actions={
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <select className="input w-auto" value={assignee} onChange={(e) => setAssignee(e.target.value)} aria-label={t('kanban.filterProfile')}>
-              <option value="">{t('kanban.allProfiles')}</option>
-              {q.data?.profiles.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-            <label className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{t('kanban.showArchived')}</label>
             <button className="btn-primary" onClick={() => setShowForm((v) => !v)}>+ {t('kanban.newTask')}</button>
           </div>
         }
@@ -116,7 +122,8 @@ export function KanbanBoard() {
         <DragOverlay>{active ? <CardView card={active} overlay /> : null}</DragOverlay>
       </DndContext>
       {open && <CardDrawer id={open} profiles={q.data?.profiles ?? []} onClose={() => setOpen(null)} />}
-    </div>
+      </WorkArea>
+    </PanelGroup>
   )
 }
 

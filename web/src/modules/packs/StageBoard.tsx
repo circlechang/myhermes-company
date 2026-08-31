@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
+import { CollapsiblePanel, WorkArea } from '../../components/layout/index'
 import { ErrorBox, Loading } from '../../components/QueryState'
 import { FilePreview, guessKind } from '../../components/preview'
 import { ConversationModal } from '../workflows/Conversation'
@@ -225,9 +226,10 @@ export function StageBoard() {
     <div className="flex h-full flex-col p-4">
       <PageHeader title={pack.data.title} subtitle={pack.data.description}
                   actions={<Link to="/packs" className="btn-ghost text-xs">{t('packs.title')}</Link>} />
-      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+      <div className="flex min-h-0 flex-1">
         {/* 左：主題清單 */}
-        <aside className="card flex w-full shrink-0 flex-col p-3 lg:w-64" data-testid="topic-list">
+        <CollapsiblePanel id="packs.topics" side="left" title={t('panels.topics')} icon="ListTree" defaultWidth={260} min={200} max={420}
+                          bodyClassName="flex min-h-0 flex-col overflow-auto p-3" data-testid="topic-list">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-semibold">{t('packs.board.topics')}</span>
             <button className="btn-primary !py-0.5 text-xs" onClick={() => setCreating(true)} data-testid="new-topic">{t('packs.board.newTopic')}</button>
@@ -259,10 +261,10 @@ export function StageBoard() {
               </li>
             ))}
           </ul>
-        </aside>
+        </CollapsiblePanel>
 
         {/* 中：階段卡 */}
-        <main className="min-w-0 flex-1">
+        <WorkArea className="overflow-auto px-4">
           {!topicId && <EmptyState title={t('packs.board.selectTopic')} compact />}
           {topic.isLoading && <Loading />}
           {topic.error && <ErrorBox error={topic.error} onRetry={() => topic.refetch()} />}
@@ -280,10 +282,11 @@ export function StageBoard() {
               </div>
             </>
           )}
-        </main>
+        </WorkArea>
 
         {/* 右：負責員工與最近一次 run */}
-        <aside className="card w-full shrink-0 p-3 text-sm lg:w-64" data-testid="stage-side">
+        <CollapsiblePanel id="packs.stageSide" side="right" title={t('panels.stageAgent')} icon="Users" defaultWidth={260} min={200} max={420}
+                          bodyClassName="overflow-auto p-3 text-sm" data-testid="stage-side">
           {activeStage ? (
             <>
               <div className="mb-2 font-semibold">{activeStage.title}</div>
@@ -315,7 +318,7 @@ export function StageBoard() {
           ) : (
             <div className="text-xs text-zinc-600 dark:text-zinc-400">{t('packs.board.selectTopic')}</div>
           )}
-        </aside>
+        </CollapsiblePanel>
       </div>
       {preview && topic.data && <StageFilePreview pack={name} topic={topic.data.id} path={preview} onClose={() => setPreview(null)} />}
       {conv && <ConversationModal sessionId={conv} onClose={() => setConv(null)} />}

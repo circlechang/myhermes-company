@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAgents } from '../../api/hooks'
 import { useAuth } from '../../auth/AuthContext'
 import { PageHeader } from '../../components/PageHeader'
+import { CollapsiblePanel, WorkArea } from '../../components/layout/index'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorBox, Loading } from '../../components/QueryState'
 import '../../guide/i18n'
@@ -36,12 +37,10 @@ export function GroupChatPage() {
   const [params, setParams] = useSearchParams()
   const roomId = params.get('room') ?? undefined
   const rooms = useRooms()
-  const [showList, setShowList] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
 
   const select = (id?: string) => {
     setParams(id ? { room: id } : {})
-    setShowList(false)
   }
 
   return (
@@ -51,20 +50,20 @@ export function GroupChatPage() {
         subtitle={t('groupchat.subtitle')}
         actions={
           <div className="flex gap-1">
-            <button className="btn-ghost sm:hidden" onClick={() => setShowList((v) => !v)} aria-label={t('groupchat.rooms')}>☰</button>
             {roomId && <button className="btn-outline" onClick={() => setShowSettings((v) => !v)}>{t('groupchat.settings')}</button>}
           </div>
         }
       />
-      <div className="relative flex min-h-0 flex-1 gap-3">
-        <aside className={`${showList || !roomId ? 'flex' : 'hidden'} absolute inset-0 z-10 w-full flex-col bg-white dark:bg-zinc-950 sm:static sm:flex sm:w-64 sm:shrink-0`} data-testid="room-list">
+      <div className="relative flex min-h-0 flex-1">
+        <CollapsiblePanel id="groupchat.rooms" side="left" title={t('panels.rooms')} icon="MessageSquare" defaultWidth={256} min={200} max={420}
+                          bodyClassName="flex min-h-0 flex-col overflow-hidden p-1" data-testid="room-list">
           <RoomList rooms={rooms.data ?? []} loading={rooms.isLoading} error={rooms.error} retry={() => rooms.refetch()} active={roomId} onSelect={select} />
-        </aside>
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+        </CollapsiblePanel>
+        <WorkArea className="pl-3">
           {roomId ? <RoomView key={roomId} roomId={roomId} onDeleted={() => select(undefined)} showSettings={showSettings} onCloseSettings={() => setShowSettings(false)} /> : (
             <div className="flex flex-1 items-center justify-center text-sm text-zinc-600 dark:text-zinc-400">{t('groupchat.pickRoom')}</div>
           )}
-        </section>
+        </WorkArea>
       </div>
     </div>
   )
@@ -368,11 +367,18 @@ function RoomSettings({ room, onClose, onDeleted }: { room: Room; onClose: () =>
   const canDelete = member && (member.id === room.created_by || member.role !== 'member')
 
   return (
-    <aside className="absolute inset-0 z-10 flex w-full flex-col gap-3 overflow-auto bg-white p-3 text-sm dark:bg-zinc-950 sm:static sm:w-80 sm:shrink-0 sm:border-l sm:border-zinc-200 sm:dark:border-zinc-800" data-testid="room-settings">
-      <div className="flex items-center justify-between">
-        <span className="font-semibold">{t('groupchat.settings')}</span>
-        <button className="btn-ghost" onClick={onClose}>{t('common.close')}</button>
-      </div>
+    <CollapsiblePanel
+      id="groupchat.settings"
+      side="right"
+      title={t('groupchat.settings')}
+      icon="Users"
+      defaultWidth={320}
+      min={240}
+      max={520}
+      bodyClassName="flex flex-col gap-3 overflow-auto p-3 text-sm"
+      data-testid="room-settings"
+      actions={<button className="btn-ghost !px-1 !py-0 text-[11px]" onClick={onClose}>{t('common.close')}</button>}
+    >
       <section className="space-y-1">
         <div className="panel-title px-0">{t('groupchat.inviteCode')}</div>
         <div className="flex items-center gap-2">
@@ -438,7 +444,7 @@ function RoomSettings({ room, onClose, onDeleted }: { room: Room; onClose: () =>
       {canDelete && (
         <button className="btn-danger mt-auto" onClick={() => { if (confirm(t('groupchat.confirmDelete'))) m.remove.mutate(room.id, { onSuccess: onDeleted }) }}>{t('groupchat.deleteRoom')}</button>
       )}
-    </aside>
+    </CollapsiblePanel>
   )
 }
 

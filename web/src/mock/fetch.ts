@@ -189,6 +189,10 @@ export async function mockFetch(input: RequestInfo | URL, init: RequestInit = {}
   if (path === '/voice/capabilities') return ok({ stt: { available: false }, tts: { available: false }, browser_first: true })
 
   // workflows
+  if (path === '/workflow-env') return ok({ coding_tools: { 'claude-code': { bin: 'claude', path: null, installed: false } }, line_configured: false, workspace: '/tmp' })
+  if (path === '/workflow-runs') return ok([])
+  if (path === '/workflow-approvals' || path.startsWith('/workflow-approvals?')) return ok([])
+  if ((m = path.match(/^\/workflows\/([^/]+)\/(runs|schedules|webhooks)$/)) && method === 'GET') return ok([])
   if (path === '/workflows' && method === 'GET') return ok(state.workflows)
   if (path === '/workflows' && method === 'POST') {
     if (!body.nodes?.length) return fail(422, 'validation', '至少需要一個節點')

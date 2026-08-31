@@ -14,7 +14,8 @@
 | Member（成員） | 人類使用者，屬於一間公司，有角色 owner/admin/member | 無 |
 | Agent（AI 員工） | 公司裡的一個 AI 角色，綁定一個 Hermes profile | `~/.hermes/profiles/<name>` |
 | Workbench（工作臺） | 一個成員的工作畫面：他的對話、他能用的 Agent、他的工作流、他的看板 | — |
-| Session（對話） | 成員與某個 Agent 的一段對話 | gateway `/api/sessions` |
+| Session（對話） | 成員與某個 Agent 的一段對話；**可綁一份 Doc（文件模式）** | gateway `/api/sessions` |
+| Doc（文件） | **一份 .md ＋不可變的版本歷史＋血緣**。一個對話串的核心就是完成一份文件；不同的工作流＝這份文件從 A 站傳到 B 站再到 C 站 | Studio 自有（`docs` / `doc_versions` / `doc_links`；最新版同時寫進工作區檔案） |
 | Workflow（工作流） | DAG：節點＝Agent＋任務；邊＝資料流；含審批閘門、條件、排程 | Studio 自有；節點執行走 gateway runs |
 | WorkflowRun | 一次執行的快照與各節點 session | Studio 自有 |
 | Task（看板卡） | 交辦單 | `hermes kanban`（kanban.db） |

@@ -52,4 +52,10 @@ html, body, #root { height: 100%; }
 
   /* 頁面標題列：窄螢幕自動換行，右側動作不要把標題擠成一字一行 */
   .page-head { @apply mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2; }
+
+  /* 可收合側欄裡的篩選群組：控制項一律整行，不要沿用橫向排版的 basis／固定寬 */
+  .panel-filters { @apply flex min-w-0 flex-col gap-2 p-2 text-xs; }
+  .panel-filters > * { @apply !w-full shrink-0 grow-0 basis-auto; }
+  .panel-filters .input { @apply !w-full; }
+  .panel-filters label { @apply flex flex-col gap-1; }
 }

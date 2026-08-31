@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, type SimulationLinkDatum, type SimulationNodeDatum } from 'd3-force'
 import { fmtTime } from '../../components/admin2/Tabs'
+import { useTranslation } from 'react-i18next'
+import { CollapsiblePanel, PanelGroup, WorkArea } from '../../components/layout/index'
 import type { JourneyGraph, JourneyNode } from './api'
 
 type SimNode = SimulationNodeDatum & JourneyNode
@@ -14,6 +16,7 @@ const COLORS: Record<string, string> = {
 }
 
 export function JourneyView({ graph, labels }: { graph: JourneyGraph; labels: { all: string; replay: string; play: string; pause: string; nodes: string; edges: string; showEntries: string } }) {
+  const { t } = useTranslation()
   const [category, setCategory] = useState('')
   const [showEntries, setShowEntries] = useState(false)
   const [reveal, setReveal] = useState(1) // 0..1 timeline
@@ -67,8 +70,9 @@ export function JourneyView({ graph, labels }: { graph: JourneyGraph; labels: { 
   const pos = (id: string) => positions.get(id) ?? { x: size.w / 2, y: size.h / 2 }
 
   return (
-    <div className="grid min-h-0 grid-cols-1 gap-3 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)]">
-      <div className="card flex min-h-0 flex-col">
+    <PanelGroup>
+      <WorkArea className="p-2">
+      <div className="card flex min-h-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 p-2 text-xs dark:border-zinc-800">
           <select aria-label="category" className="input w-auto" value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="">{labels.all}</option>
@@ -117,7 +121,8 @@ export function JourneyView({ graph, labels }: { graph: JourneyGraph; labels: { 
           <span className="w-36 text-right text-zinc-600 dark:text-zinc-400">{fmtTime(cutoff)}</span>
         </div>
       </div>
-      <aside className="card overflow-auto p-3 text-sm">
+      </WorkArea>
+      <CollapsiblePanel id="skills.journeyDetail" side="right" title={t('panels.journeyDetail')} icon="Info" defaultWidth={300} min={220} max={440} bodyClassName="overflow-auto p-3 text-sm">
         {selected ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -153,7 +158,7 @@ export function JourneyView({ graph, labels }: { graph: JourneyGraph; labels: { 
             ))}
           </div>
         )}
-      </aside>
-    </div>
+      </CollapsiblePanel>
+    </PanelGroup>
   )
 }

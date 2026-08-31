@@ -41,6 +41,8 @@ modules:
   soul_history: SOUL.md 版本
   admin: 管理（MCP、plugins、版本）
   compat: 本模組（契約測試本身）
+  packs: 行業套件（安裝、主題資料夾、階段推進）
+  docs: 文件（版本、血緣、文件模式對話、工作流文件站）
 
 items:
   # ====================================================================
@@ -81,6 +83,23 @@ items:
     affects: [chat, cron, models, coding_agents, agents, workflows, groupchat]
     note: 多 profile 全靠這個前綴；{profile} 用 default（或 profiles/ 裡第一個）。
 
+  - id: gw.prefix.other_profile
+    kind: endpoint
+    risk: medium
+    critical: true
+    label: '非 default profile 的 /p/<profile>/ 前綴可用（需開 multiplex）'
+    note: |
+      Hermes 單一 profile 的 gateway 會拒絕別的 profile 前綴（回 404
+      "Unknown or unconfigured profile"），這是上游刻意的防呆。要讓一個 API server
+      服務多個 profile，必須在 ~/.hermes/config.yaml 設
+      gateway.multiplex_profiles: true 與 multiplex_profile_allowlist。
+      沒開的話：行業套件與工作流只有 default 員工能跑，其餘節點全部 404。
+      2026-08-31 曾因 gateway 重啟後此設定未生效而整批壞掉。
+    method: GET
+    path: /p/{second_profile}/v1/models
+    probe: live
+    expect: { status: [200], keys: [data] }
+    affects: [chat, workflows, packs, groupchat, cron]
   - id: gw.prefix.default
     kind: endpoint
     risk: low

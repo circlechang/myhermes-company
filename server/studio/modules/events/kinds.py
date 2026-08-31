@@ -24,6 +24,8 @@ KNOWN_KINDS: frozenset[str] = frozenset({
     "approval.requested", "approval.request", "approval.decided",
     # 群聊／看板
     "groupchat.message", "kanban.status",
+    # 文件（docs 模組；一份 .md 從 A 站傳到 B 站的因果鏈）
+    "doc.created", "doc.updated", "doc.selected", "doc.split", "doc.merged",
     # Studio 內部
     "soul.write", "soul.rollback", "limit.exceeded", "limit.reset",
     "search.token.created", "search.token.revoked", "search.skill.installed",

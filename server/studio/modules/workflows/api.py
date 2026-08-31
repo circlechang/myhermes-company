@@ -54,6 +54,7 @@ class RerunBody(BaseModel):
 
 class DecisionBody(BaseModel):
     comment: str = ""
+    choice: str = ""  # doc_select 閘門：選了哪一份文件（doc_id）
 
 
 class ScheduleBody(BaseModel):
@@ -192,24 +193,34 @@ def list_approvals(status: Optional[str] = "pending", p: Principal = Depends(cur
     return [a.to_dict() for a in db.exec(q.order_by(WorkflowApproval.created_at.desc())).all()]
 
 
-async def _decide(approval_id: str, decision: str, comment: str, request: Request, p: Principal, db: Session):
+async def _decide(approval_id: str, decision: str, comment: str, request: Request, p: Principal, db: Session,
+                  choice: str = ""):
     a = db.get(WorkflowApproval, approval_id)
     if a is None or a.company_id != p.company_id:
         raise not_found("approval")
     if a.status != "pending":
         raise ApiError(409, "already_decided", f"此閘門已{a.status}")
+    if a.kind == "doc_select" and decision == "approve":
+        import json as _json
+        options = _json.loads(a.options_json or "[]")
+        ids = [str(o.get("doc_id")) for o in options]
+        if not choice and ids:
+            choice = ids[0]
+        if ids and choice not in ids:
+            raise ApiError(400, "bad_choice", f"choice 必須是這些文件之一：{', '.join(ids)}")
     db.expunge(a)
     try:
-        await _engine(request).decide_approval(a, decision, comment, p.member.id)
+        await _engine(request).decide_approval(a, decision, comment, p.member.id, choice)
     except RuntimeError as e:
         raise ApiError(409, "not_waiting", str(e))
-    return {"ok": True, "approval_id": approval_id, "decision": decision}
+    return {"ok": True, "approval_id": approval_id, "decision": decision, "choice": choice}
 
 
 @router.post("/workflow-approvals/{approval_id}/approve")
 async def approve(approval_id: str, request: Request, body: Optional[DecisionBody] = None, p: Principal = Depends(current_principal),
                   db: Session = Depends(get_db)):
-    return await _decide(approval_id, "approve", (body.comment if body else ""), request, p, db)
+    return await _decide(approval_id, "approve", (body.comment if body else ""), request, p, db,
+                         (body.choice if body else ""))
 
 
 @router.post("/workflow-approvals/{approval_id}/reject")

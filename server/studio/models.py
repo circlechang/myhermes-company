@@ -74,6 +74,8 @@ class ChatSession(SQLModel, table=True):
     total_tokens: int = 0
     context_tokens: int = 0  # last run's input+output (approx. context size)
     imported_from: str = ""  # "<profile>:<hermes session id>" when imported from state.db
+    # --- docs 模組：這個對話正在經營哪一份文件（空＝一般對話；啟動時自動補欄位） ---
+    doc_id: str = ""
 
 
 class Message(SQLModel, table=True):
@@ -248,14 +250,22 @@ class WorkflowApproval(SQLModel, table=True):
     node_title: str = ""
     status: str = "pending"  # pending|approved|rejected|cancelled
     payload: str = ""  # 給審批者看的上游結果
+    kind: str = ""  # ""（一般閘門）| done_check | doc_select
+    options_json: str = "[]"  # doc_select：可選的文件 [{doc_id,title,version,chars,excerpt}]
+    choice: str = ""  # doc_select：人選了哪一份（doc_id）
     comment: str = ""
     decided_by: str = ""
     decided_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=now)
 
     def to_dict(self) -> dict[str, Any]:
+        try:
+            options = json.loads(self.options_json or "[]")
+        except (TypeError, ValueError):
+            options = []
         return {"id": self.id, "run_id": self.run_id, "workflow_id": self.workflow_id, "workflow_name": self.workflow_name,
                 "node_id": self.node_id, "node_title": self.node_title, "status": self.status, "payload": self.payload,
+                "kind": self.kind or "", "options": options, "choice": self.choice or "",
                 "comment": self.comment, "decided_by": self.decided_by, "decided_at": self.decided_at, "created_at": self.created_at}
 
 

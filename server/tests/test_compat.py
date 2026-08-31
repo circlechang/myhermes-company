@@ -33,8 +33,13 @@ def test_surface_loads_and_is_consistent():
         assert it.risk in ("low", "medium", "high")
         for m in it.affects:
             assert m in s.modules, f"{it.id} affects unknown module {m}"
-    # 分級規則：gateway 端點都是 low；表格解析／檔案／DB 是 high
-    assert all(i.risk == "low" for i in s.by_kind("endpoint"))
+    # 分級規則：gateway 端點原則上是 low（公開 API，上游會維持）；
+    # 但「需要使用者在 config.yaml 另外開啟才存在」的端點是 medium——
+    # 端點本身在不代表能用，例如多 profile 前綴要開 gateway.multiplex_profiles。
+    CONFIG_DEPENDENT_ENDPOINTS = {"gw.prefix.other_profile"}
+    for i in s.by_kind("endpoint"):
+        want = "medium" if i.id in CONFIG_DEPENDENT_ENDPOINTS else "low"
+        assert i.risk == want, f"{i.id} 的 risk 應為 {want}，實際 {i.risk}"
     assert all(i.risk == "high" for i in s.by_kind("file") if i.id != "db.kanban")
     assert all(i.risk == "high" for i in s.by_kind("db"))
     assert s.by_id("cli.profile.list").risk == "high"

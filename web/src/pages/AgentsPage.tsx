@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useAgents, useSaveSoul, useSkills, useSoul, useUpdateAgent } from '../api/hooks'
 import { PageHeader } from '../components/PageHeader'
+import { CollapsiblePanel, PanelGroup, WorkArea } from '../components/layout/index'
 import { Empty, ErrorBox, Loading } from '../components/QueryState'
 import { ProfilesPanel } from '../modules/profiles'
 
@@ -25,8 +26,8 @@ export function AgentsPage() {
   const dirty = soulQ.data ? draft !== soulQ.data.content : false
 
   return (
-    <div className="grid min-h-full grid-cols-1 md:h-full md:grid-cols-[320px_minmax(0,1fr)]">
-      <aside className="min-h-0 min-w-0 border-b border-zinc-200 p-4 md:overflow-auto md:border-b-0 md:border-r dark:border-zinc-800">
+    <PanelGroup>
+      <CollapsiblePanel id="agents.list" side="left" title={t('panels.agentList')} icon="Bot" defaultWidth={320} min={220} max={480} bodyClassName="overflow-auto p-4">
         <PageHeader title={t('agents.title')} subtitle={t('agents.subtitle')} />
         {agentsQ.isLoading && <Loading />}
         {agentsQ.error && <ErrorBox error={agentsQ.error} onRetry={() => agentsQ.refetch()} />}
@@ -55,8 +56,8 @@ export function AgentsPage() {
           <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">{t('profiles.title')}</summary>
           <div className="mt-2"><ProfilesPanel compact /></div>
         </details>
-      </aside>
-      <section className="min-h-0 min-w-0 p-4 md:overflow-auto">
+      </CollapsiblePanel>
+      <WorkArea className="overflow-auto p-4">
         {!agent ? (
           <Empty text={t('agents.selectOne')} />
         ) : (
@@ -134,7 +135,7 @@ export function AgentsPage() {
             </div>
           </div>
         )}
-      </section>
-    </div>
+      </WorkArea>
+    </PanelGroup>
   )
 }

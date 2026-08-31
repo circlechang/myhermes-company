@@ -32,16 +32,22 @@ describe('其他頁面（mock）', () => {
     expect(await within(screen.getByTestId('col-done')).findByText('寫 LINE 週報文案')).toBeInTheDocument()
   })
 
-  it('工作流：清單顯示既有流程，建立後進入畫布編輯器', async () => {
+  it('工作流：清單顯示既有流程，建立先選範本、選完進生產線視圖', async () => {
     renderApp(<App />, { route: '/workflows' })
     const user = userEvent.setup()
     expect(await screen.findByText('每日熱點內容產線')).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: /建立工作流/ }))
-    await user.type(screen.getByPlaceholderText(/每日熱點/), '測試流程')
-    await user.click(screen.getByRole('button', { name: '建立' }))
+    // 先選範本（不是直接丟一張空白畫布）
+    await user.click(await screen.findByTestId('template-content'))
+    await user.type(screen.getByLabelText('這條線叫什麼'), '測試流程')
+    await user.click(screen.getByTestId('template-create'))
     const nameInput = (await screen.findByLabelText('名稱')) as HTMLInputElement
     expect(nameInput.value).toBe('測試流程')
-    expect(await screen.findByTestId('node-n1')).toBeInTheDocument()
+    // 預設是生產線視圖：三張站卡，中間那站是「等我確認」
+    expect(await screen.findByTestId('stations-view')).toBeInTheDocument()
+    expect(screen.getByTestId('station-s1-title')).toHaveValue('找題材')
+    expect(screen.getByTestId('station-s2-title')).toHaveValue('等我確認')
+    expect(screen.getByTestId('station-s3-title')).toHaveValue('寫成文章')
   })
 
   it('Hermes 狀態頁', async () => {

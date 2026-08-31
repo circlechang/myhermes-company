@@ -1,0 +1,38 @@
+{
+  "format": "myhermescompany.workflow",
+  "format_version": 1,
+  "workflow": {
+    "name": "4 挑漏洞",
+    "description": "規格建構器階段「4 挑漏洞」：doc transform（doc_new），讀 spec.md 產出 review.md 檢核表。",
+    "profile": "",
+    "nodes": [
+      {
+        "id": "review",
+        "title": "4 挑漏洞",
+        "kind": "hermes",
+        "agent": "chief-editor",
+        "io_mode": "doc",
+        "doc_op": "transform",
+        "doc_new": true,
+        "doc_glob": "{topic_dir}/spec.md",
+        "doc_path": "{topic_dir}/review.md",
+        "doc_stage": "review",
+        "prompt": "依上方「外部輸入」的指示執行。這是工作流的文件模式：文件內容由系統餵給你，你也只要輸出文件，不要自己讀寫檔案。\n只挑錯不改寫。輸出 review.md：`## 檢核表` 表格三項（不明確／互相矛盾／缺驗收條件），每項 pass 或 fail 並引用 spec.md 原句當證據；接著 `## 退回建議`，單獨一行 `建議退回到：<flesh_out 或 無>`，三項全 pass 才能寫「無」。",
+        "tool_approval": "deny",
+        "position": {
+          "x": 80,
+          "y": 80
+        }
+      }
+    ],
+    "edges": [],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "budget": {
+      "deadline_seconds": 1800
+    }
+  }
+}

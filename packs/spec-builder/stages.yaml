@@ -1,0 +1,145 @@
+# 規格建構器：每一站固定「判斷條件（criteria）／負責角色（role）／交付物（deliverables）」，三欄都會顯示在階段卡上。
+# prompt 可用變數：{title} {topic_id} {topic_dir} {workspace_dir} {notes} {outputs} {inputs} {feedback} {stage} {stage_title} {skipped_stages}
+# 產出的檔案同時是 docs 模組裡的「文件」（有版本、diff、血緣）——工作流節點用 io_mode: doc 寫進去。
+topic_files:
+  topic.md: |
+    # {title}
+
+    - 建立：{created_at}
+    - 主題代號：{topic_id}
+
+    ## 原始需求（人的原話，越模糊越好，不要先幫忙整理）
+    {notes}
+
+    ## 已知的限制（預算、時程、法規、既有系統）
+
+    ## 誰會用、誰會驗收
+
+stages:
+  - id: intake
+    title: 0 訪談補洞
+    description: 對著空白規格模板逐節問問題，把已知的寫進文件、不知道的變成該節的「待確認問題」。人回答完再放行。
+    criteria: spec.md 七節齊全；每一節不是「已寫」就是列出具體的待確認問題（不可留空白也不可編造）；人把待確認問題回答完（直接編輯 spec.md 或用文件模式對話）才核准。
+    role: 研究策略（research-strategist）→ 人回答問題並核准
+    deliverables: ["spec.md：規格文件第一版（七節骨架＋每節的待確認問題）"]
+    agent: research-strategist
+    workflow: intake.json
+    inputs: [topic.md]
+    outputs: [spec.md]
+    gate: true
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      原始需求與限制寫在 {topic_dir}/topic.md，先讀它。備註：{notes}
+      任務：產生規格文件的第一版，固定七節：
+      1. 問題與背景（為什麼要做，不做會怎樣）
+      2. 使用者與情境（誰、什麼時候、在哪裡用）
+      3. 範圍（做什麼／明確不做什麼）
+      4. 功能需求（逐條，可測試的句子）
+      5. 非功能需求（效能、安全、相容、維運）
+      6. 驗收條件（每條功能對應一條可驗證的條件）
+      7. 風險與未決事項
+      判斷條件：只寫 topic.md 有根據的內容；沒有根據的一律在該節底下寫「### 待確認問題」再逐條列出具體問題
+      （問到可以直接回答的程度，不要問「還有什麼需求嗎」這種空問題）。不要編造數字、期限、人名。
+
+  - id: directions
+    title: 1 三個取向
+    description: 從補洞後的 spec.md 分岔出 3 份取向明顯不同的規格草稿（例如：最小可行／完整平台／外接整合）。
+    criteria: 產出 3 份草稿，彼此的範圍與取捨要看得出差別（不是同一份換句話說）；每份都要有「這個取向放棄了什麼」。
+    role: 研究策略（research-strategist）
+    deliverables: ["directions/draft-1.md", "directions/draft-2.md", "directions/draft-3.md（各含取向名稱、七節規格、放棄了什麼）"]
+    agent: research-strategist
+    workflow: directions.json
+    inputs: [spec.md]
+    outputs: [directions/]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      上面的「目前文件」就是人已經補完問題的 spec.md。
+      任務：寫 3 份取向明顯不同的規格草稿。取向建議（可自行調整，但必須真的不同）：
+      A 最小可行（先解決最痛的一件事）／B 完整平台（一次做齊，成本高）／C 外接整合（不自建，接既有系統）。
+      每份都要：第一行 `# <取向名稱>：<一句話定位>`，接著同樣七節，最後一節固定 `## 這個取向放棄了什麼`。
+      判斷條件：三份的「範圍」與「放棄了什麼」不能雷同；不要三份都寫成同一個方案。
+
+  - id: pick
+    title: 2 選一份
+    description: 人在收件匣看 3 份摘要，選一份帶到下一站；選中的內容會寫回 spec.md（血緣記 selected）。
+    criteria: 人明確選一份並寫下為什麼選它（意見會帶進下一站）。沒選＝停在這一站，不會自己往下跑。
+    role: 人（閘門）
+    deliverables: ["spec.md：更新成被選中的那一份取向"]
+    agent: research-strategist
+    workflow: pick.json
+    inputs: [directions/]
+    outputs: [spec.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      請人在收件匣／工作流審批頁從 {topic_dir}/directions/ 的三份草稿裡選一份。
+
+  - id: flesh_out
+    title: 3 逐節補完
+    description: 把選中的取向逐節補完成可以交給人執行的規格：功能需求可測試、驗收條件一一對應。
+    criteria: 每一條功能需求都有對應的驗收條件（編號對得上）；沒有「待確認問題」殘留（還沒答案的要移到「風險與未決事項」並寫出影響）。
+    role: 內容文案（content-copywriter）
+    deliverables: ["spec.md：補完後的完整規格（功能需求 F1..Fn、驗收條件 A1..An 一一對應）"]
+    agent: content-copywriter
+    workflow: flesh_out.json
+    inputs: [spec.md]
+    outputs: [spec.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      上面的「目前文件」是人選定的取向。任務：逐節補完，輸出完整新版：
+      - 功能需求逐條編號 F1、F2…，每條寫成可測試的句子（誰在什麼情況下能做到什麼）。
+      - 驗收條件逐條編號 A1、A2…，每條標明驗哪一條 F，寫明「怎麼驗、看到什麼算過」。
+      - 非功能需求要給得出數字（延遲、併發、保存期限…），給不出來的寫「需量測」並放進未決事項。
+      判斷條件：不要新增沒有根據的需求；剩下的待確認問題移到「風險與未決事項」並寫清楚不解決會怎樣。
+      {feedback}
+
+  - id: review
+    title: 4 挑漏洞
+    description: 審稿主編逐項挑：不明確、互相矛盾、缺驗收條件。有問題就退回「3 逐節補完」重跑。
+    criteria: 三項逐項 pass/fail 並附證據（引用原句）；任一 fail 必須寫「建議退回到：flesh_out」；人核准或退回。
+    role: 審稿主編（chief-editor）預審 → 人核准
+    deliverables: ["review.md：檢核表（項目｜pass/fail｜證據）＋一行「建議退回到：<flesh_out 或 無>」"]
+    agent: chief-editor
+    workflow: review.json
+    inputs: [spec.md]
+    outputs: [review.md]
+    gate: true
+    hint:
+      file: review.md
+      pattern: "建議退回到[：:]\\s*([a-z_]+)"
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      上面的「目前文件」是待審的 spec.md。你只挑錯不改寫。
+      任務：輸出 review.md：
+      ## 檢核表
+      | 項目 | 結果 | 證據（引用原句或指出缺什麼） |
+      三項：① 不明確（有形容詞沒有數字、有動作沒有主詞）② 互相矛盾（範圍與功能、功能與驗收條件打架）③ 缺驗收條件（有 F 沒有對應的 A）。
+      ## 退回建議
+      **單獨一行** `建議退回到：<flesh_out 或 無>`；三項全 pass 才能寫「無」。
+      判斷條件：每個 fail 都要引用 spec.md 的原句當證據，不能只寫「不夠清楚」。
+
+  - id: final
+    title: 5 定稿
+    description: 依 review.md 修掉問題、補上文件資訊（版本、負責人、變更紀錄），把 spec.md 標成 final。
+    criteria: review.md 的每一條 fail 都在文件裡看得到修正；文件開頭有版本與日期；狀態變成 final。
+    role: 審稿主編（chief-editor）
+    deliverables: ["spec.md：定稿版（狀態 final，含文件資訊與變更紀錄）"]
+    agent: chief-editor
+    workflow: final.json
+    inputs: [spec.md, review.md]
+    outputs: [spec.md]
+    gate: false
+    prompt: |
+      主題：{title}
+      主題資料夾（絕對路徑）：{topic_dir}
+      上面的「目前文件」是通過審核的 spec.md；審核意見在 {topic_dir}/review.md，先讀它。
+      任務：輸出定稿版全文：開頭加一段「## 文件資訊」（版本 1.0、日期、負責人留空給人填），
+      文末加「## 變更紀錄」列出這一版相對前一版改了什麼。
+      判斷條件：不要新增需求，只做收尾與一致性修正。

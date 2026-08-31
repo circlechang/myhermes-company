@@ -4,7 +4,10 @@
 - Plugins：`hermes plugins list --json`、`hermes plugins enable|disable <name>`
 - 版本：`hermes --version` 解析 ＋ Studio 版本 ＋ GitHub latest（`STUDIO_UPDATE_CHECK=0` 關閉，快取 1 小時）
 - 自我更新提示：`studio_latest`／`studio_update_available`（公開 repo 的 release，快取 6 小時，`MHC_UPDATE_CHECK=0` 關閉）；
-  `/version/studio` 是不呼叫 hermes CLI 的輕量版，給 TopBar 常駐提示用。站內不做一鍵更新，只告訴使用者跑 `myhermescompany update`。
+  `/version/studio` 是不呼叫 hermes CLI 的輕量版，給 TopBar 常駐提示用。
+- 站內一鍵更新（selfupdate.py）：`POST /admin/update/start`（owner，先下載驗證再 spawn 脫離的更新器）、
+  `GET /admin/update/status`（讀 `<MHC_HOME>/update-status.json`）。可編輯安裝（`pip install -e`）會被擋，
+  改叫人 git pull；CLI 的 `myhermescompany update` 一樣可用。
 - 裝置／區網節點不做（桌面版功能）。
 """
 from __future__ import annotations
@@ -25,10 +28,11 @@ from ...auth import Principal, current_principal
 from ...errors import ApiError
 from ...hermes.cli import CliError, HermesCli
 from ..skills import hermes_config
-from . import terminal
+from . import selfupdate, terminal
 
 router = APIRouter(tags=["admin"])
 router.include_router(terminal.router)
+router.include_router(selfupdate.router)
 
 SECRET_KEY_RE = re.compile(r"(token|secret|key|password|authorization|bearer)", re.I)
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$")
@@ -234,7 +238,12 @@ async def _studio_update_state(check: bool) -> dict[str, Any]:
     out: dict[str, Any] = {"studio_latest": None, "studio_update_available": None,
                            "studio_release": None, "studio_repo": studio_update.public_repo(),
                            "studio_update_cmd": "myhermescompany update",
-                           "studio_update_check_enabled": studio_update.update_check_enabled()}
+                           "studio_update_check_enabled": studio_update.update_check_enabled(),
+                           # 站內一鍵更新能不能按：開發（可編輯）安裝要走 git pull，不給按
+                           "studio_editable_install": False, "studio_editable_reason": None}
+    info = selfupdate.install_info()
+    out["studio_editable_install"] = info["editable"]
+    out["studio_editable_reason"] = info["editable_reason"]
     if not check or not studio_update.update_check_enabled():
         return out
     rel = await studio_update.fetch_latest_async()

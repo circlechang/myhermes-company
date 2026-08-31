@@ -258,5 +258,34 @@
     "slideN": "Slide {{n}} / {{total}}",
     "untitledSlide": "(untitled)",
     "noSlides": "No slides"
+  },
+  "panel": {
+    "expand": "Expand {{title}}",
+    "collapse": "Collapse {{title}}",
+    "resize": "Drag to resize {{title}} (arrow keys work too)",
+    "focus": "Focus mode",
+    "focusOn": "Enter focus mode: collapse every side panel",
+    "focusOff": "Leave focus mode: restore every side panel"
+  },
+  "panels": {
+    "agents": "Agents & chats",
+    "sessionInfo": "Session info",
+    "fileTree": "File tree",
+    "topics": "Topics",
+    "stageAgent": "Assigned agent",
+    "workflowList": "Workflows",
+    "nodePanel": "This step",
+    "runPanel": "Run panel",
+    "rooms": "Rooms",
+    "members": "Members",
+    "codingSessions": "Coding sessions",
+    "filters": "Filters",
+    "agentList": "Agent list",
+    "skillList": "Skills",
+    "memoryFiles": "Memory files",
+    "bundleForm": "New bundle",
+    "journeyDetail": "Node detail",
+    "adminSide": "System info",
+    "kanbanFilters": "Board filters"
   }
 }

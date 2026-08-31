@@ -56,7 +56,9 @@ def create_app(settings: Optional[Settings] = None, *, gateway: Optional[Gateway
                 except Exception as e:
                     log.warning('module %s on_shutdown failed: %s', m.__name__, e)
 
-    app = FastAPI(title="MyHermesCompany", version=__version__, lifespan=lifespan)
+    # Swagger 從 /docs 讓位到 /api-docs：/docs 是 docs 模組（文件＝第一級物件）的 REST 前綴
+    app = FastAPI(title="MyHermesCompany", version=__version__, lifespan=lifespan,
+                  docs_url="/api-docs", redoc_url="/api-redoc")
     app.state.settings = settings
     app.state.engine = engine
     app.state.gateway = gateway

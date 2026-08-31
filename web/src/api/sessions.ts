@@ -21,6 +21,8 @@ export interface ChatSession extends Session {
   last_run_id?: string
   usage: SessionUsage
   imported_from?: string
+  /** docs 模組：這個對話正在經營哪一份文件（文件模式）；空字串＝一般對話 */
+  doc_id?: string
 }
 
 export interface Attachment {
@@ -142,9 +144,9 @@ export const chatApi = {
     list: (agentId?: string, opts: { includeArchived?: boolean; categoryId?: string } = {}) =>
       request<ChatSession[]>(`/sessions${qs({ agent_id: agentId, include_archived: opts.includeArchived ? 'true' : undefined, category_id: opts.categoryId })}`),
     get: (id: string) => request<ChatSession>(`/sessions/${id}`),
-    create: (body: { agent_id: string; title?: string; model?: string; category_id?: string }) =>
+    create: (body: { agent_id: string; title?: string; model?: string; category_id?: string; doc_id?: string }) =>
       request<ChatSession>('/sessions', { method: 'POST', body: json(body) }),
-    patch: (id: string, body: { title?: string; archived?: boolean; category_id?: string | null; model?: string; provider?: string }) =>
+    patch: (id: string, body: { title?: string; archived?: boolean; category_id?: string | null; model?: string; provider?: string; doc_id?: string }) =>
       request<ChatSession>(`/sessions/${id}`, { method: 'PATCH', body: json(body) }),
     setModel: (id: string, model: string, provider = '') =>
       request<ChatSession>(`/sessions/${id}/model`, { method: 'POST', body: json({ model, provider }) }),

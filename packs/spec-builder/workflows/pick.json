@@ -1,0 +1,35 @@
+{
+  "format": "myhermescompany.workflow",
+  "format_version": 1,
+  "workflow": {
+    "name": "2 選一份",
+    "description": "規格建構器階段「2 選一份」：doc select（human 閘門），人在收件匣挑一份，選中的內容寫回 spec.md。",
+    "profile": "",
+    "nodes": [
+      {
+        "id": "pick",
+        "title": "2 選一份",
+        "kind": "hermes",
+        "io_mode": "doc",
+        "doc_op": "select",
+        "select_by": "human",
+        "doc_glob": "{topic_dir}/directions/*.md",
+        "doc_path": "{topic_dir}/spec.md",
+        "doc_stage": "pick",
+        "position": {
+          "x": 80,
+          "y": 80
+        }
+      }
+    ],
+    "edges": [],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "budget": {
+      "deadline_seconds": 1800
+    }
+  }
+}

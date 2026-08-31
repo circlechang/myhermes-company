@@ -1,4 +1,4 @@
-// 站內新版提示：TopBar 徽章 ＋ 管理頁「版本」卡。站內只給指令，不做一鍵更新。
+// 站內新版提示：TopBar 徽章 ＋ 管理頁「版本」卡（一鍵更新的流程在 updateOneClick.test.tsx）。
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '../modules/registry' // 註冊模組 i18n
@@ -21,6 +21,8 @@ interface StudioVersion {
   studio_repo: string
   studio_update_cmd: string
   studio_update_check_enabled: boolean
+  studio_editable_install: boolean
+  studio_editable_reason: string | null
 }
 
 const upToDate: StudioVersion = {
@@ -31,6 +33,8 @@ const upToDate: StudioVersion = {
   studio_repo: 'circlechang/myhermes-company',
   studio_update_cmd: 'myhermescompany update',
   studio_update_check_enabled: true,
+  studio_editable_install: false,
+  studio_editable_reason: null,
 }
 const hasUpdate: StudioVersion = {
   ...upToDate,
@@ -115,14 +119,14 @@ describe('TopBar 新版提示', () => {
 })
 
 describe('管理頁 版本分頁', () => {
-  it('顯示最新版、指令，且沒有一鍵更新按鈕', async () => {
+  it('顯示最新版、一鍵更新按鈕，CLI 指令仍留著當備援', async () => {
     install(hasUpdate)
     renderApp(<AdminPage />)
     await userEvent.click(await screen.findByRole('tab', { name: '版本' }))
     expect(await screen.findByTestId('mhc-update-badge')).toHaveTextContent('有新版 v0.2.0')
     expect(screen.getByTestId('mhc-update-cmd')).toHaveTextContent('myhermescompany update')
     expect(screen.getByTestId('mhc-latest-tag')).toHaveTextContent('v0.2.0')
-    expect(screen.queryByRole('button', { name: /更新|update/i })).toBeNull()
+    expect(screen.getByTestId('mhc-update-btn')).toHaveTextContent('立即更新到 v0.2.0')
   })
 
   it('已是最新版顯示「已是最新」，不出現指令', async () => {

@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { useAuth } from '../../auth/AuthContext'
 import { Empty, ErrorBox, Loading } from '../../components/QueryState'
 import { PageHeader } from '../../components/PageHeader'
+import { CollapsiblePanel, PanelGroup, WorkArea } from '../../components/layout/index'
 import { codingApi, type AgentId, type AgentInfo, type AgentSetting, type CodingSession } from './api'
 import { DiffView } from './DiffView'
 import { useCodingSocket } from './socket'
@@ -296,8 +297,8 @@ export function CodingPage() {
   }, [state.items.length])
 
   return (
-    <div className="grid min-h-0 grid-cols-1 md:h-full md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
-      <aside className="flex min-h-0 flex-col overflow-auto border-r border-zinc-200 p-3 dark:border-zinc-800">
+    <PanelGroup>
+      <CollapsiblePanel id="coding.side" side="left" title={t('panels.codingSessions')} icon="Code2" defaultWidth={300} min={220} max={460} bodyClassName="flex min-h-0 flex-col overflow-auto p-3">
         <PageHeader title={t('coding.title')} subtitle={t('coding.subtitle')} />
         {agentsQ.isLoading && <Loading />}
         {agentsQ.error && <ErrorBox error={agentsQ.error} onRetry={() => agentsQ.refetch()} />}
@@ -334,9 +335,9 @@ export function CodingPage() {
             </li>
           ))}
         </ul>
-      </aside>
+      </CollapsiblePanel>
 
-      <section className="flex min-h-0 flex-col">
+      <WorkArea>
         {settingsFor && agentsQ.data && (
           <div className="p-3 pb-0">
             <SettingsPanel agent={settingsFor} initial={agentsQ.data.find((a) => a.id === settingsFor)!.settings} onClose={() => setSettingsFor(null)} />
@@ -408,7 +409,7 @@ export function CodingPage() {
             </div>
           </>
         )}
-      </section>
-    </div>
+      </WorkArea>
+    </PanelGroup>
   )
 }

@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import { ErrorBox, Loading } from '../../components/QueryState'
+import { CollapsiblePanel } from '../../components/layout/index'
 import { wfApi } from './api'
 import { Canvas } from './Canvas'
 import { ConversationModal } from './Conversation'
@@ -44,8 +45,8 @@ export function RunPage() {
         <span className="ml-auto whitespace-nowrap text-xs text-zinc-600 dark:text-zinc-400">{t('wf.panel.usage')}: {d.usage.total_tokens ?? 0} tok · ${Number(d.usage.cost_usd ?? 0).toFixed(4)}</span>
       </div>
       {d.error && <div className="bg-rose-50 px-3 py-1 text-xs text-rose-800 dark:bg-rose-950/40 dark:text-rose-200">{d.error}</div>}
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(0,380px)] md:grid-rows-1">
-        <div className="flex min-h-0 flex-col">
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1">
             <Canvas key={d.id} readOnly initial={{ nodes: snapNodes, edges: d.snapshot.edges, viewport: d.snapshot.viewport }} nodeStatus={nodeStatus} edgeDecisions={replay.edges} onSelect={onSelect} onNodeDoubleClick={onDbl} />
           </div>
@@ -58,8 +59,9 @@ export function RunPage() {
             <button className="btn-ghost !px-1 !py-0" onClick={() => setStep(null)}>⏭</button>
           </div>
         </div>
-        <aside className="flex min-h-0 flex-col border-l border-zinc-200 text-sm dark:border-zinc-800">
-          <div className="border-b border-zinc-200 p-3 dark:border-zinc-800">
+        <CollapsiblePanel id="wf.runPanel" side="right" title={t('panels.runPanel')} icon="SlidersHorizontal" defaultWidth={380} min={260} max={560}
+                          bodyClassName="flex min-h-0 flex-col overflow-hidden text-sm">
+          <div className="shrink-0 border-b border-zinc-200 p-3 dark:border-zinc-800">
             {!selNode && <div className="text-xs text-zinc-600 dark:text-zinc-400">點節點看輸出，雙擊開對話。</div>}
             {selNode && (
               <div className="space-y-1">
@@ -83,7 +85,7 @@ export function RunPage() {
               </li>
             ))}
           </ol>
-        </aside>
+        </CollapsiblePanel>
       </div>
       {convo && <ConversationModal sessionId={convo} onClose={() => setConvo(null)} />}
     </div>

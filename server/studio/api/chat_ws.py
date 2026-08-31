@@ -16,6 +16,14 @@ Chat-module additions:
 - run.completed usage is accumulated on the session (token badge) and stored on
   the assistant message; `reasoning.available` text is stored on the message.
 - session.run_status tracks running/completed/failed/cancelled for the sidebar.
+
+Doc mode (docs module):
+- when `sessions.doc_id` is set, the current document is appended to the run's
+  `instructions` and the model is asked to emit the **full new version** inside a
+  ```doc fence (or a unified diff inside ```doc-patch). On run.completed the fence
+  is parsed out of the reply, applied as a new `doc_versions` row (and written back
+  to the workspace `.md`), and `doc.updated` is pushed to the client. A patch that
+  cannot be applied triggers one automatic follow-up run asking for the full text.
 """
 from __future__ import annotations
 
@@ -35,6 +43,7 @@ from ..errors import ApiError
 from ..hermes.gateway import GatewayClient, GatewayError
 from ..models import Agent, ChatSession, Message, now
 from ..modules import inbox as inbox_svc
+from ..modules.docs import chat_link as doc_link
 from .sessions import get_owned_session
 
 log = logging.getLogger("studio.ws")
@@ -121,8 +130,13 @@ class ChatBridge:
         self.app = ws.app
         self.gateway: GatewayClient = ws.app.state.gateway
         self.engine = ws.app.state.engine
-        self.runs: dict[str, dict[str, Any]] = {}  # run_id -> {session_id, profile, task}
+        self.runs: dict[str, dict[str, Any]] = {}  # run_id -> {session_id, profile, task, doc}
         self._send_lock = asyncio.Lock()
+
+    @property
+    def docs_workspace(self) -> Path:
+        ws = getattr(self.app.state, "docs_workspace", None)
+        return Path(ws) if ws else Path(self.app.state.settings.db_path).parent / "workspace"
 
     async def send(self, payload: dict[str, Any]) -> None:
         async with self._send_lock:
@@ -246,18 +260,27 @@ class ChatBridge:
             user_msg_id = m.id
         sent_text = compose_input(text, attachments, quote)
         imgs = image_parts(attachments)
+        # 文件模式：把「目前文件全文」與圍欄規則附進 instructions（見 modules/docs/chat_link.py）
+        doc_ctx = None
+        try:
+            doc_ctx = doc_link.context_for(self.engine, self.docs_workspace, session_id)
+        except Exception as e:  # pragma: no cover - 文件壞了不擋對話
+            log.warning("doc context failed for %s: %s", session_id, e)
+        instructions = doc_ctx["instructions"] if doc_ctx else None
         run_id: Optional[str] = None
         err: Optional[str] = None
         try:
             if imgs:
                 try:
-                    run_id = await self._start_multimodal(profile, sent_text, imgs, hermes_session_id, history, model, provider)
+                    run_id = await self._start_multimodal(profile, sent_text, imgs, hermes_session_id, history, model, provider,
+                                                          instructions)
                 except GatewayError as e:
                     if e.status != 400:
                         raise
                     log.info("gateway rejected image parts (%s); falling back to path-only", e.message)
             if run_id is None:
-                run_id = await self._post_run(profile, self._run_body(sent_text, hermes_session_id, history, model, provider))
+                run_id = await self._post_run(profile, self._run_body(sent_text, hermes_session_id, history, model, provider,
+                                                                      instructions))
         except GatewayError as e:
             err = e.message
         except Exception as e:
@@ -274,12 +297,15 @@ class ChatBridge:
                 db.add(s)
                 db.commit()
         task = asyncio.create_task(self._pump(run_id, session_id, profile))
-        self.runs[run_id] = {"session_id": session_id, "profile": profile, "task": task}
+        self.runs[run_id] = {"session_id": session_id, "profile": profile, "task": task, "doc": doc_ctx,
+                             "doc_retry": bool(msg.get("_doc_retry"))}
         await self.send({"type": "run.started", "session_id": session_id, "run_id": run_id, "message_id": user_msg_id,
-                         "attachments": attachments, "reply_to": reply_to, "model": model or ""})
+                         "attachments": attachments, "reply_to": reply_to, "model": model or "",
+                         "doc_id": (doc_ctx or {}).get("doc_id", "")})
 
     @staticmethod
-    def _run_body(input_: Any, hermes_session_id: str, history: list, model: Optional[str], provider: Optional[str]) -> dict[str, Any]:
+    def _run_body(input_: Any, hermes_session_id: str, history: list, model: Optional[str], provider: Optional[str],
+                  instructions: Optional[str] = None) -> dict[str, Any]:
         body: dict[str, Any] = {"input": input_}
         if hermes_session_id:
             body["session_id"] = hermes_session_id
@@ -289,12 +315,15 @@ class ChatBridge:
             body["model"] = model
         if provider:
             body["provider"] = provider
+        if instructions:
+            body["instructions"] = instructions
         return body
 
-    async def _start_multimodal(self, profile, text, imgs, hermes_session_id, history, model, provider) -> str:
+    async def _start_multimodal(self, profile, text, imgs, hermes_session_id, history, model, provider,
+                                instructions: Optional[str] = None) -> str:
         """POST /v1/runs with `input` as a message list whose last user content has image parts."""
         body = self._run_body([{"role": "user", "content": [{"type": "text", "text": text}, *imgs]}],
-                              hermes_session_id, history, model, provider)
+                              hermes_session_id, history, model, provider, instructions)
         return await self._post_run(profile, body)
 
     async def _post_run(self, profile: Optional[str], body: dict[str, Any]) -> str:
@@ -343,6 +372,8 @@ class ChatBridge:
         reasoning: list[str] = []
         tools: dict[str, dict[str, Any]] = {}  # tool name -> pending tool message
         terminal = False
+        doc_events: list[dict[str, Any]] = []
+        doc_sent: list[dict[str, Any]] = []
         try:
             async for ev in self.gateway.run_events(profile, run_id):
                 name = ev.get("event") or ev.get("type") or ""
@@ -388,6 +419,8 @@ class ChatBridge:
                     content = final if isinstance(final, str) and final else "".join(assistant_text)
                     usage = ev.get("usage") if isinstance(ev.get("usage"), dict) else None
                     if name == "run.completed":
+                        content, doc_events = self._handle_doc_output(run_id, session_id, content)
+                        doc_sent = doc_events
                         out["output"] = content
                     msg_id = self._save_assistant(session_id, run_id, content, status=name, usage=usage,
                                                   reasoning="\n".join(reasoning) or None)
@@ -395,8 +428,12 @@ class ChatBridge:
                         out["message_id"] = msg_id
                     if usage:
                         out["session_usage"] = self._session_usage(session_id)
+                for ev2 in doc_events:  # doc.updated / doc.patch_failed 先送，run.completed 才是收尾
+                    await self.send(ev2)
+                doc_events = []
                 await self.send(out)
                 if terminal:
+                    await self._maybe_doc_retry(run_id, session_id, doc_sent)
                     break
             if not terminal:
                 # stream closed without terminal event; ask status once
@@ -408,9 +445,13 @@ class ChatBridge:
                 content = st.get("output") or "".join(assistant_text)
                 usage = st.get("usage") if isinstance(st.get("usage"), dict) else None
                 if status == "completed":
+                    content, doc_events = self._handle_doc_output(run_id, session_id, content)
                     self._save_assistant(session_id, run_id, content, status="run.completed", usage=usage)
+                    for ev2 in doc_events:
+                        await self.send(ev2)
                     await self.send({"type": "run.completed", "session_id": session_id, "run_id": run_id, "output": content,
                                      "usage": usage, "session_usage": self._session_usage(session_id)})
+                    await self._maybe_doc_retry(run_id, session_id, doc_events)
                 else:
                     self._save_assistant(session_id, run_id, content, status="run.failed")
                     await self.send({"type": "run.failed", "session_id": session_id, "run_id": run_id, "error": st.get("error") or f"stream closed (status={status})"})
@@ -426,6 +467,36 @@ class ChatBridge:
                 pass
         finally:
             self.runs.pop(run_id, None)
+
+    # -- doc mode ----------------------------------------------------------
+    def _handle_doc_output(self, run_id: str, session_id: str, content: str) -> tuple[str, list[dict[str, Any]]]:
+        """文件模式：抽掉 ```doc 圍欄、建立新版本。回 (訊息本文, 要推給前端的事件)。"""
+        info = self.runs.get(run_id) or {}
+        doc_ctx = info.get("doc")
+        if not doc_ctx:
+            return content, []
+        try:
+            res = doc_link.apply_output(self.engine, self.docs_workspace, doc_ctx["doc_id"], content,
+                                        session_id=session_id, run_id=run_id, author_id=info.get("profile") or "")
+        except Exception as e:  # pragma: no cover - 文件層壞了不影響對話
+            log.warning("doc apply failed for %s: %s", doc_ctx.get("doc_id"), e)
+            return content, []
+        events: list[dict[str, Any]] = []
+        if res.get("updated"):
+            events.append({"type": "doc.updated", "session_id": session_id, "run_id": run_id, **res["updated"]})
+        if res.get("patch_error"):
+            events.append({"type": "doc.patch_failed", "session_id": session_id, "run_id": run_id,
+                           "doc_id": doc_ctx["doc_id"], "reason": res["patch_error"]})
+        return res.get("body", content), events
+
+    async def _maybe_doc_retry(self, run_id: str, session_id: str, events: list[dict[str, Any]]) -> None:
+        """```doc-patch 套不上 → 自動再跑一輪，請模型重出全文（只重試一次）。"""
+        info = self.runs.get(run_id) or {}
+        failed = next((e for e in events if e["type"] == "doc.patch_failed"), None)
+        if failed is None or info.get("doc_retry"):
+            return
+        await self.start_run({"session_id": session_id, "input": doc_link.RETRY_PROMPT.format(reason=failed["reason"]),
+                              "_doc_retry": True})
 
     def _set_status(self, session_id: str, status: str) -> None:
         with Session(self.engine) as db:

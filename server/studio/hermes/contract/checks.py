@@ -73,6 +73,19 @@ def _sub_path(path: str, ctx: Context) -> str:
         k = m.group(1)
         if k == "profile":
             return ctx.profile or "default"
+        if k == "second_profile":
+            # 驗證 multiplex：挑一個「不是目前 profile」的 profile 名。
+            # 直接掃 profiles/ 目錄，不依賴前面某一項檢查是否跑過。
+            cur = ctx.profile or "default"
+            try:
+                names = sorted(d.name for d in (ctx.hermes_home / "profiles").iterdir()
+                               if d.is_dir() and not d.name.startswith("."))
+            except OSError:
+                names = []
+            others = [n for n in names if n != cur]
+            if not others:
+                raise CheckSkip("這台只有一個 profile，無法驗證多 profile 前綴")
+            return others[0]
         if k in ctx.values:
             return str(ctx.values[k])
         raise CheckSkip(f"前置值 {k} 不存在（前一項可能失敗或被跳過）")

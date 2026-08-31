@@ -5,6 +5,7 @@ import { IS_MOCK, request } from '../../api/client'
 import { moduleRoutes } from '../../modules/registry'
 import { applyTheme, loadCachedTheme, THEME_DEFAULTS } from '../../modules/theme'
 import { LangSwitch } from '../LangSwitch'
+import { toggleFocusMode, useFocusMode } from '../layout/panelState'
 import { HelpDrawer } from '../guide/HelpDrawer'
 import { startTour, Tour } from '../guide/Tour'
 import '../../guide/i18n'
@@ -19,6 +20,8 @@ const MoonIcon = iconFor('Moon')
 const HelpIcon = iconFor('HelpCircle')
 const TourIcon = iconFor('Compass')
 const UpIcon = iconFor('ArrowUpCircle')
+const FocusOnIcon = iconFor('Maximize2')
+const FocusOffIcon = iconFor('Minimize2')
 
 /** 觸發聊天模組既有的 Ctrl/⌘+K 監聽（WorkbenchPage 掛在 window keydown） */
 export function openGlobalSearch() {
@@ -48,7 +51,7 @@ function useInboxCount(): number {
 }
 
 /** MyHermesCompany 有沒有新版：打輕量的 /version/studio（不呼叫 hermes CLI，伺服器端快取 6 小時）。
- *  站內只提示指令，不做一鍵更新——更新會重啟伺服器，等於把正在服務的自己關掉。 */
+ *  徽章連到「管理 → 版本」，實際更新在那裡按（站內一鍵，或照提示用 CLI）。 */
 function UpdateHint() {
   const { t } = useTranslation()
   const [info, setInfo] = useState<{ v: string; cmd: string; url?: string } | null>(null)
@@ -106,6 +109,27 @@ function ThemeToggle() {
   const Icon = dark ? SunIcon : MoonIcon
   return (
     <button type="button" className="btn-ghost px-2" onClick={toggle} aria-label={t('nav.toggleTheme')} title={t('nav.toggleTheme')} data-testid="theme-toggle">
+      <Icon className="h-4 w-4" aria-hidden />
+    </button>
+  )
+}
+
+/** 專注模式：一鍵收起所有側欄（含主導覽）讓主區最大化；快捷鍵 ⌘. ／ Ctrl+. */
+function FocusToggle() {
+  const { t } = useTranslation()
+  const focus = useFocusMode()
+  const Icon = focus ? FocusOffIcon : FocusOnIcon
+  const label = focus ? t('panel.focusOff') : t('panel.focusOn')
+  return (
+    <button
+      type="button"
+      className={`btn-ghost px-2 ${focus ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200' : ''}`}
+      onClick={() => toggleFocusMode()}
+      aria-label={label}
+      aria-pressed={focus}
+      title={`${label}（⌘. / Ctrl+.）`}
+      data-testid="focus-toggle"
+    >
       <Icon className="h-4 w-4" aria-hidden />
     </button>
   )
@@ -169,6 +193,7 @@ export function TopBar({ title, username, onLogout, onOpenMenu, mobile }: Props)
         <span className={mobile ? 'hidden' : ''}>
           <LangSwitch />
         </span>
+        <FocusToggle />
         <ThemeToggle />
         <div className="relative">
           <button

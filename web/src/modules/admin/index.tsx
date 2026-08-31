@@ -17,7 +17,14 @@ export interface StudioUpdateInfo {
   studio_repo: string
   studio_update_cmd: string
   studio_update_check_enabled: boolean
+  /** 可編輯安裝（pip install -e）不給站內一鍵更新，改叫人 git pull */
+  studio_editable_install?: boolean
+  studio_editable_reason?: string | null
 }
+export type UpdatePhase = 'downloading' | 'installing' | 'restarting' | 'done' | 'failed'
+export interface UpdateJob { job_id?: string; phase?: UpdatePhase; from?: string; to?: string; error?: string; log?: string; started_at?: string; finished_at?: string }
+export interface UpdateStatusInfo { job: UpdateJob | null; current: string; status_file: string; editable: boolean; editable_reason: string | null; install_hint: string | null }
+export interface UpdateStartInfo { job_id: string; status: string; phase: UpdatePhase; log: string; from: string; to: string; wheel: string }
 export interface VersionInfo extends StudioUpdateInfo { studio: { version: string }; hermes: { version: string; date?: string; upstream?: string; behind?: number | null; python?: string; error?: string }; latest: { tag: string; url: string } | null; update_check_enabled: boolean; update_available: boolean | null; repo: string }
 export interface StudioVersionInfo extends StudioUpdateInfo { studio: { version: string } }
 
@@ -38,6 +45,8 @@ export const adminApi = {
   pluginToggle: (name: string, action: 'enable' | 'disable') => request<{ ok: boolean; output: string }>(`/plugins/${encodeURIComponent(name)}/${action}`, { method: 'POST' }),
   version: (check: boolean) => request<VersionInfo>(`/version?check=${check ? 1 : 0}`),
   studioVersion: () => request<StudioVersionInfo>('/version/studio'),
+  updateStart: (to: string) => request<UpdateStartInfo>('/admin/update/start', { method: 'POST', body: json({ to }) }),
+  updateStatus: () => request<UpdateStatusInfo>('/admin/update/status'),
   profiles: () => request<{ profiles: { name: string }[] }>('/hermes/status').then((r) => r.profiles.map((p) => p.name)),
 }
 
@@ -82,9 +91,26 @@ const zhTW = {
     behind: '落後 upstream {{n}} 個 commit',
     mhcLatest: 'MyHermesCompany 最新',
     mhcUpdateAvailable: '有新版 v{{v}}',
-    mhcUpdateHow: '更新方式：在終端跑',
-    mhcUpdateNote: '站內不做一鍵更新（會把正在服務的自己關掉）。',
+    mhcUpdateHow: '也可以在終端跑',
     mhcCheckDisabled: '更新檢查已關閉（MHC_UPDATE_CHECK=0）',
+    mhcUpdateNow: '立即更新到 v{{v}}',
+    mhcUpdateConfirmTitle: '要現在更新到 v{{v}} 嗎？',
+    mhcUpdateConfirmBody: '會先下載並驗證新版，再關掉目前的伺服器、裝好之後自己起回來，中間大約離線 30 秒。進行中請不要關閉瀏覽器。',
+    mhcUpdateConfirmOk: '開始更新',
+    mhcUpdateCancel: '取消',
+    mhcPhaseDownloading: '下載中…',
+    mhcPhaseInstalling: '安裝中…',
+    mhcPhaseRestarting: '重啟中…',
+    mhcUpdateRunning: '更新中（v{{from}} → v{{to}}）',
+    mhcUpdateKeepOpen: '伺服器會短暫離線，這是正常的；請先不要關閉瀏覽器。',
+    mhcUpdateDone: '已更新到 v{{v}}',
+    mhcReload: '重新整理頁面',
+    mhcUpdateFailed: '更新失敗',
+    mhcUpdateTimeout: '超過 3 分鐘伺服器還沒回到新版，可能更新失敗了。',
+    mhcUpdateLog: 'log',
+    mhcUpdateManual: '可以改用終端手動更新：',
+    mhcUpdateBack: '回到版本資訊',
+    mhcEditable: '這是開發安裝，請用 git pull 後重啟',
   },
 }
 const en = { nav: { admin: 'Admin' }, admin: { title: 'Admin', tabTerminal: 'Terminal', tabMcp: 'MCP', tabPlugins: 'Plugins', tabVersion: 'Version', connect: 'Connect' } }
@@ -323,9 +349,135 @@ function VersionTab() {
   )
 }
 
-/** MyHermesCompany 自己的新版：只告訴使用者跑哪個指令，不做站內一鍵更新（會把正在服務的自己關掉）。 */
+/** MyHermesCompany 自己的新版：站內一鍵更新（主按鈕 → 確認 → 進度 → 完成／失敗），CLI 指令仍保留當備援。
+ *
+ *  進度是「輪詢 + 斷線容忍」：伺服器更新時一定會離線一陣子，所以 fetch 失敗不算錯誤，
+ *  只把畫面切成「重啟中…」；真正的成功判準是 `/version/studio` 回來的版本變了。 */
 export function StudioUpdateCard({ d }: { d: StudioUpdateInfo & { studio: { version: string } } }) {
   const { t } = useTranslation()
+  const target = d.studio_latest ?? ''
+  const from = d.studio.version
+  const editable = d.studio_editable_install === true
+  const [ui, setUi] = useState<'idle' | 'confirm' | 'running' | 'done' | 'failed'>('idle')
+  const [phase, setPhase] = useState<UpdatePhase>('downloading')
+  const [err, setErr] = useState('')
+  const [logPath, setLogPath] = useState('')
+  const [newVersion, setNewVersion] = useState('')
+
+  // 開始更新：POST 成功（＝下載＋驗證都過了、更新器已經跑起來）才切進度視圖
+  async function start() {
+    setErr('')
+    setLogPath('')
+    setPhase('downloading')
+    setUi('running')
+    try {
+      const r = await adminApi.updateStart(target)
+      setLogPath(r.log)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+      setUi('failed')
+    }
+  }
+
+  useEffect(() => {
+    if (ui !== 'running') return
+    let alive = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = Date.now() + 180_000
+    const tick = async () => {
+      if (!alive) return
+      let finished = false
+      try {
+        const v = await adminApi.studioVersion()
+        const cur = v?.studio?.version
+        if (cur && cur !== from) {
+          setNewVersion(cur)
+          setUi('done')
+          finished = true
+        } else {
+          // 伺服器還活著＝還沒換版；狀態檔才知道走到哪一步（新版可能沒這個端點，失敗就忽略）
+          try {
+            const st = await adminApi.updateStatus()
+            const jp = st.job?.phase
+            if (jp === 'failed') {
+              setErr(st.job?.error || '')
+              if (st.job?.log) setLogPath(st.job.log)
+              setUi('failed')
+              finished = true
+            } else if (jp && jp !== 'done') {
+              setPhase(jp)
+            }
+          } catch {
+            /* 端點不在或權限問題：不影響主流程 */
+          }
+        }
+      } catch {
+        setPhase('restarting') // 斷線是預期中的，不是錯誤
+      }
+      if (finished || !alive) return
+      if (Date.now() > deadline) {
+        setErr(t('admin.mhcUpdateTimeout'))
+        setUi('failed')
+        return
+      }
+      timer = setTimeout(tick, 2000)
+    }
+    timer = setTimeout(tick, 2000)
+    return () => {
+      alive = false
+      if (timer) clearTimeout(timer)
+    }
+  }, [ui, from, t])
+
+  const phaseLabel = phase === 'installing' ? t('admin.mhcPhaseInstalling')
+    : phase === 'restarting' ? t('admin.mhcPhaseRestarting')
+    : t('admin.mhcPhaseDownloading')
+
+  if (ui === 'running') {
+    return (
+      <div className="card p-4 text-sm" data-testid="mhc-update-card">
+        <div data-testid="mhc-update-progress">
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" aria-hidden />
+            <b data-testid="mhc-update-phase">{phaseLabel}</b>
+          </div>
+          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{t('admin.mhcUpdateRunning', { from, to: target })}</p>
+          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{t('admin.mhcUpdateKeepOpen')}</p>
+          {logPath && <p className="mt-1 break-all text-xs text-zinc-500">{t('admin.mhcUpdateLog')}: <code>{logPath}</code></p>}
+        </div>
+      </div>
+    )
+  }
+
+  if (ui === 'done') {
+    return (
+      <div className="card p-4 text-sm" data-testid="mhc-update-card">
+        <div data-testid="mhc-update-done">
+          <b className="text-emerald-700 dark:text-emerald-300">{t('admin.mhcUpdateDone', { v: newVersion })}</b>
+          <div className="mt-2">
+            <button className="btn-primary text-xs" data-testid="mhc-update-reload" onClick={() => location.reload()}>{t('admin.mhcReload')}</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (ui === 'failed') {
+    return (
+      <div className="card p-4 text-sm" data-testid="mhc-update-card">
+        <div data-testid="mhc-update-failed">
+          <b className="text-rose-700 dark:text-rose-300">{t('admin.mhcUpdateFailed')}</b>
+          {err && <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300" data-testid="mhc-update-error">{err}</pre>}
+          {logPath && <p className="mt-1 break-all text-xs text-zinc-500">{t('admin.mhcUpdateLog')}: <code data-testid="mhc-update-log">{logPath}</code></p>}
+          <p className="mt-2 break-words text-xs text-zinc-600 dark:text-zinc-400">
+            {t('admin.mhcUpdateManual')} <code className="rounded bg-zinc-100 px-1 py-0.5 dark:bg-zinc-800" data-testid="mhc-update-cmd">{d.studio_update_cmd}</code>
+          </p>
+          <button className="btn-outline mt-2 text-xs" data-testid="mhc-update-back" onClick={() => setUi('idle')}>{t('admin.mhcUpdateBack')}</button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="card p-4 text-sm" data-testid="mhc-update-card">
       <dl className="grid grid-cols-1 gap-y-1 sm:grid-cols-[minmax(0,140px)_minmax(0,1fr)]">
@@ -343,10 +495,33 @@ export function StudioUpdateCard({ d }: { d: StudioUpdateInfo & { studio: { vers
         </dd>
       </dl>
       {d.studio_update_available === true && (
-        <p className="mt-2 break-words text-xs text-zinc-600 dark:text-zinc-400">
-          {t('admin.mhcUpdateHow')} <code className="rounded bg-zinc-100 px-1 py-0.5 dark:bg-zinc-800" data-testid="mhc-update-cmd">{d.studio_update_cmd}</code>
-          <br />{t('admin.mhcUpdateNote')}
-        </p>
+        <>
+          {editable ? (
+            <p className="mt-2 break-words text-xs text-amber-700 dark:text-amber-300" data-testid="mhc-update-editable">
+              {t('admin.mhcEditable')}
+              {d.studio_editable_reason && <span className="block text-zinc-500">{d.studio_editable_reason}</span>}
+            </p>
+          ) : (
+            <div className="mt-2">
+              <button className="btn-primary text-xs" data-testid="mhc-update-btn" onClick={() => setUi('confirm')}>
+                {t('admin.mhcUpdateNow', { v: target })}
+              </button>
+            </div>
+          )}
+          {ui === 'confirm' && (
+            <div className="mt-2 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40" role="dialog" aria-modal="true" aria-label={t('admin.mhcUpdateConfirmTitle', { v: target })} data-testid="mhc-update-confirm">
+              <b className="text-sm">{t('admin.mhcUpdateConfirmTitle', { v: target })}</b>
+              <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-300">{t('admin.mhcUpdateConfirmBody')}</p>
+              <div className="mt-2 flex gap-2">
+                <button className="btn-primary text-xs" data-testid="mhc-update-confirm-ok" onClick={start}>{t('admin.mhcUpdateConfirmOk')}</button>
+                <button className="btn-outline text-xs" data-testid="mhc-update-confirm-cancel" onClick={() => setUi('idle')}>{t('admin.mhcUpdateCancel')}</button>
+              </div>
+            </div>
+          )}
+          <p className="mt-2 break-words text-xs text-zinc-600 dark:text-zinc-400">
+            {t('admin.mhcUpdateHow')} <code className="rounded bg-zinc-100 px-1 py-0.5 dark:bg-zinc-800" data-testid="mhc-update-cmd">{d.studio_update_cmd}</code>
+          </p>
+        </>
       )}
     </div>
   )

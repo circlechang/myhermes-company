@@ -23,6 +23,7 @@ def session_public(s: ChatSession) -> dict:
         "usage": {"input_tokens": s.input_tokens or 0, "output_tokens": s.output_tokens or 0,
                   "total_tokens": s.total_tokens or 0, "context_tokens": s.context_tokens or 0},
         "imported_from": s.imported_from or "",
+        "doc_id": getattr(s, "doc_id", "") or "",
     }
 
 
@@ -82,6 +83,7 @@ class SessionCreate(BaseModel):
     source: str = "workbench"
     model: Optional[str] = None
     category_id: Optional[str] = None
+    doc_id: Optional[str] = None  # 綁一份文件（文件模式）
 
 
 @router.post("/sessions", status_code=201)
@@ -91,7 +93,8 @@ def create_session(body: SessionCreate, p: Principal = Depends(current_principal
         raise not_found("agent")
     s = ChatSession(company_id=p.company_id, member_id=p.member.id, agent_id=a.id,
                     title=body.title or f"與 {a.name} 的對話", source=body.source or "workbench",
-                    hermes_session_id=new_id("studio"), model=body.model or "", category_id=body.category_id)
+                    hermes_session_id=new_id("studio"), model=body.model or "", category_id=body.category_id,
+                    doc_id=(body.doc_id or ""))
     db.add(s)
     db.commit()
     db.refresh(s)
@@ -138,6 +141,7 @@ class SessionPatch(BaseModel):
     category_id: Optional[str] = None  # "" 清除分類
     model: Optional[str] = None
     provider: Optional[str] = None
+    doc_id: Optional[str] = None  # "" 解除文件綁定
 
 
 @router.patch("/sessions/{session_id}")
@@ -162,6 +166,14 @@ def patch_session(session_id: str, body: SessionPatch, p: Principal = Depends(cu
         s.model = body.model.strip()
     if body.provider is not None:
         s.provider = body.provider.strip()
+    if body.doc_id is not None:
+        did = body.doc_id.strip()
+        if did:
+            from ..modules.docs.models import Doc
+            d = db.get(Doc, did)
+            if d is None or d.company_id != p.company_id:
+                raise not_found("doc")
+        s.doc_id = did
     s.updated_at = now()
     db.add(s)
     db.commit()

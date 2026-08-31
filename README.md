@@ -143,6 +143,7 @@ docker build -t myhermescompany . && docker run -d -p 8700:8700 \
 ```bash
 myhermescompany status | logs -f | restart | stop | version   # 都吃 --port
 myhermescompany update                # 查最新 release → 問 → 裝 → 重啟（--check 只檢查、--yes 不問）
+                                      # 也可以在「管理 → 版本」按一鍵更新，見 INSTALL.md
 myhermescompany hermes-check          # Hermes 升版前先跑，確認相容
 myhermescompany precheck [tag]        # 沙盒裝指定版本跑同一套契約
 myhermescompany reset-admin           # 忘記密碼

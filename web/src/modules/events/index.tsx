@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { API_BASE, getToken, request } from '../../api/client'
 import { PageHeader } from '../../components/PageHeader'
+import { CollapsiblePanel, PanelGroup, WorkArea } from '../../components/layout/index'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorBox, Loading } from '../../components/QueryState'
 import '../../guide/i18n'
@@ -125,10 +126,9 @@ export function EventsPage() {
     </select>
   )
   return (
-    <div className="p-4">
-      <PageHeader title={t('events.title')} subtitle={t('events.subtitle')}
-        actions={<div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto"><GlobalSearchBox className="min-w-0 flex-1" /><button className="btn-outline" onClick={exportHref} disabled={!total}>{t('events.exportCsv')}</button></div>} />
-      <div className="mb-3 flex flex-wrap items-center gap-1 text-xs">
+    <PanelGroup>
+      <CollapsiblePanel id="events.filters" side="left" title={t('panels.filters')} icon="Filter" defaultWidth={240} min={200} max={400}>
+        <div className="panel-filters">
         {sel(t('events.source'), 'source', facets.data?.sources)}
         {sel(t('events.kind'), 'kind', facets.data?.kinds)}
         {sel(t('events.agent'), 'agent', facets.data?.agents)}
@@ -140,7 +140,11 @@ export function EventsPage() {
         {f.subject && <span className="badge max-w-full truncate bg-zinc-200 dark:bg-zinc-800" title={f.subject}>subject={f.subject}</span>}
         <button className="btn-ghost" onClick={() => { setF({ since: localDate(-7) }); setPage(0) }}>{t('events.clear')}</button>
         <span className="whitespace-nowrap text-zinc-600 dark:text-zinc-400">{t('events.total', { n: total })}</span>
-      </div>
+        </div>
+      </CollapsiblePanel>
+      <WorkArea className="overflow-auto p-4">
+      <PageHeader title={t('events.title')} subtitle={t('events.subtitle')}
+        actions={<div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto"><GlobalSearchBox className="min-w-0 flex-1" /><button className="btn-outline" onClick={exportHref} disabled={!total}>{t('events.exportCsv')}</button></div>} />
       {query.isLoading && <Loading />}
       {query.error && <ErrorBox error={query.error} onRetry={() => query.refetch()} />}
       {query.data && query.data.items.length === 0 && <EmptyState testId="empty-events" title={t('guide.empty.events.title')} body={t('guide.empty.events.body')} action={{ label: t('guide.empty.events.action'), to: '/' }} />}
@@ -177,7 +181,8 @@ export function EventsPage() {
           <button className="btn-outline" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>›</button>
         </div>
       )}
-    </div>
+      </WorkArea>
+    </PanelGroup>
   )
 }
 

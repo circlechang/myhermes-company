@@ -6,6 +6,7 @@ import { Sidebar } from './nav/Sidebar'
 import { TopBar } from './nav/TopBar'
 import { activeNavItem, GO_KEYS, navGroups } from './nav/navConfig'
 import { useIsMobile, useSidebarExpanded } from './nav/useNavState'
+import { isFocusHotkey, toggleFocusMode, useFocusMode } from './layout/panelState'
 import { iconFor } from './nav/icons'
 
 const CloseIcon = iconFor('X')
@@ -23,6 +24,7 @@ export function Layout() {
   const nav = useNavigate()
   const mobile = useIsMobile()
   const [expanded, toggleExpanded] = useSidebarExpanded()
+  const focus = useFocusMode()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const active = activeNavItem(loc.pathname)
@@ -41,6 +43,12 @@ export function Layout() {
   const pendingG = useRef<number | null>(null)
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      // ⌘. ／ Ctrl+. ：專注模式（收起所有側欄）；輸入框裡也吃得到，這是全域指令
+      if (isFocusHotkey(e)) {
+        e.preventDefault()
+        toggleFocusMode()
+        return
+      }
       if (e.key === 'Escape') {
         setDrawerOpen(false)
         return
@@ -66,7 +74,7 @@ export function Layout() {
     <div className="flex h-full flex-col">
       <TopBar title={title} username={member?.username} onLogout={logout} mobile={mobile} onOpenMenu={() => setDrawerOpen(true)} />
       <div className="flex min-h-0 flex-1">
-        {!mobile && <Sidebar groups={navGroups} expanded={expanded} onToggle={toggleExpanded} />}
+        {!mobile && <Sidebar groups={navGroups} expanded={expanded && !focus} onToggle={() => (focus ? toggleFocusMode() : toggleExpanded())} />}
         {mobile && drawerOpen && (
           <div className="fixed inset-0 z-50 flex" data-testid="drawer">
             <button type="button" className="absolute inset-0 bg-black/40" aria-label={t('common.close')} onClick={() => setDrawerOpen(false)} data-testid="drawer-backdrop" />

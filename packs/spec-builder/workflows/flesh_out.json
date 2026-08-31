@@ -1,0 +1,36 @@
+{
+  "format": "myhermescompany.workflow",
+  "format_version": 1,
+  "workflow": {
+    "name": "3 逐節補完",
+    "description": "規格建構器階段「3 逐節補完」：doc transform，同一份 spec.md 產生新版本。",
+    "profile": "",
+    "nodes": [
+      {
+        "id": "flesh_out",
+        "title": "3 逐節補完",
+        "kind": "hermes",
+        "agent": "content-copywriter",
+        "io_mode": "doc",
+        "doc_op": "transform",
+        "doc_glob": "{topic_dir}/spec.md",
+        "doc_stage": "flesh_out",
+        "prompt": "依上方「外部輸入」的指示執行。這是工作流的文件模式：文件內容由系統餵給你，你也只要輸出文件，不要自己讀寫檔案。\n逐節補完：功能需求編號 F1..Fn 寫成可測試的句子；驗收條件編號 A1..An 每條標明驗哪一條 F、怎麼驗、看到什麼算過；非功能需求要有數字，給不出來的寫「需量測」並移到未決事項。不要新增沒有根據的需求。",
+        "tool_approval": "deny",
+        "position": {
+          "x": 80,
+          "y": 80
+        }
+      }
+    ],
+    "edges": [],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "budget": {
+      "deadline_seconds": 1800
+    }
+  }
+}

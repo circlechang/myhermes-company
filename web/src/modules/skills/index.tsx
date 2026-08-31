@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { StudioModule } from '../registry'
 import { PageHeader } from '../../components/PageHeader'
 import { Empty, ErrorBox, Loading } from '../../components/QueryState'
+import { CollapsiblePanel, PanelGroup, WorkArea } from '../../components/layout/index'
 import { CodeEditor } from '../../components/admin2/CodeEditor'
 import { Tabs, fmtSize, fmtTime } from '../../components/admin2/Tabs'
 import { useAuth } from '../../auth/AuthContext'
@@ -144,8 +145,9 @@ function SkillsTab({ profile }: { profile: string }) {
   const detail = detailQ.data
   const dirty = detail ? draft !== detail.content : false
   return (
-    <div className="grid min-h-0 grid-cols-1 gap-3 md:h-full md:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-      <aside className="flex min-h-0 min-w-0 flex-col gap-2">
+    <PanelGroup>
+      <CollapsiblePanel id="skills.list" side="left" title={t('panels.skillList')} icon="Sparkles" defaultWidth={360} min={240} max={520}
+                        bodyClassName="flex min-h-0 flex-col gap-2 overflow-hidden p-2">
         <input className="input" placeholder={t('skills.search')} aria-label={t('skills.search')} value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="flex flex-wrap gap-2 text-xs">
           <select aria-label="category" className="input min-w-0 flex-1 basis-32" value={category} onChange={(e) => setCategory(e.target.value)}>
@@ -193,8 +195,8 @@ function SkillsTab({ profile }: { profile: string }) {
             ))}
           </ul>
         </div>
-      </aside>
-      <section className="min-h-0 min-w-0 md:overflow-auto">
+      </CollapsiblePanel>
+      <WorkArea className="overflow-auto p-3">
         {!selected ? <Empty text={t('skills.selectOne')} /> : detailQ.isLoading ? <Loading /> : detailQ.error ? <ErrorBox error={detailQ.error} /> : detail ? (
           <div className="space-y-3">
             <div className="card p-3">
@@ -235,8 +237,8 @@ function SkillsTab({ profile }: { profile: string }) {
             </div>
           </div>
         ) : null}
-      </section>
-    </div>
+      </WorkArea>
+    </PanelGroup>
   )
 }
 
@@ -258,8 +260,8 @@ function BundlesTab({ profile }: { profile: string }) {
   const del = useMutation({ mutationFn: (n: string) => skillsApi.deleteBundle(n), onSuccess: () => qc.invalidateQueries({ queryKey: ['skills', 'bundles'] }), onError: (e) => setErr(String((e as Error).message)) })
   const usageOf = (b: { skills: string[] }) => b.skills.reduce((a, s) => a + (usageQ.data?.counts[s] ?? 0), 0)
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="space-y-2">
+    <PanelGroup className="gap-0">
+      <WorkArea className="space-y-2 overflow-auto p-3">
         {bundlesQ.isLoading && <Loading />}
         {bundlesQ.data?.length === 0 && <Empty text={t('skills.noBundles')} />}
         {bundlesQ.data?.map((b) => (
@@ -280,9 +282,9 @@ function BundlesTab({ profile }: { profile: string }) {
           <div>{t('skills.usageHint')}</div>
           <div className="mt-1 flex flex-wrap gap-1">{usageQ.data?.top.map(([n, c]) => <span key={n} className="badge border border-zinc-200 dark:border-zinc-700">{n} {c}</span>)}</div>
         </div>
-      </div>
-      <form className="card space-y-2 p-3 text-sm" onSubmit={(e) => { e.preventDefault(); setErr(null); create.mutate() }}>
-        <div className="font-medium">{t('skills.createBundle')}</div>
+      </WorkArea>
+      <CollapsiblePanel id="skills.bundleForm" side="right" title={t('panels.bundleForm')} icon="Puzzle" defaultWidth={320} min={240} max={440} bodyClassName="overflow-auto p-3">
+      <form className="space-y-2 text-sm" onSubmit={(e) => { e.preventDefault(); setErr(null); create.mutate() }}>
         <input className="input" placeholder={t('skills.bundleName')} aria-label={t('skills.bundleName')} value={name} onChange={(e) => setName(e.target.value)} />
         <input className="input" placeholder={t('skills.bundleSkills')} aria-label={t('skills.bundleSkills')} value={skills} onChange={(e) => setSkills(e.target.value)} list="skill-names" />
         <datalist id="skill-names">{skillsQ.data?.items.map((s) => <option key={s.name} value={s.name} />)}</datalist>
@@ -290,7 +292,8 @@ function BundlesTab({ profile }: { profile: string }) {
         {err && <div className="text-xs text-rose-600 dark:text-rose-400">{err}</div>}
         <button className="btn-primary" disabled={!name || !skills || create.isPending}>{t('skills.createBundle')}</button>
       </form>
-    </div>
+      </CollapsiblePanel>
+    </PanelGroup>
   )
 }
 
@@ -314,8 +317,9 @@ function MemoryTab({ profile }: { profile: string }) {
   const del = useMutation({ mutationFn: (n: string) => memoryApi.remove(profile, n), onSuccess: () => { setName('MEMORY.md'); qc.invalidateQueries({ queryKey: ['memory', profile] }) }, onError: (e) => setMsg(String((e as Error).message)) })
   const dirty = fileQ.data ? draft !== fileQ.data.content : false
   return (
-    <div className="grid min-h-0 grid-cols-1 gap-3 md:h-full md:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
-      <aside className="min-w-0 space-y-2">
+    <PanelGroup>
+      <CollapsiblePanel id="skills.memoryFiles" side="left" title={t('panels.memoryFiles')} icon="FileText" defaultWidth={280} min={220} max={440}
+                        bodyClassName="space-y-2 overflow-auto p-2">
         <div className="card p-2 text-sm">
           <div className="panel-title">{t('skills.memoryFiles')}</div>
           <ul>
@@ -338,8 +342,8 @@ function MemoryTab({ profile }: { profile: string }) {
           <div className="panel-title">{t('skills.memoryStatus')}</div>
           <pre className="max-h-48 overflow-auto whitespace-pre-wrap px-2 text-[11px] text-zinc-600 dark:text-zinc-300">{statusQ.data?.output ?? '…'}</pre>
         </div>
-      </aside>
-      <section className="flex min-h-0 min-w-0 flex-col">
+      </CollapsiblePanel>
+      <WorkArea className="overflow-auto p-3">
         <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
           <span className="min-w-0 truncate font-medium" title={name}>{name}</span>
           {fileQ.data && <span className="whitespace-nowrap text-xs text-zinc-600 dark:text-zinc-400">{fileQ.data.exists ? fmtTime(fileQ.data.mtime) : '(new)'}</span>}
@@ -350,8 +354,8 @@ function MemoryTab({ profile }: { profile: string }) {
           </div>
         </div>
         <div className="h-[420px] min-h-0 md:h-auto md:flex-1"><CodeEditor value={draft} onChange={setDraft} filename={name} readOnly={!isAdmin} ariaLabel="memory-editor" /></div>
-      </section>
-    </div>
+      </WorkArea>
+    </PanelGroup>
   )
 }
 

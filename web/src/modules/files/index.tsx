@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { StudioModule } from '../registry'
 import { PageHeader } from '../../components/PageHeader'
+import { CollapsiblePanel, PanelGroup, WorkArea } from '../../components/layout/index'
 import { Empty, ErrorBox, Loading } from '../../components/QueryState'
 import { CodeEditor } from '../../components/admin2/CodeEditor'
 import { fmtSize, fmtTime } from '../../components/admin2/Tabs'
@@ -119,8 +120,8 @@ export function FilesPage() {
   const dirty = fileQ.data ? draft !== (fileQ.data.content ?? '') : false
 
   return (
-    <div className="grid min-h-0 grid-cols-1 md:h-full md:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
-      <aside className="flex min-h-0 min-w-0 flex-col border-b border-zinc-200 md:border-b-0 md:border-r dark:border-zinc-800">
+    <PanelGroup>
+      <CollapsiblePanel id="files.tree" side="left" title={t('panels.fileTree')} icon="Folder" defaultWidth={380} min={240} max={560} bodyClassName="flex min-h-0 flex-col overflow-hidden">
         <div className="p-4 pb-2">
           <PageHeader title={t('files.title')} subtitle={t('files.subtitle')} />
           <label className="flex min-w-0 items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
@@ -170,8 +171,8 @@ export function FilesPage() {
             ))}
           </ul>
         </div>
-      </aside>
-      <section className="flex min-h-0 flex-col">
+      </CollapsiblePanel>
+      <WorkArea>
         {!selected ? (
           <Empty text={t('files.selectFile')} />
         ) : fileQ.isLoading ? (
@@ -231,8 +232,8 @@ export function FilesPage() {
             )
           })()
         ) : null}
-      </section>
-    </div>
+      </WorkArea>
+    </PanelGroup>
   )
 }
 

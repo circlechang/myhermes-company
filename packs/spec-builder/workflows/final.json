@@ -1,0 +1,37 @@
+{
+  "format": "myhermescompany.workflow",
+  "format_version": 1,
+  "workflow": {
+    "name": "5 定稿",
+    "description": "規格建構器階段「5 定稿」：doc transform，收尾並把 spec.md 標成 final。",
+    "profile": "",
+    "nodes": [
+      {
+        "id": "final",
+        "title": "5 定稿",
+        "kind": "hermes",
+        "agent": "chief-editor",
+        "io_mode": "doc",
+        "doc_op": "transform",
+        "doc_glob": "{topic_dir}/spec.md",
+        "doc_stage": "final",
+        "doc_status": "final",
+        "prompt": "依上方「外部輸入」的指示執行。這是工作流的文件模式：文件內容由系統餵給你，你也只要輸出文件，不要自己讀寫檔案。\n依審核意見收尾，輸出定稿全文：開頭加 `## 文件資訊`（版本 1.0、日期、負責人留空），文末加 `## 變更紀錄`。不要新增需求。",
+        "tool_approval": "deny",
+        "position": {
+          "x": 80,
+          "y": 80
+        }
+      }
+    ],
+    "edges": [],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "budget": {
+      "deadline_seconds": 1800
+    }
+  }
+}

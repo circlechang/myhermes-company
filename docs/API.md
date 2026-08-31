@@ -239,6 +239,21 @@ CRUD（`studio/api/workflows.py`）：
 - `POST /mcp/servers {name,profile,url?|command?,args?,auth?:oauth|header,env?,connect_timeout?}`（`hermes mcp add`）、`DELETE /mcp/servers/{name}?profile=`、`POST /mcp/servers/{name}/test?profile=` → `{ok,output}`
 - `GET /plugins` → `hermes plugins list --json` ＋ `enabled`；`POST /plugins/{name}/enable|disable`
 - `GET /version?check=1` → `{studio:{version},hermes:{version,date,upstream,behind,python},latest:{tag,url}|null,update_check_enabled,update_available,repo}`；env `STUDIO_UPDATE_CHECK=0` 關閉、`HERMES_GITHUB_REPO` 換 repo
+- `GET /version/studio?check=1` → `{studio:{version},studio_latest,studio_update_available,studio_release:{tag,url}|null,studio_repo,studio_update_cmd,studio_update_check_enabled,studio_editable_install,studio_editable_reason}`（不呼叫 hermes CLI；`/version` 也帶同一組 `studio_*` 欄位）
+
+### 站內一鍵更新（`modules/admin/selfupdate.py`；owner 限定）
+- `POST /admin/update/start {to?}` → 200 `{job_id,status:"starting",phase:"downloading",log,from,to,wheel,wheel_size,restart:{port,host}}`
+  1. **先擋環境**：可編輯安裝（`pip install -e`／直接跑原始碼）→ 409 `editable_install`，改叫人 `git pull` 後重啟。
+  2. **先下載再動手**：查 release（不吃快取）→ 驗檔名（PEP 427、發行名必須是 myhermescompany、版號要等於 release）→ 下載到 `<MHC_HOME>/updates/<job_id>/`（**保留原檔名**，pip 會拒收被改名的 wheel）→ 驗內容（大小 10KB–200MB、是 zip、CRC 全過、裡面有 `studio/`、dist-info 的 `Version:` 相符）。
+     **這一段任何一項不過就回錯（422 `bad_wheel` / 502 `download_failed`）並把 job 暫存刪掉，完全不碰現有安裝。**
+  3. 驗過才把 `studio/updater.py` 複製到 job 目錄，用 `start_new_session=True` spawn 出去（stdout/stderr → `<MHC_HOME>/logs/update-<ts>.log`），API 立刻回 `job_id`。
+  4. 回應送出後才由 `call_later` 送 SIGTERM 給自己：走 uvicorn 優雅關機 →`on_shutdown` → 工作流 `park()`（等待中的閘門不會被標成取消，下次啟動 `recover()` 接手）。
+  - 其他錯誤：409 `busy`（已有 job 在 downloading/installing/restarting）、409 `up_to_date`、409 `version_mismatch`（`to` 與現在的最新版不同，叫前端重新整理）、409 `update_check_disabled`、422 `no_wheel`、502 `update_check_failed`、403 非 owner。
+- `GET /admin/update/status` → `{job:{job_id,phase,from,to,error,log,started_at,finished_at,updated_at}|null,current,status_file,editable,editable_reason,install_hint}`
+  - `phase`：`downloading`（API 寫）→ `installing` → `restarting` → `done`｜`failed`。狀態**存檔**在 `<MHC_HOME>/update-status.json`（原子寫），不是記憶體——伺服器中途會被換掉，重新整理後還要看得到。
+- 更新器（`studio/updater.py`，只用標準函式庫、不 import `studio`，所以 pip 換掉套件時不受影響）：等舊 pid 退出（最多 60 秒，逾時自己送 SIGTERM，再不行 SIGKILL）→ `<venv python> -m pip install --upgrade <wheel>`（沒有 pip 就退回 `uv pip install --python <py>`）→ `python -m studio start --daemon --port <pid 檔的 port> --host <pid 檔的 host>`。
+  **pip 失敗一樣會把舊版起回來**（pip upgrade 失敗不動已安裝版本），狀態記 `failed` + `restarted_old:true` + 原因。
+- 前端「管理 → 版本」：主按鈕 →確認對話框（會短暫離線約 30 秒）→ 進度視圖輪詢 `/version/studio`（斷線＝重啟中，不是錯誤）；版本變了就顯示「已更新」＋重新整理，3 分鐘沒回來就顯示失敗＋log 路徑＋手動指令。CLI `myhermescompany update` 不變。
 
 ## Voice（P 語音；模組 `modules/voice`）
 - `GET /voice/capabilities` → `{stt:{available,engine,model,needs_ffmpeg}, tts:{available,engine,default_voice}, browser_first:true}`
@@ -390,3 +405,61 @@ CRUD（`studio/api/workflows.py`）：
 **路徑白名單**（`modules/preview/paths.py`，與 `/chat/files` 同一套規則的聯集）
 ① 該公司 uploads ② `$HERMES_HOME/workspace` ③ 檔案瀏覽器的允許根（workspace／各 profile／uploads／`STUDIO_FILE_ROOTS`）④ 該成員 session 訊息中「原文出現過」的絕對路徑。
 虛擬路徑走檔案瀏覽器的 `resolve()`（擋 `..`、擋絕對路徑、resolve 後必須留在根內）；絕對路徑先 `resolve(strict)` 再比對根，**symlink 指到根外一樣擋掉**。不在白名單一律 404（不透露檔案存不存在）。
+
+## Docs（文件＝第一級物件）— `server/studio/modules/docs`
+> 使用者的心智模型：**一個對話串的核心就是完成一份文件（.md）；不停對話＝不停更新這份文件；
+> 不同的工作流＝這份文件從 A 站、B 站到 C 站不停傳遞所產生的。**
+> 內容的真相在 DB（`doc_versions` 不可變、版本遞增），**最新版同時寫一份到工作區的 `.md`**（使用者用 Finder 就看得到）。
+
+表：
+- `docs(id, company_id, title, path(工作區內相對路徑,.md), status: draft|review|final|archived, stage, owner_agent_id, parent_doc_id, origin: chat|workflow|pack|upload, meta_json, file_mtime, file_hash, created_by, created_at, updated_at)`
+- `doc_versions(id, doc_id, version(遞增), content, author_kind: human|agent, author_id, summary(這一版改了什麼,一句), added, removed, session_id, run_id, created_at)` — 回應裡的 `diff_stat={added,removed}`
+- `doc_links(id, company_id, from_doc_id, to_doc_id, kind: derived|split|merged|selected, run_id, node_id, created_at)` — 血緣
+
+工作區＝`<STUDIO_DB 目錄>/workspace`（與工作流引擎同一個）。路徑必須是工作區內相對路徑且以 `.md` 結尾，`..`／絕對路徑一律 400 `bad_path`。
+**Swagger 因此從 `/docs` 讓位到 `/api-docs`**（ReDoc `/api-redoc`）。
+
+- `GET /docs?status=&stage=&origin=&parent_doc_id=&q=&limit=200` → `[doc]`（新→舊）
+  doc 欄位＝表欄位 ＋ `{meta, latest_version, versions, latest(版本 meta), drift, abs_path}`；單筆再加 `content`（最新版）與 `file_content`（磁碟現況）
+- `POST /docs {title, path?, content?, status?, stage?, owner_agent_id?, parent_doc_id?, origin?, meta?, summary?, session_id?}` → 201
+  **`content` 省略＝先建空檔、0 個版本**（AI 的第一份輸出才是 v1）；`path` 省略＝`docs/<doc_id>_<slug>.md`；有 `parent_doc_id` 會自動記一條 `derived` 血緣
+- `GET /docs/{id}`；`PATCH /docs/{id} {title?,status?,stage?,owner_agent_id?,path?,meta?}`（改 `path` 會把 `.md` 檔搬過去；目標已有別的文件回 409 `path_taken`）；`DELETE /docs/{id}`（owner/admin；刪 DB 列與血緣，**工作區的 .md 保留**）
+- `GET /docs/{id}/versions` → `[版本 meta]`（新→舊）；`GET /docs/{id}/versions/{v}` → meta＋`content`
+- `POST /docs/{id}/versions {content, summary?, author_kind?="human", author_id?, session_id?, run_id?}` → 201 版本 meta＋`same`（與最新版相同就不新增版本，回 `same:true`）
+- `GET /docs/{id}/diff?a=&b=` → `{doc_id, from, to, diff(unified), added, removed}`。b 省略＝最新、a 省略＝b 的前一版、**`b=-1`＝磁碟現況**（沿用 `soul_history` 的手法）
+- `POST /docs/{id}/revert {version, summary?}` → 新版本（歷史不可變，帶 `reverted_to`）
+- `POST /docs/{id}/snapshot {summary?}` → 把**檔案現況**存成新版本（漂移修復）
+- `GET /docs/{id}/lineage?depth=6` → `{root, nodes:[{id,title,status,stage,origin,path,latest_version,chars,is_root,parent_doc_id,created_at}], edges:[doc_link]}`（往上往下都走；`parent_doc_id` 沒有明確 link 時補成 `derived` 隱含邊）
+- `POST /docs/{id}/fork {title?, path?, kind?="derived", stage?}` → 201 新文件（內容複製最新版，記一條血緣）
+
+**漂移（drift）**：磁碟上的 `.md` 與最新版本內容不同（有人用 Finder／編輯器改過）→ `drift:true`，前端顯示提示＋「把檔案現況存成新版本」。
+
+事件（`events` 白名單）：`doc.created / doc.updated / doc.selected / doc.split / doc.merged`。
+
+### 對話綁文件（文件模式）
+- `sessions` 加 `doc_id`（啟動時自動補欄位）；`POST /sessions {..., doc_id?}`、`PATCH /sessions/{id} {doc_id?}`（`""` 解除綁定，文件不存在 404）；`session_public` 回 `doc_id`。
+- 綁了文件的 session，`chat_ws` 每輪會把「目前文件全文」附進 `POST /v1/runs` 的 `instructions`（`[目前文件]` 區塊＋`[文件更新規則]`），要求模型在回覆**最後**用一個 ```doc 圍欄輸出**完整的新版文件**；文件很長時可改用 ```doc-patch 的 unified diff。文件本身含 ``` 時要求改用四個以上反引號（````doc）。
+- run 結束後後端解析圍欄 → 建新版本（`author_kind=agent`，`summary`＝圍欄外那段話的第一行）→ **把圍欄整段從訊息本文抽掉**（對話裡不重複貼整份文件）→ WS 依序推 `doc.updated{doc_id,title,version,summary,diff_stat,same}`、再推 `run.completed`。
+- ```doc-patch 套不上 → 推 `doc.patch_failed{doc_id,reason}`，後端**自動再跑一輪**（只重試一次）請模型重出全文。
+- 前端：`/doc-mode` 左聊天右文件（`web/src/modules/docs`），面板顯示目前版本、有新版時顯示 diff（綠增紅刪），可「接受」或「還原上一版」，版本下拉看歷史，也可直接編輯（存檔＝`author_kind=human` 的新版本）。
+
+### 工作流傳文件（節點 `io_mode: doc`）
+節點加 `io_mode: text|doc`（**預設 text，向後相容**）。`io_mode=doc` 的 hermes 節點再看 `doc_op`：
+
+| doc_op | 吃 | 吐 | 血緣 kind | 事件 |
+| --- | --- | --- | --- | --- |
+| `transform`（預設） | 1 份 doc | 同一份的新版本；`doc_new:true` 或沒有輸入時建新 doc | `derived` | `doc.updated` |
+| `fanout` | 1 份 doc／外部輸入 | **N 份新 doc**（`fanout_count` 2–20，預設 3） | `split` | `doc.split` |
+| `select` | N 份 doc | 1 份（`select_by: human｜ai`） | `selected` | `doc.selected` |
+| `merge` | N 份 doc | 1 份新 doc | `merged` | `doc.merged` |
+
+- 其他欄位：`doc_path`（單份輸出的路徑樣板）、`doc_path_pattern`（fanout，必須含 `{i}`）、`doc_glob`（跨 run 依路徑找回文件）、`doc_stage`、`doc_status`（順手把文件狀態推進）、`criteria`（select_by=ai 的評分準則）。樣板變數：`{topic_dir} {run_id} {node_id} {stage} {i} {title}`。
+- **輸入文件的解析順序**：上游節點 `node_states[n].doc_ids` → `input.doc_ids`／`input.doc_id` → 節點 `doc_glob`（比對本公司文件路徑；工作區裡有檔案但還沒收編的會自動收編成 v1）。行業套件每個階段是獨立的 run，就靠 `doc_glob` 串起來。
+- 模型輸出格式：`transform`／`merge` 要一個 ```doc 完整全文；`fanout` 要一個 ```doc 裡用單獨一行 `---doc---` 分隔 N 份（或多個 ```doc 圍欄）；`select_by=ai` 第一行要 `選擇：<編號>`。解析不出來 → 節點 failed（錯誤訊息說明缺什麼）。
+- `select_by=human`＝閘門：建一列 `workflow_approvals`（`kind="doc_select"`、`options_json` 帶 N 份摘要），run 進 `waiting_approval`，收件匣照常列出。核准要帶 `choice`：`POST /workflow-approvals/{id}/approve {comment?, choice}`（`choice` 不在 options 裡回 400 `bad_choice`；省略＝第一份）。approval 的 `to_dict()` 多回 `kind`、`options`、`choice`。這種節點**不需要** `agent_id` 與 `prompt`。
+- 節點狀態多帶 `doc_ids`、`docs:[{doc_id,title,path,version,added,removed,chars}]`、`input_doc_ids`、`select_reason`，執行快照因此看得到每一站的文件版本，點開就能看 diff。
+- `effect_hash`（rerun 效果快取）已納入上述 doc 欄位。
+
+### 內建套件 `packs/spec-builder/`（把模糊需求變成規格文件）
+`intake`（訪談補洞，gate：人回答待確認問題）→ `directions`（fanout 3 份取向草稿）→ `pick`（select，human 閘門）→ `flesh_out`（transform 逐節補完）→ `review`（AI 挑漏洞，gate，`hint` 可退回 `flesh_out`）→ `final`（transform 定稿，`doc_status: final`）。
+用既有 profile：`research-strategist` / `content-copywriter` / `chief-editor`（不建新 profile）。每階段的 `criteria` / `role` / `deliverables` 都寫清楚（沿用 content-pipeline 的欄位格式）。

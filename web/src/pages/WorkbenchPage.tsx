@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '../components/EmptyState'
+import { CollapsiblePanel, WorkArea } from '../components/layout/index'
 import '../guide/i18n'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAgents } from '../api/hooks'
@@ -198,15 +199,25 @@ export function WorkbenchPage() {
   )
 
   return (
-    <div
-      className={`relative grid h-full grid-cols-1 sm:grid-cols-[260px_minmax(0,1fr)] ${
-        previewPath ? 'lg:grid-cols-[260px_minmax(0,1fr)_minmax(360px,40%)]' : 'lg:grid-cols-[260px_minmax(0,1fr)_300px]'
-      }`}
-    >
+    <div className="relative flex h-full min-h-0 w-full">
       {/* 左：AI 員工 + 對話（手機版改抽屜） */}
-      <aside className="hidden min-h-0 flex-col border-r border-zinc-200 sm:flex dark:border-zinc-800" data-testid="sidebar-desktop">{sidebar}</aside>
+      <div className="hidden md:contents">
+        <CollapsiblePanel
+          id="workbench.left"
+          side="left"
+          title={t('panels.agents')}
+          icon="Users"
+          defaultWidth={260}
+          min={200}
+          max={440}
+          bodyClassName="flex flex-col overflow-hidden"
+          data-testid="sidebar-desktop"
+        >
+          {sidebar}
+        </CollapsiblePanel>
+      </div>
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 sm:hidden" data-testid="sidebar-drawer">
+        <div className="fixed inset-0 z-40 md:hidden" data-testid="sidebar-drawer">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
           <aside className="absolute inset-y-0 left-0 flex w-[85vw] max-w-xs flex-col bg-white shadow-xl dark:bg-zinc-900">
             <div className="flex items-center justify-end px-2 pt-2">
@@ -217,10 +228,10 @@ export function WorkbenchPage() {
         </div>
       )}
 
-      {/* 中：聊天 */}
-      <section className="flex min-h-0 flex-col">
+      {/* 中：聊天（永遠 min-w-0，側欄再寬也擠不扁） */}
+      <WorkArea>
         <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-800">
-          <button type="button" className="btn-ghost px-2 sm:hidden" onClick={() => setSidebarOpen(true)} aria-label={t('chat.mobile.openSidebar')}>☰</button>
+          <button type="button" className="btn-ghost px-2 md:hidden" onClick={() => setSidebarOpen(true)} aria-label={t('chat.mobile.openSidebar')}>☰</button>
           <span className="min-w-0 truncate font-medium">{hermesView ? t('chat.hermes.title') : session?.title ?? agent?.name ?? ''}</span>
           {session && (
             <div className="relative ml-auto shrink-0">
@@ -277,11 +288,11 @@ export function WorkbenchPage() {
             />
           </>
         )}
-      </section>
+      </WorkArea>
 
       {/* 右：預覽 or session 資訊（<lg 時預覽用覆蓋層） */}
       {previewPath && (
-        <aside className="fixed inset-0 z-30 flex flex-col bg-white lg:static lg:z-auto lg:border-l lg:border-zinc-200 dark:bg-zinc-900 dark:lg:border-zinc-800">
+        <aside className="fixed inset-0 z-30 flex flex-col bg-white lg:static lg:z-auto lg:w-2/5 lg:min-w-[360px] lg:max-w-[560px] lg:shrink-0 lg:border-l lg:border-zinc-200 dark:bg-zinc-900 dark:lg:border-zinc-800">
           <FilePreview
             source={{ kind: 'path', path: previewPath }}
             onClose={() => setPreviewPath(undefined)}
@@ -301,9 +312,18 @@ export function WorkbenchPage() {
         </aside>
       )}
       {!previewPath && (
-        <aside className="hidden min-h-0 overflow-auto border-l border-zinc-200 lg:block dark:border-zinc-800">
-          <div className="panel-title">{t('workbench.sessionInfo')}</div>
-          <dl className="space-y-2 px-3 text-xs">
+        <div className="hidden lg:contents">
+        <CollapsiblePanel
+          id="workbench.right"
+          side="right"
+          title={t('workbench.sessionInfo')}
+          icon="Info"
+          defaultWidth={300}
+          min={220}
+          max={480}
+          data-testid="session-info"
+        >
+          <dl className="space-y-2 px-3 pb-3 text-xs">
             <Info k={t('workbench.wsStatus')}>
               <span className={`inline-block h-2 w-2 rounded-full ${status === 'open' ? 'bg-emerald-500' : status === 'connecting' ? 'bg-amber-500' : 'bg-zinc-400'}`} />{' '}
               {status === 'open' ? t('workbench.wsConnected') : status === 'connecting' ? t('workbench.wsConnecting') : t('workbench.wsDisconnected')}
@@ -325,7 +345,8 @@ export function WorkbenchPage() {
             )}
             {chat.usage && <Info k={t('workbench.usage')}><pre className="whitespace-pre-wrap">{JSON.stringify(chat.usage, null, 1)}</pre></Info>}
           </dl>
-        </aside>
+        </CollapsiblePanel>
+        </div>
       )}
 
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} onPick={pickSearch} />

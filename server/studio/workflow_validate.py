@@ -22,6 +22,10 @@ SOURCE_HANDLES = {
     "loop": {"output", "body", "exit"},
 }
 VALID_CODING_TOOLS = {"claude-code", "codex", "pi"}
+# docs 模組：節點可以改成「傳文件」而不是「傳文字」（io_mode: text|doc，預設 text＝向後相容）
+VALID_IO_MODES = {"text", "doc"}
+VALID_DOC_OPS = {"transform", "fanout", "select", "merge"}
+VALID_SELECT_BY = {"human", "ai"}
 VALID_DELIVERY = {"line", "webhook", "file"}
 VALID_CONDITION_OPS = {"contains", "not_contains", "regex", "json_path", "min_length", "max_length", "equals"}
 
@@ -57,6 +61,46 @@ def _check_rule(rule: Any, where: str, errors: list[str]) -> None:
         errors.append(f"{where} 條件必須有 value")
 
 
+def doc_op(n: dict) -> str:
+    """節點的文件操作；不是 doc 模式回 ""。"""
+    if str(n.get("io_mode") or "text") != "doc":
+        return ""
+    return str(n.get("doc_op") or "transform")
+
+
+def _check_doc_mode(n: dict, nid: str) -> tuple[list[str], bool]:
+    """驗 io_mode / doc_op 等欄位。回 (錯誤清單, 是否為「人選一份」的閘門節點)。"""
+    errors: list[str] = []
+    io = str(n.get("io_mode") or "text")
+    if io not in VALID_IO_MODES:
+        return [f"節點 {nid} io_mode 必須是 text 或 doc"], False
+    if io != "doc":
+        return errors, False
+    op = str(n.get("doc_op") or "transform")
+    if op not in VALID_DOC_OPS:
+        return [f"doc 節點 {nid} doc_op 必須是 {'/'.join(sorted(VALID_DOC_OPS))}"], False
+    if op == "fanout":
+        try:
+            cnt = int(n.get("fanout_count", 3))
+        except (TypeError, ValueError):
+            cnt = 0
+        if cnt < 2 or cnt > 20:
+            errors.append(f"doc 節點 {nid} fanout_count 必須介於 2–20")
+    human_select = False
+    if op == "select":
+        by = str(n.get("select_by") or "ai")
+        if by not in VALID_SELECT_BY:
+            errors.append(f"doc 節點 {nid} select_by 必須是 human 或 ai")
+        human_select = by == "human"
+    for key in ("doc_path", "doc_path_pattern", "doc_glob"):
+        v = n.get(key)
+        if v is not None and not isinstance(v, str):
+            errors.append(f"doc 節點 {nid} {key} 必須是字串")
+    if op == "fanout" and n.get("doc_path_pattern") and "{i}" not in str(n["doc_path_pattern"]):
+        errors.append(f"doc 節點 {nid} doc_path_pattern 必須含有 {{i}}")
+    return errors, human_select
+
+
 def validate_workflow(nodes: Any, edges: Any) -> None:
     errors: list[str] = []
     if not isinstance(nodes, list) or not nodes:
@@ -81,9 +125,11 @@ def validate_workflow(nodes: Any, edges: Any) -> None:
         kind = node_kind(n)
         kinds[nid] = kind
         if kind == "hermes":
-            if not (n.get("agent_id") or n.get("agent")):
+            doc_errs, human_select = _check_doc_mode(n, nid)
+            errors.extend(doc_errs)
+            if not (n.get("agent_id") or n.get("agent")) and not human_select:
                 errors.append(f"agent 節點 {nid} 必須指定 agent_id")
-            if not str(n.get("prompt") or "").strip():
+            if not str(n.get("prompt") or "").strip() and not human_select:
                 errors.append(f"agent 節點 {nid} 必須有 prompt")
         elif kind == "coding-agent":
             if n.get("tool") not in VALID_CODING_TOOLS:

@@ -258,5 +258,34 @@
     "slideN": "第 {{n}} / {{total}} 張",
     "untitledSlide": "（無標題）",
     "noSlides": "沒有投影片"
+  },
+  "panel": {
+    "expand": "展開{{title}}",
+    "collapse": "收合{{title}}",
+    "resize": "拖曳調整{{title}}寬度（左右方向鍵也可以調）",
+    "focus": "專注模式",
+    "focusOn": "進入專注模式：收起所有側欄",
+    "focusOff": "離開專注模式：還原所有側欄"
+  },
+  "panels": {
+    "agents": "AI 員工與對話",
+    "sessionInfo": "SESSION 資訊",
+    "fileTree": "檔案樹",
+    "topics": "主題清單",
+    "stageAgent": "負責員工",
+    "workflowList": "工作流清單",
+    "nodePanel": "這一站",
+    "runPanel": "執行面板",
+    "rooms": "房間清單",
+    "members": "成員",
+    "codingSessions": "Coding Session",
+    "filters": "篩選",
+    "agentList": "員工清單",
+    "skillList": "Skill 清單",
+    "memoryFiles": "記憶檔案",
+    "bundleForm": "建立 Bundle",
+    "journeyDetail": "節點詳情",
+    "adminSide": "系統資訊",
+    "kanbanFilters": "看板篩選"
   }
 }

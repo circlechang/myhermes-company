@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { App } from '../App'
 import { renderApp, setupMocks } from './utils'
 import { SIDEBAR_KEY } from '../components/nav/useNavState'
+import { NAV_PANEL_ID } from '../components/nav/Sidebar'
+import { panelKey, resetFocusMode } from '../components/layout/panelState'
 import { groupNav } from '../modules/registry'
 import { activeNavItem, allNav } from '../components/nav/navConfig'
 import { INBOX_EVENT } from '../components/nav/TopBar'
@@ -42,7 +44,8 @@ function setMobile(mobile: boolean) {
 describe('版面：側欄分群', () => {
   beforeEach(() => {
     setupMocks({ loggedIn: true })
-    window.localStorage.removeItem(SIDEBAR_KEY)
+    window.localStorage.clear()
+    resetFocusMode()
     setMobile(false)
   })
 
@@ -87,6 +90,44 @@ describe('版面：側欄分群', () => {
     window.localStorage.setItem(SIDEBAR_KEY, 'collapsed')
     renderApp(<App />, { route: '/' })
     expect((await screen.findByTestId('sidebar')).dataset.expanded).toBe('false')
+  })
+
+  it('主導覽可以拖曳調寬，寬度記到 mhc.panel.nav', async () => {
+    renderApp(<App />, { route: '/kanban' })
+    const sidebar = await screen.findByTestId('sidebar')
+    expect(sidebar).toHaveStyle({ width: '224px' })
+    const sep = screen.getByTestId('sidebar-resizer')
+    expect(sep).toHaveAttribute('role', 'separator')
+    fireEvent.pointerDown(sep, { button: 0, clientX: 224, pointerId: 1 })
+    fireEvent.pointerMove(sep, { clientX: 300, pointerId: 1 })
+    fireEvent.pointerUp(sep, { clientX: 300, pointerId: 1 })
+    expect(screen.getByTestId('sidebar')).toHaveStyle({ width: '300px' })
+    expect(JSON.parse(window.localStorage.getItem(panelKey(NAV_PANEL_ID))!)).toMatchObject({ width: 300 })
+    // 鍵盤也可以
+    fireEvent.keyDown(screen.getByTestId('sidebar-resizer'), { key: 'ArrowLeft' })
+    expect(screen.getByTestId('sidebar')).toHaveStyle({ width: '284px' })
+  })
+
+  it('專注模式：頂欄鈕與 ⌘. 都會收起主導覽，再按一次還原', async () => {
+    const user = userEvent.setup()
+    renderApp(<App />, { route: '/kanban' })
+    const sidebar = await screen.findByTestId('sidebar')
+    expect(sidebar.dataset.expanded).toBe('true')
+
+    await user.click(screen.getByTestId('focus-toggle'))
+    expect(screen.getByTestId('sidebar').dataset.expanded).toBe('false')
+    expect(screen.getByTestId('focus-toggle')).toHaveAttribute('aria-pressed', 'true')
+    expect(window.localStorage.getItem('mhc.focus')).toBe('1')
+    // 主區的側欄（看板篩選）也一起收起來
+    expect(screen.getByTestId('panel-expand-kanban.filters')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: '.', metaKey: true })
+    expect(screen.getByTestId('sidebar').dataset.expanded).toBe('true')
+    expect(screen.getByTestId('focus-toggle')).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.keyDown(window, { key: '.', ctrlKey: true })
+    expect(screen.getByTestId('sidebar').dataset.expanded).toBe('false')
+    // 專注模式不會覆寫使用者原本的側欄偏好
+    expect(window.localStorage.getItem(SIDEBAR_KEY)).toBeNull()
   })
 
   it('頂欄：當前頁標題、搜尋鈕派 Ctrl+K、收件匣 badge 可缺省', async () => {

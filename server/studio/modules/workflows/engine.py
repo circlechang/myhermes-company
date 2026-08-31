@@ -31,7 +31,7 @@ from sqlmodel import Session, select
 from ...hermes.gateway import GatewayClient, GatewayError
 from ...models import (Agent, ChatSession, Message, Workflow, WorkflowApproval, WorkflowRun, WorkflowRunNode, new_id, now)
 from ...workflow_validate import loop_body, node_kind
-from . import runners
+from . import doc_nodes, runners
 from .conditions import evaluate_rule, parse_yes_no
 from .hub import WorkflowHub
 
@@ -57,7 +57,9 @@ DONE_STATUSES = {"complete", "continue", "blocked"}
 _JSON_BLOCK = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```\s*$", re.S)
 CACHEABLE_KINDS = {"hermes", "coding-agent", "condition"}
 CACHE_FIELDS = ("kind", "prompt", "agent_id", "agent", "profile", "model", "skills", "system", "attachments", "tool_approval",
-                "tool", "cwd", "command", "mode", "rule", "done_check", "done_check_max_rounds")
+                "tool", "cwd", "command", "mode", "rule", "done_check", "done_check_max_rounds",
+                "io_mode", "doc_op", "fanout_count", "select_by", "criteria", "doc_path", "doc_path_pattern", "doc_glob",
+                "doc_new", "doc_status", "doc_stage")
 
 
 def _bytes_slice(text: str, n: int, *, tail: bool = False) -> str:
@@ -120,6 +122,7 @@ class RunContext:
         self.gateway_runs: dict[str, tuple[Optional[str], str]] = {}  # node_id -> (profile, gateway run id)
         self.approval_events: dict[str, asyncio.Event] = {}
         self.approval_results: dict[str, tuple[str, str]] = {}
+        self.approval_choices: dict[str, str] = {}  # node_id -> 人在 doc_select 閘門選的 doc_id
         self.stop_reason: Optional[str] = None
         self.lock = asyncio.Lock()
         self.deadline_task: Optional[asyncio.Task] = None
@@ -248,11 +251,14 @@ class WorkflowEngine:
             self.runs.pop(rid, None)
         await asyncio.sleep(0)
 
-    async def decide_approval(self, approval: WorkflowApproval, decision: str, comment: str, member_id: str) -> None:
+    async def decide_approval(self, approval: WorkflowApproval, decision: str, comment: str, member_id: str,
+                              choice: str = "") -> None:
         ctx = self.runs.get(approval.run_id)
         if ctx is None:
             raise RuntimeError("run 已不在執行中（未被啟動時的修復程序接手，請從節點重跑）")
         ctx.approval_results[approval.node_id] = (decision, comment)
+        if choice:
+            ctx.approval_choices[approval.node_id] = choice
         ev = ctx.approval_events.get(approval.node_id)
         if ev is None:
             raise RuntimeError("此閘門不在等待狀態")
@@ -261,6 +267,8 @@ class WorkflowEngine:
             if a:
                 a.status = "approved" if decision == "approve" else "rejected"
                 a.comment = comment
+                if choice:
+                    a.choice = choice
                 a.decided_by = member_id
                 a.decided_at = now()
                 db.add(a)
@@ -596,6 +604,8 @@ class WorkflowEngine:
             if decision != "approve":
                 raise RuntimeError(f"自檢 blocked，人退回：{comment or '無說明'}")
             ctx.human_notes[nid] = comment
+        if str(node.get("io_mode") or "text") == "doc":  # 文件模式：transform / fanout / select / merge
+            return await doc_nodes.run(self, ctx, nid, node, instr)
         if not node.get("done_check"):
             return await self._hermes_call(ctx, nid, node, self._compose(ctx, nid, node, str(node.get("prompt") or "")), instr)
         max_rounds = max(1, int(node.get("done_check_max_rounds") or DONE_CHECK_DEFAULT_ROUNDS))
@@ -645,7 +655,8 @@ class WorkflowEngine:
             ctx.human_notes[nid] = comment or "請繼續"
             prev_output, prev_next = body, rec["next"]
 
-    async def _wait_human(self, ctx: RunContext, nid: str, approval_id: str, *, payload: Optional[str]) -> tuple[str, str]:
+    async def _wait_human(self, ctx: RunContext, nid: str, approval_id: str, *, payload: Optional[str],
+                          kind: str = "done_check") -> tuple[str, str]:
         """把節點掛成 waiting_approval，等 decide_approval 喚醒；回 (decision, comment)。"""
         ev = asyncio.Event()
         ctx.approval_events[nid] = ev
@@ -654,17 +665,17 @@ class WorkflowEngine:
         async with ctx.lock:
             self._set_state(ctx, nid, "waiting_approval")
             if payload is not None:
-                self._event(ctx, {"type": "approval.request", "node_id": nid, "approval_id": approval_id, "kind": "done_check"})
+                self._event(ctx, {"type": "approval.request", "node_id": nid, "approval_id": approval_id, "kind": kind})
             self._persist(ctx)
         if payload is not None:
-            await self._broadcast(ctx, {"type": "approval.request", "node_id": nid, "approval_id": approval_id, "payload": payload[:4000], "kind": "done_check"})
+            await self._broadcast(ctx, {"type": "approval.request", "node_id": nid, "approval_id": approval_id, "payload": payload[:4000], "kind": kind})
         await self._maybe_finish(ctx)
         await ev.wait()
         ctx.approval_events.pop(nid, None)
         if ctx.stop_reason:
             raise asyncio.CancelledError()
         decision, comment = ctx.approval_results.get(nid, ("reject", "run stopped"))
-        self._event(ctx, {"type": "approval.decided", "node_id": nid, "approval_id": approval_id, "decision": decision, "comment": comment, "kind": "done_check"})
+        self._event(ctx, {"type": "approval.decided", "node_id": nid, "approval_id": approval_id, "decision": decision, "comment": comment, "kind": kind})
         await self._broadcast(ctx, {"type": "approval.decided", "node_id": nid, "approval_id": approval_id, "decision": decision, "comment": comment})
         self._set_state(ctx, nid, "running")
         return decision, comment

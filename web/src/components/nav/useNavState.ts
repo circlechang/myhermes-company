@@ -31,17 +31,27 @@ export function useSidebarExpanded(): [boolean, () => void] {
   return [expanded, toggle]
 }
 
-/** 手機判定：matchMedia；jsdom 沒有 matchMedia 時視為桌面 */
-export function useIsMobile(): boolean {
-  const get = () => (typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(MOBILE_QUERY).matches : false)
-  const [mobile, setMobile] = useState(get)
+/** matchMedia 包裝；jsdom 沒有 matchMedia 時一律回 false（視為桌面／寬螢幕） */
+export function useMediaQuery(query: string): boolean {
+  const get = () => (typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false)
+  const [hit, setHit] = useState(get)
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
-    const mq = window.matchMedia(MOBILE_QUERY)
-    const h = () => setMobile(mq.matches)
+    const mq = window.matchMedia(query)
+    const h = () => setHit(mq.matches)
     h()
     mq.addEventListener?.('change', h)
     return () => mq.removeEventListener?.('change', h)
-  }, [])
-  return mobile
+  }, [query])
+  return hit
+}
+
+/** 手機判定（<768px） */
+export function useIsMobile(): boolean {
+  return useMediaQuery(MOBILE_QUERY)
+}
+
+/** 視窗比 px 窄（用 max-width 問，jsdom 的測試 stub 也答得出來） */
+export function useNarrowerThan(px: number): boolean {
+  return useMediaQuery(`(max-width: ${px - 1}px)`)
 }

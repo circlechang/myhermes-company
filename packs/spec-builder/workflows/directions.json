@@ -1,0 +1,38 @@
+{
+  "format": "myhermescompany.workflow",
+  "format_version": 1,
+  "workflow": {
+    "name": "1 三個取向",
+    "description": "規格建構器階段「1 三個取向」：doc fanout，一份 spec.md 分岔成 3 份取向不同的草稿。",
+    "profile": "",
+    "nodes": [
+      {
+        "id": "directions",
+        "title": "1 三個取向",
+        "kind": "hermes",
+        "agent": "research-strategist",
+        "io_mode": "doc",
+        "doc_op": "fanout",
+        "fanout_count": 3,
+        "doc_glob": "{topic_dir}/spec.md",
+        "doc_path_pattern": "{topic_dir}/directions/draft-{i}.md",
+        "doc_stage": "directions",
+        "prompt": "依上方「外部輸入」的指示執行。這是工作流的文件模式：文件內容由系統餵給你，你也只要輸出文件，不要自己讀寫檔案。\n寫 3 份取向明顯不同的規格草稿（最小可行／完整平台／外接整合，或更適合本題的三個取向）。每份第一行 `# <取向名稱>：<一句話定位>`，同樣七節，最後一節固定 `## 這個取向放棄了什麼`。三份的範圍與取捨不可雷同。",
+        "tool_approval": "deny",
+        "position": {
+          "x": 80,
+          "y": 80
+        }
+      }
+    ],
+    "edges": [],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "budget": {
+      "deadline_seconds": 1800
+    }
+  }
+}

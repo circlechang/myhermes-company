@@ -1,0 +1,28 @@
+# 規格建構器：把模糊需求變成一份完整的規格文件。
+# 一份 spec.md 從 intake 站傳到 directions（分岔成 3 份）→ pick（人選一份）→ flesh-out → review → final。
+# 每一站都用工作流的「文件模式」節點（io_mode: doc），文件本身在 docs 模組裡有版本與血緣。
+name: spec-builder
+version: 0.1.0
+title: 規格建構器
+description: 把大家模糊的需求變成一份完整的規格文件。訪談補洞 → 三個取向的草稿 → 人選一份 → 逐節補完 → AI 挑漏洞（有問題退回補完）→ 定稿。文件是主角，每一站都是同一份 .md 的新版本或分身。
+requires:
+  studio: ">=0.1"
+  modules: [workflows, docs, inbox, events]
+workspace_dir: spec-builder
+profiles: [research-strategist, content-copywriter, chief-editor]
+agents:
+  - profile: research-strategist
+    name: 研究策略
+    title: 需求訪談與規格研究員
+    description: 對著空白模板逐節問問題，把模糊需求問成可寫的規格；不確定的一律列成待確認問題，不編造。
+  - profile: content-copywriter
+    name: 內容文案
+    title: 規格撰寫
+    description: 把選定的取向逐節補完成可以交付的規格文件；只寫已確認的事實。
+  - profile: chief-editor
+    name: 審稿主編
+    title: 規格審查（只挑漏洞不改寫）
+    description: 逐項檢查不明確、互相矛盾、缺驗收條件；有問題就寫「建議退回到」。
+workflows: [intake.json, directions.json, pick.json, flesh_out.json, review.json, final.json]
+skills: []
+stages: stages.yaml

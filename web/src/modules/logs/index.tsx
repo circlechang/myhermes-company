@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { StudioModule } from '../registry'
 import { PageHeader } from '../../components/PageHeader'
+import { CollapsiblePanel, PanelGroup, WorkArea } from '../../components/layout/index'
 import { Empty, ErrorBox, Loading } from '../../components/QueryState'
 import { fmtSize, fmtTime } from '../../components/admin2/Tabs'
 import { getToken, request } from '../../api/client'
@@ -109,9 +110,9 @@ export function LogsPage() {
   }, [tail, follow])
   const groups = Array.from(new Set(filesQ.data?.map((f) => f.group) ?? []))
   return (
-    <div className="flex h-full flex-col p-4">
-      <PageHeader title={t('logs.title')} subtitle={t('logs.subtitle')} />
-      <div className="mb-2 flex flex-wrap items-end gap-2 text-xs">
+    <PanelGroup>
+      <CollapsiblePanel id="logs.filters" side="left" title={t('panels.filters')} icon="Filter" defaultWidth={240} min={200} max={400}>
+        <div className="panel-filters">
         <label className="min-w-0">{t('logs.file')}
           <select aria-label={t('logs.file')} className="input" value={file} onChange={(e) => setFile(e.target.value)}>
             {groups.map((g) => (
@@ -135,7 +136,10 @@ export function LogsPage() {
         <button className={follow ? 'btn-primary' : 'btn-outline'} onClick={() => setFollow((f) => !f)} aria-pressed={follow}>{follow ? t('logs.following') : t('logs.follow')}</button>
         <button className="btn-ghost" onClick={() => readQ.refetch()}>{t('logs.refresh')}</button>
         {readQ.data && <span className="whitespace-nowrap text-zinc-600 dark:text-zinc-400">{fmtSize(readQ.data.size)} · {fmtTime(filesQ.data?.find((f) => f.id === file)?.mtime ?? 0)}</span>}
-      </div>
+        </div>
+      </CollapsiblePanel>
+      <WorkArea className="p-4">
+      <PageHeader title={t('logs.title')} subtitle={t('logs.subtitle')} />
       <div ref={box} className="card min-h-0 flex-1 overflow-auto p-2">
         {readQ.isLoading && <Loading />}
         {readQ.error && <ErrorBox error={readQ.error} onRetry={() => readQ.refetch()} />}
@@ -143,7 +147,8 @@ export function LogsPage() {
         {readQ.data?.entries.map((e, i) => <LogLine key={i} e={e} />)}
         {tail.map((e, i) => <LogLine key={`t${i}`} e={e} />)}
       </div>
-    </div>
+      </WorkArea>
+    </PanelGroup>
   )
 }
 

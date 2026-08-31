@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { request } from '../../api/client'
 import { PageHeader } from '../../components/PageHeader'
+import { CollapsiblePanel, PanelGroup, WorkArea } from '../../components/layout/index'
 import { ErrorBox, Loading } from '../../components/QueryState'
 
 export type SearchScope = 'all' | 'chat' | 'group' | 'workflow' | 'events'
@@ -80,9 +81,9 @@ export function SearchPage() {
   const total = query.data?.total ?? 0
   const pages = Math.max(1, Math.ceil(total / limit))
   return (
-    <div className="p-4">
-      <PageHeader title={t('search.title')} subtitle={t('search.subtitle')} />
-      <form className="mb-3 flex flex-wrap items-center gap-1 text-xs" role="search" onSubmit={(e) => { e.preventDefault(); set({ q: q.trim() }) }}>
+    <PanelGroup>
+      <CollapsiblePanel id="search.filters" side="left" title={t('panels.filters')} icon="Filter" defaultWidth={260} min={200} max={420}>
+      <form className="panel-filters" role="search" onSubmit={(e) => { e.preventDefault(); set({ q: q.trim() }) }}>
         <input className="input min-w-0 flex-1 basis-48 sm:w-72 sm:flex-none sm:basis-auto" placeholder={t('search.placeholder')} aria-label={t('search.placeholder')} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
         <button className="btn-primary" type="submit" disabled={!q.trim()}>{t('search.go')}</button>
         <input className="input min-w-0 flex-1 basis-[40%] sm:w-36 sm:flex-none sm:basis-auto" type="date" aria-label={t('events.since')} value={from} onChange={(e) => set({ from: e.target.value })} />
@@ -90,6 +91,9 @@ export function SearchPage() {
         <input className="input min-w-0 flex-1 basis-[40%] sm:w-36 sm:flex-none sm:basis-auto" type="date" aria-label={t('events.until')} value={to} onChange={(e) => set({ to: e.target.value })} />
         <input className="input min-w-0 flex-1 basis-[40%] sm:w-36 sm:flex-none sm:basis-auto" placeholder={t('events.agent')} aria-label={t('events.agent')} value={agent} onChange={(e) => set({ agent: e.target.value })} />
       </form>
+      </CollapsiblePanel>
+      <WorkArea className="overflow-auto p-4">
+      <PageHeader title={t('search.title')} subtitle={t('search.subtitle')} />
       <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label={t('search.scope')}>
         {SEARCH_SCOPES.map((s) => (
           <button key={s} role="tab" aria-selected={scope === s} data-testid={`scope-${s}`}
@@ -124,7 +128,8 @@ export function SearchPage() {
           <button className="btn-outline" disabled={page + 1 >= pages} onClick={() => set({ page: String(page + 1) })}>›</button>
         </div>
       )}
-    </div>
+      </WorkArea>
+    </PanelGroup>
   )
 }
 
