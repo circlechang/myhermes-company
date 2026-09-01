@@ -182,7 +182,7 @@ export function TopBar({ title, username, onLogout, onOpenMenu, mobile }: Props)
         >
           <InboxIcon className="h-4 w-4" aria-hidden />
           {inbox > 0 && (
-            <span data-testid="inbox-badge" className="absolute -right-0.5 -top-0.5 min-w-[1rem] rounded-full bg-orange-500 px-1 text-center text-[10px] font-semibold leading-4 text-white">
+            <span data-testid="inbox-badge" className="absolute -right-0.5 -top-0.5 min-w-[1rem] rounded-full bg-orange-500 px-1 text-center text-2xs font-semibold leading-4 text-white">
               {inbox > 99 ? '99+' : inbox}
             </span>
           )}
@@ -205,7 +205,7 @@ export function TopBar({ title, username, onLogout, onOpenMenu, mobile }: Props)
             aria-label={t('nav.userMenu')}
             data-testid="user-menu-button"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-[11px] font-semibold uppercase text-white">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-xs font-semibold uppercase text-white">
               {(username ?? '?').slice(0, 1)}
             </span>
           </button>

@@ -238,7 +238,7 @@ export function FilePreview({ source, onClose, actions, onOpenFile, title, class
         </div>
       )}
       {data?.warnings?.length ? (
-        <ul className="border-b border-amber-200 bg-amber-50 px-3 py-1 text-[11px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" data-testid="preview-warnings">
+        <ul className="border-b border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" data-testid="preview-warnings">
           {data.warnings.map((w, i) => (
             <li key={i}>⚠ {w}</li>
           ))}

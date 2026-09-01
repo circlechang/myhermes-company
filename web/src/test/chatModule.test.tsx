@@ -3,7 +3,7 @@ import i18n from 'i18next'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { chatApi, type ChatSession } from '../api/sessions'
-import { groupSessions, sortSessions } from '../components/chat/SessionSidebar'
+import { bucketOf, groupSessions, sectionsOf, shortTime, sortSessions } from '../components/chat/SessionSidebar'
 import { Markdown, extractFilePaths } from '../components/chat/Markdown'
 import { ToolCard } from '../components/chat/ToolCard'
 import chatMod from '../modules/chat'
@@ -35,6 +35,34 @@ describe('session 分組與排序（純函式）', () => {
   it('依來源分組，workbench/studio/web 合併，固定順序後接其他', () => {
     const g = groupSessions([mk({ id: '1', source: 'telegram' }), mk({ id: '2', source: 'studio' }), mk({ id: '3', source: 'zzz' }), mk({ id: '4', source: 'cli' }), mk({ id: '5', source: 'web' })], (k) => k)
     expect(g.map((x) => [x.key, x.items.length])).toEqual([['workbench', 2], ['cli', 1], ['telegram', 1], ['zzz', 1]])
+  })
+})
+
+describe('側欄時間分組（純函式）', () => {
+  // 以本地時間 2026-08-31 14:00 當「現在」，避免測試隨執行時間漂移
+  const now = new Date(2026, 7, 31, 14, 0, 0).getTime()
+  const at = (d: Date) => d.toISOString()
+
+  it('用日曆日而不是 24 小時切桶：凌晨 0:05 仍算今天', () => {
+    expect(bucketOf(new Date(2026, 7, 31, 0, 5).getTime(), now)).toBe('today')
+    expect(bucketOf(new Date(2026, 7, 30, 23, 55).getTime(), now)).toBe('yesterday')
+    expect(bucketOf(new Date(2026, 7, 27, 9, 0).getTime(), now)).toBe('week')
+    expect(bucketOf(new Date(2026, 6, 1, 9, 0).getTime(), now)).toBe('older')
+  })
+
+  it('空的桶不產生區段，進行中的對話一律留在今天', () => {
+    const secs = sectionsOf([
+      mk({ id: 'a', last_message_at: at(new Date(2026, 7, 31, 9, 0)) }),
+      mk({ id: 'b', last_message_at: at(new Date(2026, 6, 1, 9, 0)) }),
+      mk({ id: 'c', last_message_at: at(new Date(2026, 6, 1, 9, 0)), running: true }),
+    ], now)
+    expect(secs.map((x) => [x.key, x.items.map((i) => i.id)])).toEqual([['today', ['a', 'c']], ['older', ['b']]])
+  })
+
+  it('時間戳：今天給時刻、昨天不重複標示、更早給日期', () => {
+    expect(shortTime(new Date(2026, 7, 31, 9, 5).getTime(), 'zh-TW', now)).toBe('09:05')
+    expect(shortTime(new Date(2026, 7, 30, 9, 5).getTime(), 'zh-TW', now)).toBe('')
+    expect(shortTime(new Date(2026, 6, 1, 9, 5).getTime(), 'zh-TW', now)).toMatch(/07/)
   })
 })
 
@@ -217,6 +245,9 @@ describe('工作臺整合（mock fetch + 假 WebSocket）', () => {
     const hg = await screen.findByTestId('group-hermes')
     expect(hg).toHaveTextContent('Hermes 歷史')
     expect(hg).toHaveTextContent('4') // total badge
+    // 非工作臺的群組預設收合（Hermes 動輒上千筆），要先展開
+    expect(within(hg).queryByText('default')).not.toBeInTheDocument()
+    await user.click(within(hg).getByRole('button', { name: /Hermes 歷史/ }))
     await user.click(within(hg).getByText('default'))
     const list = await screen.findByTestId('hermes-list-default')
     expect(within(list).getAllByText('Hermes')).toHaveLength(3)
@@ -228,7 +259,9 @@ describe('工作臺整合（mock fetch + 假 WebSocket）', () => {
     await user.click(within(view).getByRole('button', { name: '匯入成 Studio 對話' }))
     await waitFor(() => expect(screen.queryByTestId('hermes-view')).not.toBeInTheDocument())
     expect(await screen.findByText(/1\.4 倍/)).toBeInTheDocument()
-    expect(screen.getByTestId('group-telegram')).toHaveTextContent('客戶問報價')
+    const tg = screen.getByTestId('group-telegram')
+    await user.click(within(tg).getByRole('button', { name: /telegram|Telegram/i }))
+    expect(tg).toHaveTextContent('客戶問報價')
   })
 
   it('手機版：☰ 開抽屜側欄', async () => {

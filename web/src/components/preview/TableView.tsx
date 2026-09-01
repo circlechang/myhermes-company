@@ -81,16 +81,16 @@ export function TableView({ rows, numericCols = [], merges = [], freeze, note, t
           onChange={(e) => setQ(e.target.value)}
           data-testid="table-search"
         />
-        <span className="shrink-0 text-[11px] text-zinc-600 dark:text-zinc-400" data-testid="table-count">
+        <span className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400" data-testid="table-count">
           {t('preview.rowCount', { shown: view.length, total: body.length })}
         </span>
         {sort && (
-          <button className="btn-ghost !px-1.5 !py-0 text-[11px]" onClick={() => setSort(null)} data-testid="table-clear-sort">
+          <button className="btn-ghost !px-1.5 !py-0 text-xs" onClick={() => setSort(null)} data-testid="table-clear-sort">
             {t('preview.clearSort')}
           </button>
         )}
         {!natural && merges.length > 0 && (
-          <span className="shrink-0 text-[11px] text-amber-700 dark:text-amber-300">{t('preview.mergesOff')}</span>
+          <span className="shrink-0 text-xs text-amber-700 dark:text-amber-300">{t('preview.mergesOff')}</span>
         )}
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
@@ -114,7 +114,7 @@ export function TableView({ rows, numericCols = [], merges = [], freeze, note, t
                       title={String(c)}
                     >
                       <span className="min-w-0 truncate">{String(c)}</span>
-                      <span aria-hidden className="shrink-0 text-[9px] text-zinc-500">
+                      <span aria-hidden className="shrink-0 text-2xs text-zinc-500">
                         {sort?.col === j ? (sort.dir === 'asc' ? '▲' : '▼') : '⇅'}
                       </span>
                     </button>
@@ -151,7 +151,7 @@ export function TableView({ rows, numericCols = [], merges = [], freeze, note, t
           </tbody>
         </table>
       </div>
-      {note && <div className="border-t border-zinc-200 px-2 py-1 text-[11px] text-amber-700 dark:border-zinc-800 dark:text-amber-300">{note}</div>}
+      {note && <div className="border-t border-zinc-200 px-2 py-1 text-xs text-amber-700 dark:border-zinc-800 dark:text-amber-300">{note}</div>}
     </div>
   )
 }

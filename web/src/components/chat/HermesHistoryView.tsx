@@ -21,7 +21,7 @@ export function HermesHistoryList({ profile, active, onOpen }: { profile: string
     <div className="pl-2" data-testid={`hermes-list-${profile}`}>
       {[...groups.entries()].map(([src, items]) => (
         <div key={src}>
-          <button type="button" className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] uppercase text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60" onClick={() => setCollapsed((c) => ({ ...c, [src]: !c[src] }))}>
+          <button type="button" className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-2xs uppercase text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60" onClick={() => setCollapsed((c) => ({ ...c, [src]: !c[src] }))}>
             <span>{collapsed[src] ? '▸' : '▾'}</span>
             <span aria-hidden>{SOURCE_ICON[src] ?? '•'}</span>
             <span>{src}</span>
@@ -36,12 +36,12 @@ export function HermesHistoryList({ profile, active, onOpen }: { profile: string
               title={`${s.id} · ${fmt(s.started_at)}`}
             >
               <span className="min-w-0 flex-1 truncate">{s.title}</span>
-              <span className="shrink-0 rounded bg-amber-100 px-1 text-[9px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('chat.hermes.badge')}</span>
+              <span className="shrink-0 rounded bg-amber-100 px-1 text-2xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('chat.hermes.badge')}</span>
             </button>
           ))}
         </div>
       ))}
-      {(q.data ?? []).length === 0 && <div className="px-2 py-1 text-[11px] text-zinc-600 dark:text-zinc-400">{t('common.empty')}</div>}
+      {(q.data ?? []).length === 0 && <div className="px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400">{t('common.empty')}</div>}
     </div>
   )
 }

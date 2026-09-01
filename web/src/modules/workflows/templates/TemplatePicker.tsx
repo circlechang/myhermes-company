@@ -41,10 +41,10 @@ export function TemplatePicker({
                 >
                   <span className="flex items-center gap-2">
                     <span className="font-semibold">{s.name}</span>
-                    <span className="badge bg-zinc-200 text-[11px] dark:bg-zinc-800">{t('wf.tpl.count', { n: s.steps.length })}</span>
+                    <span className="badge bg-zinc-200 text-xs dark:bg-zinc-800">{t('wf.tpl.count', { n: s.steps.length })}</span>
                   </span>
                   <span className="text-xs text-zinc-600 dark:text-zinc-300">{s.desc}</span>
-                  <span className="mt-auto flex flex-wrap items-center gap-1 pt-1 text-[11px] text-zinc-600 dark:text-zinc-400">
+                  <span className="mt-auto flex flex-wrap items-center gap-1 pt-1 text-xs text-zinc-600 dark:text-zinc-400">
                     {s.steps.map((st, i) => (
                       <span key={`${st}-${i}`} className="flex items-center gap-1">
                         {i > 0 && <span aria-hidden>→</span>}

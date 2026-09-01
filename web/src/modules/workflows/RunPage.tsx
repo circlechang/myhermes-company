@@ -65,8 +65,8 @@ export function RunPage() {
             {!selNode && <div className="text-xs text-zinc-600 dark:text-zinc-400">點節點看輸出，雙擊開對話。</div>}
             {selNode && (
               <div className="space-y-1">
-                <div className="flex items-center gap-2"><span className="font-semibold">{selNode.title}</span><StatusBadge s={st?.status} />{st?.attempt ? <span className="text-[10px] text-zinc-600 dark:text-zinc-400">×{st.attempt}</span> : null}</div>
-                <div className="text-[11px] text-zinc-600 dark:text-zinc-400">{fmt(st?.started_at)} → {fmt(st?.finished_at)}{st?.usage?.total_tokens ? ` · ${st.usage.total_tokens} tok` : ''}{st?.profile ? ` · ${String(st.profile)}` : ''}</div>
+                <div className="flex items-center gap-2"><span className="font-semibold">{selNode.title}</span><StatusBadge s={st?.status} />{st?.attempt ? <span className="text-2xs text-zinc-600 dark:text-zinc-400">×{st.attempt}</span> : null}</div>
+                <div className="text-xs text-zinc-600 dark:text-zinc-400">{fmt(st?.started_at)} → {fmt(st?.finished_at)}{st?.usage?.total_tokens ? ` · ${st.usage.total_tokens} tok` : ''}{st?.profile ? ` · ${String(st.profile)}` : ''}</div>
                 {st?.error && <div className="text-xs text-rose-600 dark:text-rose-400">{st.error}</div>}
                 {st && <NodeHints state={st} />}
                 {st && <SpillViewer runId={d.id} nodeId={selNode.id} state={st} />}

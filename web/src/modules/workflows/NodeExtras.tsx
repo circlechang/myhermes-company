@@ -36,8 +36,8 @@ export function SpillViewer({ runId, nodeId, state }: { runId: string; nodeId: s
   }
   return (
     <div className="mt-1 text-xs" data-testid={`spill-${nodeId}`}>
-      <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('wf.panel.spillBytes', { n: state.spill.bytes })}</span>{' '}
-      <button className="btn-ghost !px-1 !py-0 text-[11px] underline" disabled={loading} onClick={open}>{t('wf.panel.spilled')}</button>
+      <span className="rounded bg-amber-100 px-1 py-0.5 text-2xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('wf.panel.spillBytes', { n: state.spill.bytes })}</span>{' '}
+      <button className="btn-ghost !px-1 !py-0 text-xs underline" disabled={loading} onClick={open}>{t('wf.panel.spilled')}</button>
       {full && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-6" onClick={() => setFull(null)}>
           <div className="card flex max-h-full w-full max-w-3xl flex-col gap-2 p-3" onClick={(e) => e.stopPropagation()} data-testid="spill-modal">
@@ -74,13 +74,13 @@ export function DoneRounds({ state }: { state: NodeState }) {
   const rounds = state.done_rounds ?? []
   if (!rounds.length) return null
   return (
-    <div className="mt-1 text-[11px]" data-testid="done-rounds">
+    <div className="mt-1 text-xs" data-testid="done-rounds">
       <div className="text-zinc-600 dark:text-zinc-400">{t('wf.panel.doneRounds')}</div>
       <ol className="space-y-0.5">
         {rounds.map((r) => (
           <li key={r.round} className="flex flex-wrap items-baseline gap-1">
             <span className="text-zinc-600 dark:text-zinc-400">#{r.round}</span>
-            <span className={`rounded px-1 text-[10px] ${roundColor[r.status] ?? ''}`}>{r.status}</span>
+            <span className={`rounded px-1 text-2xs ${roundColor[r.status] ?? ''}`}>{r.status}</span>
             {r.evidence && <span className="text-zinc-600 dark:text-zinc-300">{r.evidence}</span>}
             {r.next && <span className="text-zinc-600 dark:text-zinc-400">→ {r.next}</span>}
             {r.warning && <span className="text-amber-700 dark:text-amber-400">［{r.warning}］</span>}
@@ -95,8 +95,8 @@ export function NodeHints({ state }: { state: NodeState }) {
   const { t } = useTranslation()
   return (
     <>
-      {state.status === 'reused' && state.reason?.includes('效果快取') && <div className="mt-1 text-[11px] text-zinc-600 dark:text-zinc-400" data-testid="reused-cache">↺ {t('wf.panel.reusedCache')}</div>}
-      {state.status === 'outcome_unknown' && <div className="mt-1 rounded bg-amber-50 p-1 text-[11px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{t('wf.panel.unknownHint')}</div>}
+      {state.status === 'reused' && state.reason?.includes('效果快取') && <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400" data-testid="reused-cache">↺ {t('wf.panel.reusedCache')}</div>}
+      {state.status === 'outcome_unknown' && <div className="mt-1 rounded bg-amber-50 p-1 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{t('wf.panel.unknownHint')}</div>}
     </>
   )
 }

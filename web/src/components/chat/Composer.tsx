@@ -103,7 +103,7 @@ export function Composer(p: ComposerProps) {
       data-testid="composer"
     >
       {p.compression && (
-        <div className="mb-1 text-[11px] text-amber-700 dark:text-amber-400" data-testid="compression">{t('chat.compressing')} {p.compression.status}{p.compression.detail ? ` · ${p.compression.detail}` : ''}</div>
+        <div className="mb-1 text-xs text-amber-700 dark:text-amber-400" data-testid="compression">{t('chat.compressing')} {p.compression.status}{p.compression.detail ? ` · ${p.compression.detail}` : ''}</div>
       )}
       {p.reply && !p.editing && (
         <div className="mb-1 flex items-start gap-2 rounded border-l-2 border-indigo-400 bg-zinc-100 px-2 py-1 text-xs dark:bg-zinc-800" data-testid="reply-bar">
@@ -123,14 +123,14 @@ export function Composer(p: ComposerProps) {
       {(files.length > 0 || uploading > 0) && (
         <div className="mb-1 flex flex-wrap gap-1" data-testid="pending-attachments">
           {files.map((a) => (
-            <span key={a.path} className="inline-flex items-center gap-1 rounded border border-zinc-300 px-1.5 py-0.5 text-[11px] dark:border-zinc-700" title={a.path}>
+            <span key={a.path} className="inline-flex items-center gap-1 rounded border border-zinc-300 px-1.5 py-0.5 text-xs dark:border-zinc-700" title={a.path}>
               <span aria-hidden>{a.mime?.startsWith('image/') ? '🖼' : '📄'}</span>
               <span className="max-w-[10rem] truncate">{a.name}</span>
               <span className="text-zinc-600 dark:text-zinc-400">{fmtBytes(a.size)}</span>
               <button type="button" className="text-zinc-600 dark:text-zinc-400 hover:text-rose-600" onClick={() => setFiles((f) => f.filter((x) => x.path !== a.path))} aria-label={`${t('common.delete')} ${a.name}`}>✕</button>
             </span>
           ))}
-          {uploading > 0 && <span className="text-[11px] text-zinc-600 dark:text-zinc-400">{t('chat.uploading', { n: uploading })}</span>}
+          {uploading > 0 && <span className="text-xs text-zinc-600 dark:text-zinc-400">{t('chat.uploading', { n: uploading })}</span>}
         </div>
       )}
       {err && <div className="mb-1 text-xs text-rose-600 dark:text-rose-400">{err}</div>}
@@ -158,7 +158,7 @@ export function Composer(p: ComposerProps) {
           <button type="button" className="btn-primary shrink-0" onClick={submit} disabled={!canSend}>{p.editing ? t('chat.resend') : t('workbench.send')}</button>
         )}
       </div>
-      <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-400">
+      <div className="mt-1 flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
         {p.running && <span>{t('workbench.running')}</span>}
         <span className="ml-auto">{t('chat.dropHint')}</span>
       </div>

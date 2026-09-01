@@ -38,7 +38,7 @@ export function ImageView({ url, alt, meta }: { url: string; alt: string; meta: 
   const exifRows = Object.entries(exif)
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="image-preview">
-      <div className="flex flex-wrap items-center gap-1 border-b border-zinc-200 px-2 py-1 text-[11px] dark:border-zinc-800">
+      <div className="flex flex-wrap items-center gap-1 border-b border-zinc-200 px-2 py-1 text-xs dark:border-zinc-800">
         <button className="btn-ghost !px-1.5 !py-0" onClick={() => bump(1 / 1.25)} aria-label={t('preview.zoomOut')}>−</button>
         <span className="w-12 text-center tabular-nums" data-testid="image-zoom">{Math.round(zoom * 100)}%</span>
         <button className="btn-ghost !px-1.5 !py-0" onClick={() => bump(1.25)} aria-label={t('preview.zoomIn')}>＋</button>
@@ -68,7 +68,7 @@ export function ImageView({ url, alt, meta }: { url: string; alt: string; meta: 
         />
       </div>
       {exifRows.length > 0 && (
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 border-t border-zinc-200 p-2 text-[11px] dark:border-zinc-800" data-testid="image-exif">
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 border-t border-zinc-200 p-2 text-xs dark:border-zinc-800" data-testid="image-exif">
           {exifRows.map(([k, v]) => (
             <div key={k} className="contents">
               <dt className="whitespace-nowrap text-zinc-600 dark:text-zinc-400">{k}</dt>

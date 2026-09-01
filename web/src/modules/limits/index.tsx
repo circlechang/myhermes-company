@@ -31,11 +31,11 @@ const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `
 const usd = (n: number) => `$${n.toFixed(n >= 10 ? 2 : 4)}`
 
 export function Bar({ pct, label, testId }: { pct: number | null; label: string; testId?: string }) {
-  if (pct === null) return <div className="text-[11px] text-zinc-600 dark:text-zinc-400">{label}</div>
+  if (pct === null) return <div className="text-xs text-zinc-600 dark:text-zinc-400">{label}</div>
   const p = Math.min(100, Math.max(0, pct))
   const color = pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'
   return (
-    <div className="text-[11px]" data-testid={testId}>
+    <div className="text-xs" data-testid={testId}>
       <div className="flex justify-between"><span>{label}</span><span>{pct.toFixed(0)}%</span></div>
       <div className="h-2 w-full overflow-hidden rounded bg-zinc-200 dark:bg-zinc-800"><div className={`h-2 ${color}`} style={{ width: `${p}%` }} role="progressbar" aria-valuenow={Math.round(pct)} /></div>
     </div>
@@ -57,10 +57,10 @@ function LimitRow({ lim, onChange }: { lim: UsageLimit; onChange: () => void }) 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="min-w-0 truncate font-medium" title={title}>{title}</span>
-            <span className="badge bg-zinc-200 px-1.5 text-[11px] dark:bg-zinc-800">{t(`limits.action.${lim.action}`)}</span>
-            {!lim.enabled && <span className="badge bg-zinc-200 px-1.5 text-[11px] dark:bg-zinc-800">{t('limits.paused')}</span>}
-            {lim.today.exceeded && <span className="badge bg-rose-100 px-1.5 text-[11px] text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">{t('limits.exceeded')}</span>}
-            {lim.agent && !lim.agent.enabled && <span className="badge bg-amber-100 px-1.5 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('limits.agentDisabled')}</span>}
+            <span className="badge bg-zinc-200 px-1.5 text-xs dark:bg-zinc-800">{t(`limits.action.${lim.action}`)}</span>
+            {!lim.enabled && <span className="badge bg-zinc-200 px-1.5 text-xs dark:bg-zinc-800">{t('limits.paused')}</span>}
+            {lim.today.exceeded && <span className="badge bg-rose-100 px-1.5 text-xs text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">{t('limits.exceeded')}</span>}
+            {lim.agent && !lim.agent.enabled && <span className="badge bg-amber-100 px-1.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('limits.agentDisabled')}</span>}
           </div>
           <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
             {t('limits.todayUse', { tokens: fmt(lim.today.tokens), usd: usd(lim.today.usd), runs: lim.today.runs })}
@@ -133,7 +133,7 @@ export function LimitsPage() {
           <button className="btn-primary" disabled={create.isPending || (form.scope === 'agent' && !form.agent_id) || (!form.daily_tokens && !form.daily_usd)} onClick={() => create.mutate()}>{t('common.add')}</button>
           {create.error && <span className="text-rose-600 dark:text-rose-400">{(create.error as Error).message}</span>}
         </div>
-        <p className="mt-1 text-[11px] text-zinc-600 dark:text-zinc-400">{t('limits.hint')}</p>
+        <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{t('limits.hint')}</p>
       </div>
       {list.isLoading && <Loading />}
       {list.error && <ErrorBox error={list.error} onRetry={() => list.refetch()} />}

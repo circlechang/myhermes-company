@@ -50,7 +50,7 @@ export function CodeView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="code-preview">
-      <div className="flex items-center gap-2 border-b border-zinc-200 px-2 py-1 text-[11px] text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
+      <div className="flex items-center gap-2 border-b border-zinc-200 px-2 py-1 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
         <span className="badge bg-zinc-200 dark:bg-zinc-800" data-testid="code-lang">{language || 'text'}</span>
         <span>{t('preview.lineCount', { n: lines.length })}</span>
         {search.trim() && <span data-testid="code-hits">{t('preview.searchHits', { n: hits })}</span>}

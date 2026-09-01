@@ -77,10 +77,10 @@ function ChainView({ id }: { id: string }) {
   return (
     <div className="mt-1 rounded border border-zinc-200 p-2 dark:border-zinc-700" data-testid={`chain-of-${id}`}>
       {c.upstream.length === 0 && c.downstream.length === 0 && <div className="text-xs text-zinc-600 dark:text-zinc-400">{t('events.chainEmpty')}</div>}
-      {c.upstream.length > 0 && <div className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400">{t('events.upstream')}</div>}
+      {c.upstream.length > 0 && <div className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('events.upstream')}</div>}
       <ul className="space-y-0.5">{c.upstream.map((e) => row(e, '←'))}</ul>
-      {c.truncated && <div className="text-[11px] text-zinc-600 dark:text-zinc-400">…</div>}
-      {c.downstream.length > 0 && <div className="mt-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400">{t('events.downstream')}</div>}
+      {c.truncated && <div className="text-xs text-zinc-600 dark:text-zinc-400">…</div>}
+      {c.downstream.length > 0 && <div className="mt-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('events.downstream')}</div>}
       <ul className="space-y-0.5">{c.downstream.map((e) => row(e, '→'))}</ul>
     </div>
   )
@@ -165,12 +165,12 @@ export function EventsPage() {
             <div className="text-sm">
               <span className="path-text inline text-zinc-600 dark:text-zinc-400">{e.subject}</span> {summarize(e)}
             </div>
-            <button className="btn-ghost px-1 py-0 text-[11px]" onClick={() => setOpen(open === e.id ? null : e.id)}>{open === e.id ? t('events.hidePayload') : t('events.showPayload')}</button>
-            <button className="btn-ghost px-1 py-0 text-[11px]" data-testid={`chain-btn-${e.id}`} onClick={() => setChainOf(chainOf === e.id ? null : e.id)}>
+            <button className="btn-ghost px-1 py-0 text-xs" onClick={() => setOpen(open === e.id ? null : e.id)}>{open === e.id ? t('events.hidePayload') : t('events.showPayload')}</button>
+            <button className="btn-ghost px-1 py-0 text-xs" data-testid={`chain-btn-${e.id}`} onClick={() => setChainOf(chainOf === e.id ? null : e.id)}>
               {chainOf === e.id ? t('events.hideChain') : t('events.showChain')}{e.causes?.length ? ` (${e.causes.length})` : ''}
             </button>
             {chainOf === e.id && <ChainView id={e.id} />}
-            {open === e.id && <pre className="mt-1 max-h-64 overflow-auto rounded bg-zinc-100 p-2 text-[11px] dark:bg-zinc-800">{JSON.stringify(e.payload, null, 2)}</pre>}
+            {open === e.id && <pre className="mt-1 max-h-64 overflow-auto rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-800">{JSON.stringify(e.payload, null, 2)}</pre>}
           </li>
         ))}
       </ol>

@@ -23,8 +23,8 @@ function PackCard({ p, isAdmin }: { p: Pack; isAdmin: boolean }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="min-w-0 text-base font-semibold">{p.title}</h2>
-            <code className="id-text shrink text-[11px] text-zinc-600 dark:text-zinc-400" title={`${p.name}@${p.version}`}>{p.name}@{p.version}</code>
-            <span className={`badge px-1.5 py-0.5 text-[11px] font-medium ${p.installed ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'}`}>
+            <code className="id-text shrink text-xs text-zinc-600 dark:text-zinc-400" title={`${p.name}@${p.version}`}>{p.name}@{p.version}</code>
+            <span className={`badge px-1.5 py-0.5 text-xs font-medium ${p.installed ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'}`}>
               {p.installed ? t('packs.installed') : t('packs.notInstalled')}
             </span>
           </div>
@@ -106,7 +106,7 @@ export function PacksPage() {
         </div>
       )}
       {q.data && (
-        <div className="mt-4 text-[11px] text-zinc-600 dark:text-zinc-400">
+        <div className="mt-4 text-xs text-zinc-600 dark:text-zinc-400">
           {t('packs.roots')}：{q.data.roots.map((r) => <code key={r} className="mr-2 break-all font-mono">{r}</code>)}
         </div>
       )}

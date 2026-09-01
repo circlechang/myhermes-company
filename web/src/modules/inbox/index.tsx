@@ -70,16 +70,16 @@ function Item({ it, onDone }: { it: InboxItem; onDone: () => void }) {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${KIND_COLOR[it.kind] ?? 'bg-zinc-200 dark:bg-zinc-800'}`}>{kindLabel}</span>
-            {it.agent && <code className="text-[11px] text-zinc-600 dark:text-zinc-400">{it.agent}</code>}
-            <span className="text-[11px] text-zinc-600 dark:text-zinc-400">{fmtTime(it.created_at)}</span>
+            <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${KIND_COLOR[it.kind] ?? 'bg-zinc-200 dark:bg-zinc-800'}`}>{kindLabel}</span>
+            {it.agent && <code className="text-xs text-zinc-600 dark:text-zinc-400">{it.agent}</code>}
+            <span className="text-xs text-zinc-600 dark:text-zinc-400">{fmtTime(it.created_at)}</span>
           </div>
           <div className="mt-1 font-medium">{it.title}</div>
           {it.detail && (
             <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
               <pre className={`whitespace-pre-wrap break-words font-sans ${open ? '' : 'line-clamp-3'}`}>{it.detail}</pre>
               {it.detail.length > 160 && (
-                <button className="btn-ghost mt-1 px-1 py-0 text-[11px]" onClick={() => setOpen(!open)}>{open ? t('inbox.less') : t('inbox.more')}</button>
+                <button className="btn-ghost mt-1 px-1 py-0 text-xs" onClick={() => setOpen(!open)}>{open ? t('inbox.less') : t('inbox.more')}</button>
               )}
             </div>
           )}

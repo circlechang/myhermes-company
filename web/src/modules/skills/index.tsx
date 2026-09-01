@@ -177,15 +177,15 @@ function SkillsTab({ profile }: { profile: string }) {
                   <button className="min-w-0 flex-1 text-left" onClick={() => setSelected(s.name)}>
                     <span className="block truncate font-medium" title={s.name}>{s.name}</span>
                     <span className="flex min-w-0 items-center gap-1">
-                      <span className="truncate text-[10px] text-zinc-600 dark:text-zinc-400">{s.category} · {s.source === 'local' ? t('skills.local') : t('skills.builtin')}</span>
-                      {usageQ.data?.counts[s.name] ? <span className="badge bg-indigo-100 px-1 text-[10px] text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">{t('skills.usage')} {usageQ.data.counts[s.name]}</span> : null}
+                      <span className="truncate text-2xs text-zinc-600 dark:text-zinc-400">{s.category} · {s.source === 'local' ? t('skills.local') : t('skills.builtin')}</span>
+                      {usageQ.data?.counts[s.name] ? <span className="badge bg-indigo-100 px-1 text-2xs text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">{t('skills.usage')} {usageQ.data.counts[s.name]}</span> : null}
                     </span>
                   </button>
                   <button
                     aria-label={`${s.enabled ? t('skills.toggleOff') : t('skills.toggleOn')} ${s.name}`}
                     disabled={!isAdmin || toggle.isPending}
                     onClick={() => toggle.mutate(s)}
-                    className={`badge px-1.5 text-[10px] ${s.enabled ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'}`}
+                    className={`badge px-1.5 text-2xs ${s.enabled ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'}`}
                   >
                     {s.enabled ? t('skills.enabled') : t('skills.disabled')}
                   </button>
@@ -204,11 +204,11 @@ function SkillsTab({ profile }: { profile: string }) {
                 <h2 className="min-w-0 text-lg font-semibold">{detail.name}</h2>
                 <span className="whitespace-nowrap text-xs text-zinc-600 dark:text-zinc-400">v{detail.version || '—'} · {detail.category} · {fmtTime(detail.mtime)}</span>
                 <div className="ml-auto flex flex-wrap gap-1">
-                  {detail.tags.map((tg) => <span key={tg} className="badge bg-zinc-100 text-[10px] dark:bg-zinc-800">#{tg}</span>)}
+                  {detail.tags.map((tg) => <span key={tg} className="badge bg-zinc-100 text-2xs dark:bg-zinc-800">#{tg}</span>)}
                 </div>
               </div>
               <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{detail.description}</p>
-              <code className="path-text block text-[11px] text-zinc-600 dark:text-zinc-400" title={detail.path}>{detail.path}</code>
+              <code className="path-text block text-xs text-zinc-600 dark:text-zinc-400" title={detail.path}>{detail.path}</code>
             </div>
             <div className="card p-3">
               <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
@@ -269,7 +269,7 @@ function BundlesTab({ profile }: { profile: string }) {
             <div className="flex flex-wrap items-center gap-2">
               <span className="min-w-0 truncate font-medium" title={b.name}>/{b.name}</span>
               <span className="min-w-0 truncate text-xs text-zinc-600 dark:text-zinc-400" title={b.description}>{b.description}</span>
-              <span className="badge ml-auto bg-indigo-100 px-1.5 text-[10px] text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">{t('skills.usage')} {usageOf(b)}</span>
+              <span className="badge ml-auto bg-indigo-100 px-1.5 text-2xs text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">{t('skills.usage')} {usageOf(b)}</span>
               <button className="btn-ghost text-rose-600 dark:text-rose-400" onClick={() => del.mutate(b.name)}>{t('skills.deleteBundle')}</button>
             </div>
             <div className="mt-1 flex flex-wrap gap-1">
@@ -327,7 +327,7 @@ function MemoryTab({ profile }: { profile: string }) {
               <li key={f.name}>
                 <button className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left ${name === f.name ? 'bg-zinc-200 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/60'}`} onClick={() => setName(f.name)}>
                   <span className={`min-w-0 truncate ${f.primary ? 'font-medium' : ''}`} title={f.name}>{f.name}</span>
-                  <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-zinc-600 dark:text-zinc-400">{fmtSize(f.size)}</span>
+                  <span className="ml-auto shrink-0 whitespace-nowrap text-2xs text-zinc-600 dark:text-zinc-400">{fmtSize(f.size)}</span>
                 </button>
               </li>
             ))}
@@ -336,11 +336,11 @@ function MemoryTab({ profile }: { profile: string }) {
           {isAdmin && (
             <button className="btn-ghost mt-1 w-full justify-start text-xs" onClick={() => { const n = prompt(t('skills.newMemoryFile')); if (n) { setName(n); setDraft('') } }}>+ {t('skills.addMemoryFile')}</button>
           )}
-          <div className="path-text px-2 text-[10px] text-zinc-600 dark:text-zinc-400" title={filesQ.data?.dir}>{filesQ.data?.dir}</div>
+          <div className="path-text px-2 text-2xs text-zinc-600 dark:text-zinc-400" title={filesQ.data?.dir}>{filesQ.data?.dir}</div>
         </div>
         <div className="card p-2 text-xs">
           <div className="panel-title">{t('skills.memoryStatus')}</div>
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap px-2 text-[11px] text-zinc-600 dark:text-zinc-300">{statusQ.data?.output ?? '…'}</pre>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap px-2 text-xs text-zinc-600 dark:text-zinc-300">{statusQ.data?.output ?? '…'}</pre>
         </div>
       </CollapsiblePanel>
       <WorkArea className="overflow-auto p-3">

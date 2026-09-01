@@ -65,13 +65,13 @@ export function SearchPalette({ open, onClose, onPick }: { open: boolean; onClos
             >
               <span className="flex w-full items-center gap-2">
                 <span className="truncate font-medium">{h.session.title || t('workbench.untitled')}</span>
-                <span className="ml-auto shrink-0 rounded bg-zinc-200 px-1 text-[10px] dark:bg-zinc-700">{h.match === 'title' ? t('chat.search.inTitle') : t('chat.search.inMessage')}</span>
+                <span className="ml-auto shrink-0 rounded bg-zinc-200 px-1 text-2xs dark:bg-zinc-700">{h.match === 'title' ? t('chat.search.inTitle') : t('chat.search.inMessage')}</span>
               </span>
               {h.match === 'message' && <span className="line-clamp-2 text-xs text-zinc-600 dark:text-zinc-400">{h.snippet}</span>}
             </button>
           ))}
         </div>
-        <div className="border-t border-zinc-200 px-4 py-1.5 text-[10px] text-zinc-600 dark:text-zinc-400 dark:border-zinc-800">{t('chat.search.hint')}</div>
+        <div className="border-t border-zinc-200 px-4 py-1.5 text-2xs text-zinc-600 dark:text-zinc-400 dark:border-zinc-800">{t('chat.search.hint')}</div>
       </div>
     </div>
   )

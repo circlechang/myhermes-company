@@ -38,7 +38,7 @@ function fmtTime(s: string) {
 function DiffView({ text }: { text: string }) {
   if (!text) return <div className="text-xs text-zinc-600 dark:text-zinc-400">（無差異）</div>
   return (
-    <pre className="max-h-96 overflow-auto rounded bg-zinc-100 p-2 text-[11px] dark:bg-zinc-800" data-testid="diff">
+    <pre className="max-h-96 overflow-auto rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-800" data-testid="diff">
       {text.split('\n').map((l, i) => (
         <div key={i} className={l.startsWith('+') && !l.startsWith('+++') ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100' : l.startsWith('-') && !l.startsWith('---') ? 'bg-rose-100 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100' : l.startsWith('@@') ? 'text-sky-600 dark:text-sky-400' : ''}>{l || ' '}</div>
       ))}

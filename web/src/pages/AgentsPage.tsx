@@ -56,7 +56,7 @@ export function AgentsPage() {
                     <code className="id-text shrink text-zinc-600 dark:text-zinc-400" title={a.profile}>{a.profile}</code>
                   )}
                   <RuntimeBadge agent={a} />
-                  <span className={`badge ml-auto text-[10px] ${a.enabled ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'}`}>
+                  <span className={`badge ml-auto text-2xs ${a.enabled ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'}`}>
                     {a.enabled ? t('agents.enabled') : t('agents.disabled')}
                   </span>
                 </div>
@@ -120,7 +120,7 @@ export function AgentsPage() {
                   </div>
                   <div className="min-w-0 sm:col-span-2">
                     <dt className="text-zinc-600 dark:text-zinc-400">{t('agents.codingSettings')}</dt>
-                    <dd><pre className="mt-1 max-h-40 overflow-auto rounded bg-zinc-100 p-2 text-[11px] dark:bg-zinc-800">{JSON.stringify(agent.coding_config?.extra ?? {}, null, 1)}</pre></dd>
+                    <dd><pre className="mt-1 max-h-40 overflow-auto rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-800">{JSON.stringify(agent.coding_config?.extra ?? {}, null, 1)}</pre></dd>
                   </div>
                 </dl>
               )}

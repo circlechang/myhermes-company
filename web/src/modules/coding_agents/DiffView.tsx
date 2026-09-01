@@ -13,7 +13,7 @@ function FileBlock({ f }: { f: DiffFile }) {
         <span className="text-rose-600 dark:text-rose-400">-{f.lines.filter((l) => l.kind === 'del').length}</span>
       </button>
       {open && (
-        <pre className="overflow-x-auto border-t border-zinc-200 text-[11px] leading-4 dark:border-zinc-800">
+        <pre className="overflow-x-auto border-t border-zinc-200 text-xs leading-4 dark:border-zinc-800">
           {f.lines.map((l, i) => (
             <div
               key={i}
@@ -55,7 +55,7 @@ export function DiffView({ diff }: { diff?: DiffPayload }) {
   return (
     <div className="p-2" data-testid="diff-view">
       {diff.files.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1 text-[11px]">
+        <div className="mb-2 flex flex-wrap gap-1 text-xs">
           {diff.files.map((f) => (
             <span key={f.path} className="rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">
               <b className="mr-1 text-zinc-600 dark:text-zinc-400">{f.status}</b>

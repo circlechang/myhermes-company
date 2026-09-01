@@ -2,7 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light dark; }
+:root {
+  color-scheme: light dark;
+  /* 介面基準字級。外觀主題會覆寫成 --studio-font-size，這裡是還沒載入設定時的預設值。
+     所有 rem 尺寸（間距、圖示、圓角）都跟著它縮放，所以改這一個數字＝整個介面等比縮放。 */
+  --studio-font-size: 16px;
+}
+html { font-size: var(--studio-font-size); }
 html, body, #root { height: 100%; }
 
 @layer base {

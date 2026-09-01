@@ -22,7 +22,7 @@ function ItemView({ it }: { it: Item }) {
   if (it.kind === 'text') {
     return (
       <div className={`rounded-md px-3 py-2 text-sm ${it.role === 'user' ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-white dark:bg-zinc-900'}`}>
-        <div className="mb-1 text-[10px] uppercase text-zinc-600 dark:text-zinc-400">{it.role === 'user' ? t('coding.you') : t('coding.agent')}{it.streaming ? ' …' : ''}</div>
+        <div className="mb-1 text-2xs uppercase text-zinc-600 dark:text-zinc-400">{it.role === 'user' ? t('coding.you') : t('coding.agent')}{it.streaming ? ' …' : ''}</div>
         <div className="prose prose-sm max-w-none dark:prose-invert">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{it.content}</ReactMarkdown>
         </div>
@@ -47,7 +47,7 @@ function ItemView({ it }: { it: Item }) {
       </div>
     )
   }
-  if (it.kind === 'log') return <div className="px-3 font-mono text-[11px] text-zinc-600 dark:text-zinc-400">{it.stream === 'stderr' ? '⚠ ' : ''}{it.text}</div>
+  if (it.kind === 'log') return <div className="px-3 font-mono text-xs text-zinc-600 dark:text-zinc-400">{it.stream === 'stderr' ? '⚠ ' : ''}{it.text}</div>
   return (
     <div className={`rounded-md px-3 py-1.5 text-xs ${it.level === 'error' ? 'bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'}`}>
       {it.level === 'info' && it.text === 'cancelled' ? t('coding.cancelled') : it.text}
@@ -64,12 +64,12 @@ function AgentCard({ a, selected, onSelect, onSettings, onInstall, canInstall }:
       <button type="button" className="w-full text-left" onClick={onSelect}>
         <div className="flex items-center gap-2">
           <span className="font-medium">{a.name}</span>
-          <span className={`ml-auto rounded px-1.5 text-[10px] ${a.installed ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300'}`}>
+          <span className={`ml-auto rounded px-1.5 text-2xs ${a.installed ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300'}`}>
             {a.installed ? t('coding.installed') : t('coding.notInstalled')}
           </span>
         </div>
         <div className="truncate text-xs text-zinc-600 dark:text-zinc-400">{a.installed ? `v${a.version} · ${a.path}` : a.install_cmd}</div>
-        <div className="mt-1 text-[11px] text-zinc-600 dark:text-zinc-400">
+        <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
           {t('coding.apiMode')}: {a.settings.api_mode === 'hermes' ? t('coding.apiModeHermes') : t('coding.apiModeDirect')}
           {a.settings.model ? ` · ${a.settings.model}` : ''}
         </div>
@@ -170,7 +170,7 @@ function SettingsPanel({ agent, initial, onClose }: { agent: AgentId; initial: A
         )}
       </div>
       {form.api_mode === 'hermes' && proxyQ.data && (
-        <div className="mt-2 rounded bg-zinc-100 p-2 text-[11px] dark:bg-zinc-800">
+        <div className="mt-2 rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-800">
           <div className="mb-1 text-zinc-600 dark:text-zinc-400">{t('coding.proxyHint')}</div>
           <pre className="overflow-auto">{agent === 'codex' ? proxyQ.data.codex_config_snippet : Object.entries(proxyQ.data.claude_env).map(([k, v]) => `${k}=${v}`).join('\n')}</pre>
         </div>
@@ -309,7 +309,7 @@ export function CodingPage() {
           ))}
         </div>
         {jobQ.data && (
-          <div className="mt-2 rounded bg-zinc-100 p-2 text-[11px] dark:bg-zinc-800" data-testid="install-job">
+          <div className="mt-2 rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-800" data-testid="install-job">
             <div className="font-medium">{t('coding.installStatus')}: {jobQ.data.status}</div>
             <pre className="max-h-32 overflow-auto whitespace-pre-wrap">{jobQ.data.log.slice(-2000) || jobQ.data.command}</pre>
           </div>
@@ -330,7 +330,7 @@ export function CodingPage() {
                   {s.status === 'running' && <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />}
                   <span className="truncate">{s.title}</span>
                 </div>
-                <div className="truncate text-[11px] text-zinc-600 dark:text-zinc-400">{s.workspace}</div>
+                <div className="truncate text-xs text-zinc-600 dark:text-zinc-400">{s.workspace}</div>
               </button>
             </li>
           ))}
@@ -361,7 +361,7 @@ export function CodingPage() {
                   {t(`coding.tab.${k}`)}{k === 'diff' && state.diff?.files.length ? ` (${state.diff.files.length})` : ''}
                 </button>
               ))}
-              {state.command && <code className="ml-auto self-center truncate text-[10px] text-zinc-600 dark:text-zinc-400" title={state.command}>{state.command}</code>}
+              {state.command && <code className="ml-auto self-center truncate text-2xs text-zinc-600 dark:text-zinc-400" title={state.command}>{state.command}</code>}
             </div>
             <div className="min-h-0 flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950">
               {tab === 'output' ? (
@@ -370,7 +370,7 @@ export function CodingPage() {
                   {state.items.length === 0 && !msgsQ.isLoading && <Empty text={t('coding.emptyOutput')} />}
                   {state.items.map((it) => <ItemView key={it.id} it={it} />)}
                   {state.usage && !state.running && (
-                    <div className="text-[11px] text-zinc-600 dark:text-zinc-400">{t('coding.usage')}: {Object.entries(state.usage).filter(([, v]) => typeof v === 'number').map(([k, v]) => `${k}=${v}`).join(' · ')}</div>
+                    <div className="text-xs text-zinc-600 dark:text-zinc-400">{t('coding.usage')}: {Object.entries(state.usage).filter(([, v]) => typeof v === 'number').map(([k, v]) => `${k}=${v}`).join(' · ')}</div>
                   )}
                   <div ref={bottomRef} />
                 </div>
@@ -380,7 +380,7 @@ export function CodingPage() {
             </div>
             <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
               {images.length > 0 && (
-                <div className="mb-1 flex flex-wrap gap-1 text-[11px]">
+                <div className="mb-1 flex flex-wrap gap-1 text-xs">
                   {images.map((p) => (
                     <span key={p} className="rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">
                       🖼 {p.split('/').pop()} <button type="button" onClick={() => setImages((xs) => xs.filter((x) => x !== p))}>×</button>

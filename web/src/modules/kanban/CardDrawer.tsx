@@ -86,8 +86,8 @@ export function CardDrawer({ id, profiles, onClose }: { id: string; profiles: st
                 </select>
                 <button className="btn-primary" disabled={m.dispatch.isPending} onClick={() => m.dispatch.mutate({ id, profile: dispatchProfile || undefined })}>{t('kanban.dispatchNow')}</button>
               </div>
-              <p className="text-[11px] text-zinc-600 dark:text-zinc-400">{t('kanban.dispatchHint')}</p>
-              {m.dispatch.data ? <pre className="max-h-32 overflow-auto rounded bg-zinc-100 p-2 text-[10px] dark:bg-zinc-900" data-testid="dispatch-result">{JSON.stringify(m.dispatch.data, null, 1)}</pre> : null}
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">{t('kanban.dispatchHint')}</p>
+              {m.dispatch.data ? <pre className="max-h-32 overflow-auto rounded bg-zinc-100 p-2 text-2xs dark:bg-zinc-900" data-testid="dispatch-result">{JSON.stringify(m.dispatch.data, null, 1)}</pre> : null}
               {m.dispatch.error ? <div className="text-xs text-rose-600 dark:text-rose-400">{(m.dispatch.error as Error).message}</div> : null}
             </section>
 
@@ -121,7 +121,7 @@ export function CardDrawer({ id, profiles, onClose }: { id: string; profiles: st
 
             <section className="space-y-1">
               <div className="panel-title px-0">{t('kanban.events')}</div>
-              <ul className="max-h-40 overflow-auto text-[11px] text-zinc-600 dark:text-zinc-400">
+              <ul className="max-h-40 overflow-auto text-xs text-zinc-600 dark:text-zinc-400">
                 {d.data?.events.slice().reverse().map((e, i) => <li key={i}>{fmt(e.created_at)} · {e.kind}{e.payload && Object.keys(e.payload).length ? ` ${JSON.stringify(e.payload).slice(0, 120)}` : ''}</li>)}
               </ul>
             </section>

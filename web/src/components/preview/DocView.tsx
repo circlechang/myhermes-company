@@ -93,7 +93,7 @@ export function DocShell({
           aria-label={t('preview.toc')}
         >
           <button
-            className="flex items-center gap-1 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             onClick={() => setOpen((v) => !v)}
             title={t('preview.toc')}
           >

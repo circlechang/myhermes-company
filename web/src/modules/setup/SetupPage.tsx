@@ -62,7 +62,7 @@ export function SetupPage() {
           </li>
         ))}
       </ol>
-      <div className="text-[11px] text-zinc-600 dark:text-zinc-400">{t('setup.stepOf', { i: i + 1, n: STEPS.length })}</div>
+      <div className="text-xs text-zinc-600 dark:text-zinc-400">{t('setup.stepOf', { i: i + 1, n: STEPS.length })}</div>
       {status.isLoading && <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">…</p>}
       {status.error && (
         <div role="alert" className="mt-4 rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">

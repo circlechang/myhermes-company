@@ -21,7 +21,7 @@ export function TruncatedPre({ value, testId }: { value: unknown; testId?: strin
       </pre>
       <div className="mt-0.5 flex items-center gap-2">
         {long && (
-          <button type="button" className="text-[11px] text-indigo-700 hover:underline dark:text-indigo-300" onClick={() => setFull((f) => !f)}>
+          <button type="button" className="text-xs text-indigo-700 hover:underline dark:text-indigo-300" onClick={() => setFull((f) => !f)}>
             {full ? t('chat.tool.showLess') : t('chat.tool.showMore', { n: text.length })}
           </button>
         )}
@@ -47,7 +47,7 @@ export function ToolCard({ item, onOpenFile }: { item: ToolItem; onOpenFile?: (p
         <span className={`h-2 w-2 shrink-0 rounded-full ${item.status === 'running' ? 'animate-pulse bg-amber-500' : 'bg-emerald-500'}`} />
         <span className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400">{t('chat.tool.title')}</span>
         <code className="min-w-0 shrink truncate font-mono text-xs" title={item.name}>{item.name}</code>
-        {argPreview && !open && <span className="min-w-0 truncate font-mono text-[11px] text-zinc-600 dark:text-zinc-400">{argPreview}</span>}
+        {argPreview && !open && <span className="min-w-0 truncate font-mono text-xs text-zinc-600 dark:text-zinc-400">{argPreview}</span>}
         <span className="ml-auto shrink-0 text-xs text-zinc-600 dark:text-zinc-400">
           {item.status === 'running' ? t('chat.tool.running') : t('chat.tool.done')} · {open ? t('chat.tool.collapse') : t('chat.tool.expand')}
         </span>

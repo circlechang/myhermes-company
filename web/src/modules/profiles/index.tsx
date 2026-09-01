@@ -107,7 +107,7 @@ function ProfileRow({ p, compact, isAdmin, onSelect, run, m }: {
       <td className="min-w-[10rem] max-w-xs py-1.5 align-top">
         <button className="max-w-full text-left" onClick={() => onSelect?.(p.name)}>
           <code className="font-mono text-xs" title={p.name}>{p.name}</code>
-          {p.is_default && <span className="badge ml-2 bg-indigo-100 text-[10px] text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">{t('profiles.default')}</span>}
+          {p.is_default && <span className="badge ml-2 bg-indigo-100 text-2xs text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">{t('profiles.default')}</span>}
         </button>
         {p.description && <div className="line-clamp-2 text-xs text-zinc-600 dark:text-zinc-400" title={p.description}>{p.description}</div>}
       </td>

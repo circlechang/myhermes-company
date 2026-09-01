@@ -72,7 +72,7 @@ export function WorkflowsPage() {
         subtitle={t('wf.subtitle')}
         actions={
           <>
-            <Link to="/workflows/approvals" className="btn-outline">{t('wf.approvals')}{approvalsQ.data?.length ? <span className="ml-1 rounded-full bg-amber-500 px-1.5 text-[10px] text-white">{approvalsQ.data.length}</span> : null}</Link>
+            <Link to="/workflows/approvals" className="btn-outline">{t('wf.approvals')}{approvalsQ.data?.length ? <span className="ml-1 rounded-full bg-amber-500 px-1.5 text-2xs text-white">{approvalsQ.data.length}</span> : null}</Link>
             <button className="btn-outline" onClick={() => fileRef.current?.click()}>{t('wf.import')}</button>
             <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => onImport(e.target.files?.[0])} data-testid="import-input" />
             <button className="btn-primary" data-testid="new-workflow" onClick={() => setShowTpl(true)}>+ {t('wf.newWorkflow')}</button>

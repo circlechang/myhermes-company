@@ -35,7 +35,7 @@ function StationLink({ from, onInsert, disabled }: { from: Station; onInsert: (k
     // z-10：插站選單要蓋在下一張站卡上面（站卡是 relative、z-auto）
     <li className="group relative z-10 flex items-center gap-2 py-1 pl-6" data-testid={`link-after-${from.node.id}`}>
       <span className="absolute left-[1.4rem] top-0 h-full w-px bg-zinc-300 dark:bg-zinc-700" aria-hidden />
-      <span className="relative z-[1] rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+      <span className="relative z-[1] rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
         {t('wf.station.carries', { what: outputOf(from.node, from.kind, t) })}
       </span>
       {/* 一直在，只是淡；滑過或聚焦才轉深（用 opacity 藏會做出堆疊脈絡，選單會被下一張卡蓋住） */}
@@ -83,8 +83,8 @@ export function StationsView({ graph, agents, env, live, running, busy, onChange
 
   return (
     <div className="mx-auto w-full max-w-3xl p-3 sm:p-4" data-testid="stations-view">
-      {!linear && <p className="mb-2 rounded bg-violet-50 px-2 py-1 text-[11px] text-violet-800 dark:bg-violet-950/40 dark:text-violet-200">{t('wf.station.advancedHint')}</p>}
-      {dragErr && <p className="mb-2 text-[11px] text-amber-700 dark:text-amber-400">{dragErr}</p>}
+      {!linear && <p className="mb-2 rounded bg-violet-50 px-2 py-1 text-xs text-violet-800 dark:bg-violet-950/40 dark:text-violet-200">{t('wf.station.advancedHint')}</p>}
+      {dragErr && <p className="mb-2 text-xs text-amber-700 dark:text-amber-400">{dragErr}</p>}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={stations.map((s) => s.node.id)} strategy={verticalListSortingStrategy}>
           <ol className="space-y-0">

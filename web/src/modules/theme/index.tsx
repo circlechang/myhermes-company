@@ -19,7 +19,7 @@ export interface ThemeResponse {
   has_background: boolean
   updated_at: string | null
 }
-export const THEME_DEFAULTS: ThemeSettings = { mode: 'system', style: 'rounded', density: 'comfortable', font_size: 14, text_color: '', primary: '#4f46e5', background_opacity: 0.12 }
+export const THEME_DEFAULTS: ThemeSettings = { mode: 'system', style: 'rounded', density: 'comfortable', font_size: 16, text_color: '', primary: '#4f46e5', background_opacity: 0.12 }
 const CACHE_KEY = 'mhc.theme'
 const STYLE_ID = 'studio-theme-style'
 

@@ -81,7 +81,7 @@ export function CollapsiblePanel({
       {side === 'right' && (
         <CollapseBtn id={id} side={side} label={collapseLabel} onClick={() => (mobile ? setMobileOpen(false) : patch({ collapsed: true }))} />
       )}
-      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400" title={title}>
+      <span className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400" title={title}>
         {title}
       </span>
       {actions}
@@ -119,7 +119,7 @@ export function CollapsiblePanel({
         <Icon className="h-4 w-4" aria-hidden />
         {side === 'left' ? <ChevronRight className="h-3 w-3" aria-hidden /> : <ChevronLeft className="h-3 w-3" aria-hidden />}
       </button>
-      <span aria-hidden className="min-h-0 flex-1 overflow-hidden text-[11px] font-medium tracking-wide text-zinc-600 [writing-mode:vertical-rl] dark:text-zinc-400">
+      <span aria-hidden className="min-h-0 flex-1 overflow-hidden text-xs font-medium tracking-wide text-zinc-600 [writing-mode:vertical-rl] dark:text-zinc-400">
         {title}
       </span>
     </aside>

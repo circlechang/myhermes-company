@@ -55,7 +55,7 @@ function statusCls(s: number) {
 
 export function LogLine({ e }: { e: LogEntry }) {
   return (
-    <div className="flex gap-2 whitespace-pre-wrap break-all border-b border-zinc-100 py-0.5 font-mono text-[12px] dark:border-zinc-800/60" data-testid="log-line">
+    <div className="flex gap-2 whitespace-pre-wrap break-all border-b border-zinc-100 py-0.5 font-mono text-xs dark:border-zinc-800/60" data-testid="log-line">
       <span className="shrink-0 text-zinc-600 dark:text-zinc-400">{e.ts ?? ''}</span>
       {e.level && <span className={`shrink-0 rounded px-1 ${LEVEL_CLS[e.level] ?? ''}`}>{e.level}</span>}
       {e.component && <span className="min-w-0 max-w-[14rem] shrink truncate text-violet-700 dark:text-violet-300" title={e.component}>{e.component}</span>}

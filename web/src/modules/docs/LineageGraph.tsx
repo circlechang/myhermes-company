@@ -142,7 +142,7 @@ export function LineageGraph({ data, onPick }: { data: Lineage; onPick?: (id: st
           </g>
         ))}
       </svg>
-      <ul className="mt-1 flex flex-wrap gap-3 px-1 text-[11px] text-zinc-600 dark:text-zinc-400">
+      <ul className="mt-1 flex flex-wrap gap-3 px-1 text-xs text-zinc-600 dark:text-zinc-400">
         {(Object.keys(KIND_COLOR) as LinkKind[]).map((k) => (
           <li key={k} className="flex items-center gap-1">
             <span className="inline-block h-0.5 w-4" style={{ background: KIND_COLOR[k] }} />

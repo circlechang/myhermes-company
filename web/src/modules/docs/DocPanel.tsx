@@ -112,7 +112,7 @@ export function DocPanel({
       </div>
 
       {doc.data.drift && (
-        <div className="border-b border-amber-200 bg-amber-50 px-3 py-1 text-[11px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" data-testid="doc-drift">
+        <div className="border-b border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" data-testid="doc-drift">
           {t('docs.panel.drift')}{' '}
           <button type="button" className="underline" onClick={() => m.snapshot.mutate()} data-testid="doc-snapshot">
             {t('docs.panel.snapshot')}
@@ -121,17 +121,17 @@ export function DocPanel({
       )}
 
       {pending && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100" data-testid="doc-pending">
+        <div className="flex flex-wrap items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100" data-testid="doc-pending">
           <span className="font-medium">{t('docs.panel.newVersion', { v: pending.version })}</span>
           {pending.diff_stat && <DiffStatBadge added={pending.diff_stat.added} removed={pending.diff_stat.removed} />}
           <span className="min-w-0 flex-1 truncate">{pending.summary}</span>
-          <button type="button" className="btn-outline !px-1.5 !py-0.5 text-[11px]" onClick={() => onAccept?.()} data-testid="doc-accept">
+          <button type="button" className="btn-outline !px-1.5 !py-0.5 text-xs" onClick={() => onAccept?.()} data-testid="doc-accept">
             {t('docs.panel.accept')}
           </button>
           {canRevert && (
             <button
               type="button"
-              className="btn-ghost !px-1.5 !py-0.5 text-[11px]"
+              className="btn-ghost !px-1.5 !py-0.5 text-xs"
               onClick={() => m.revert.mutate((latest ?? 2) - 1, { onSuccess: () => onAccept?.() })}
               data-testid="doc-revert"
             >

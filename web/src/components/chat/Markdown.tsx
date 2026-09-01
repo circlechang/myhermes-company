@@ -28,7 +28,7 @@ export function CopyButton({ text, className = '' }: { text: string; className?:
   return (
     <button
       type="button"
-      className={`rounded px-1.5 py-0.5 text-[11px] text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 ${className}`}
+      className={`rounded px-1.5 py-0.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 ${className}`}
       onClick={async (e) => {
         e.stopPropagation()
         try {
@@ -51,7 +51,7 @@ function CodeBlock({ children, className, onOpenFile }: { children: ReactNode; c
   const raw = extractText(children)
   return (
     <div className="group/code relative my-2 overflow-hidden rounded-md border border-zinc-200 bg-zinc-50 text-xs dark:border-zinc-700 dark:bg-zinc-950" data-testid="code-block">
-      <div className="flex items-center justify-between border-b border-zinc-200 px-2 py-0.5 text-[10px] text-zinc-600 dark:text-zinc-400 dark:border-zinc-800">
+      <div className="flex items-center justify-between border-b border-zinc-200 px-2 py-0.5 text-2xs text-zinc-600 dark:text-zinc-400 dark:border-zinc-800">
         <span>{lang ?? 'text'}</span>
         <CopyButton text={raw} />
       </div>
@@ -82,7 +82,7 @@ export function FileChip({ path, onOpen }: { path: string; onOpen: (p: string) =
   return (
     <button
       type="button"
-      className="inline-flex max-w-full items-center gap-1 rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 font-mono text-[11px] text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200"
+      className="inline-flex max-w-full items-center gap-1 rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 font-mono text-xs text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200"
       title={path}
       onClick={(e) => {
         e.stopPropagation()

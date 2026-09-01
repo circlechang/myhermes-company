@@ -82,8 +82,8 @@ export function NodePanel({ node, edge, agents, env, readOnly, onNode, onEdge, o
   return (
     <div className="space-y-3 p-3 text-sm" data-testid="node-panel">
       <div className="flex items-center gap-2">
-        <span className="rounded bg-zinc-200 px-1.5 text-[10px] dark:bg-zinc-700">{t(`wf.kinds.${kind}`)}</span>
-        <code className="text-[10px] text-zinc-600 dark:text-zinc-400">{node.id}</code>
+        <span className="rounded bg-zinc-200 px-1.5 text-2xs dark:bg-zinc-700">{t(`wf.kinds.${kind}`)}</span>
+        <code className="text-2xs text-zinc-600 dark:text-zinc-400">{node.id}</code>
         {!readOnly && (
           <span className="ml-auto flex gap-1">
             <button className="btn-outline !px-2 !py-0.5 text-xs" onClick={onDuplicate}>{t('wf.duplicate')}</button>
@@ -133,7 +133,7 @@ export function NodePanel({ node, edge, agents, env, readOnly, onNode, onEdge, o
             <label className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={!!node.done_check} disabled={dis} onChange={(e) => set({ done_check: e.target.checked || undefined })} aria-label={t('wf.node.doneCheck')} /> {t('wf.node.doneCheck')}
             </label>
-            <div className="mt-1 text-[10px] text-zinc-600 dark:text-zinc-400">{t('wf.node.doneCheckHint')}</div>
+            <div className="mt-1 text-2xs text-zinc-600 dark:text-zinc-400">{t('wf.node.doneCheckHint')}</div>
             {node.done_check && (
               <Field label={t('wf.node.doneCheckRounds')}>
                 <input className="input" type="number" min={1} max={10} value={node.done_check_max_rounds ?? 3} disabled={dis} onChange={(e) => set({ done_check_max_rounds: Number(e.target.value) || 3 })} aria-label={t('wf.node.doneCheckRounds')} />

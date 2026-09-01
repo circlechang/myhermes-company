@@ -36,7 +36,7 @@ const badge: Record<string, string> = {
 }
 export const StatusBadge = ({ s }: { s?: string }) => {
   const { t } = useTranslation()
-  return <span data-testid="status-badge" className={`badge px-1.5 py-0.5 text-[11px] ${badge[s ?? 'pending'] ?? badge.pending}`}>{t(`wf.status.${s ?? 'pending'}`)}</span>
+  return <span data-testid="status-badge" className={`badge px-1.5 py-0.5 text-xs ${badge[s ?? 'pending'] ?? badge.pending}`}>{t(`wf.status.${s ?? 'pending'}`)}</span>
 }
 
 export function RunPanel({ nodes, live, busy, canRun, onRun, onStop, onRerun, onApprove, onReject, onOpenConversation, onOpenSnapshot }: Props) {
@@ -50,13 +50,13 @@ export function RunPanel({ nodes, live, busy, canRun, onRun, onStop, onRerun, on
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 p-2 dark:border-zinc-800">
         <span className="font-semibold">{t('wf.panel.run')}</span>
         {live && <StatusBadge s={live.status} />}
-        {live && <code className="text-[10px] text-zinc-600 dark:text-zinc-400">{live.runId}</code>}
+        {live && <code className="text-2xs text-zinc-600 dark:text-zinc-400">{live.runId}</code>}
         <span className="ml-auto flex gap-1">
           {!running && <button className="btn-primary !py-1 text-xs" disabled={!canRun || busy} onClick={onRun}>▶ {t('wf.run')}</button>}
           {running && <button className="btn-danger !py-1 text-xs" disabled={busy} onClick={onStop}>■ {t('wf.stop')}</button>}
           {live && !running && <button className="btn-outline !py-1 text-xs" disabled={busy} onClick={() => onRerun(undefined, force)}>↻ {t('wf.rerun')}</button>}
           {live && !running && (
-            <label className="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-zinc-400" title={t('wf.panel.forceAll')}>
+            <label className="flex items-center gap-1 text-2xs text-zinc-600 dark:text-zinc-400" title={t('wf.panel.forceAll')}>
               <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} aria-label={t('wf.panel.forceAll')} /> {t('wf.panel.forceAll')}
             </label>
           )}
@@ -76,12 +76,12 @@ export function RunPanel({ nodes, live, busy, canRun, onRun, onStop, onRerun, on
                 <div className="flex items-center gap-2">
                   <button className="truncate text-left font-medium" onClick={() => setOpen(expanded ? null : n.id)}>{n.title || n.id}</button>
                   <StatusBadge s={st.status} />
-                  {st.attempt && st.attempt > 1 ? <span className="text-[10px] text-zinc-600 dark:text-zinc-400">×{st.attempt}</span> : null}
-                  {st.tool && <span className="text-[10px] text-zinc-600 dark:text-zinc-400">🔧 {st.tool}</span>}
-                  {st.usage?.total_tokens ? <span className="ml-auto text-[10px] text-zinc-600 dark:text-zinc-400">{st.usage.total_tokens} tok</span> : null}
-                  {!running && st.status !== 'pending' && <button className="btn-ghost !px-1 !py-0 text-[10px]" title={t('wf.rerunFrom')} onClick={() => onRerun(n.id, force)}>↻</button>}
+                  {st.attempt && st.attempt > 1 ? <span className="text-2xs text-zinc-600 dark:text-zinc-400">×{st.attempt}</span> : null}
+                  {st.tool && <span className="text-2xs text-zinc-600 dark:text-zinc-400">🔧 {st.tool}</span>}
+                  {st.usage?.total_tokens ? <span className="ml-auto text-2xs text-zinc-600 dark:text-zinc-400">{st.usage.total_tokens} tok</span> : null}
+                  {!running && st.status !== 'pending' && <button className="btn-ghost !px-1 !py-0 text-2xs" title={t('wf.rerunFrom')} onClick={() => onRerun(n.id, force)}>↻</button>}
                 </div>
-                {st.status === 'running' && st.streaming && <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-zinc-100 p-1 text-[11px] dark:bg-zinc-800">{st.streaming.slice(-600)}</pre>}
+                {st.status === 'running' && st.streaming && <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-zinc-100 p-1 text-xs dark:bg-zinc-800">{st.streaming.slice(-600)}</pre>}
                 {st.error && <div className="mt-1 text-xs text-rose-600 dark:text-rose-400">{st.error}</div>}
                 {st.skipped_reason && <div className="mt-1 text-xs text-amber-700 dark:text-amber-400">{st.skipped_reason}</div>}
                 <NodeHints state={st} />
@@ -89,7 +89,7 @@ export function RunPanel({ nodes, live, busy, canRun, onRun, onStop, onRerun, on
                 <DoneRounds state={st} />
                 {ap && (
                   <div className="mt-2 space-y-1 rounded border border-amber-300 bg-amber-50 p-2 dark:border-amber-700 dark:bg-amber-950/30" data-testid={`approval-${n.id}`}>
-                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap text-[11px]">{ap.payload}</pre>
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap text-xs">{ap.payload}</pre>
                     <textarea className="input min-h-[40px] text-xs" placeholder={t('wf.panel.comment')} value={comments[n.id] ?? ''} onChange={(e) => setComments({ ...comments, [n.id]: e.target.value })} aria-label={t('wf.panel.comment')} />
                     <div className="flex gap-1">
                       <button className="btn-primary !py-0.5 text-xs" disabled={busy} onClick={() => onApprove(ap.approval_id, comments[n.id] ?? '')}>{t('wf.panel.approve')}</button>
@@ -109,7 +109,7 @@ export function RunPanel({ nodes, live, busy, canRun, onRun, onStop, onRerun, on
         </ul>
       )}
       {live?.usage && (
-        <div className="border-t border-zinc-200 p-2 text-[11px] text-zinc-600 dark:text-zinc-400 dark:border-zinc-800">
+        <div className="border-t border-zinc-200 p-2 text-xs text-zinc-600 dark:text-zinc-400 dark:border-zinc-800">
           {t('wf.panel.usage')}: {live.usage.total_tokens ?? 0} tok · ${Number(live.usage.cost_usd ?? 0).toFixed(4)}
         </div>
       )}

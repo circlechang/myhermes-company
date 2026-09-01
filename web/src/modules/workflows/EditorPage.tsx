@@ -245,7 +245,7 @@ export function EditorPage() {
             <button className="btn-outline !px-2 !py-1" aria-haspopup="menu" aria-expanded={menu} aria-label={t('wf.station.more')} data-testid="wf-more" onClick={() => setMenu((v) => !v)}>⋯</button>
             {menu && (
               <div role="menu" data-testid="wf-more-menu" className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 text-sm shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
-                <div className="px-3 py-1 text-[11px] text-zinc-600 dark:text-zinc-400">v{wf.version ?? 1} · {fmt(wf.updated_at)}</div>
+                <div className="px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400">v{wf.version ?? 1} · {fmt(wf.updated_at)}</div>
                 <button role="menuitem" className="block w-full px-3 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" data-testid="menu-advanced" onClick={() => (view === 'canvas' ? goStations() : goAdvanced())}>
                   {view === 'canvas' ? t('wf.station.backToStations') : t('wf.station.advanced')}
                 </button>
@@ -412,7 +412,7 @@ export function EditorPage() {
                     <input className="input font-mono" value={cron} onChange={(e) => setCron(e.target.value)} aria-label="cron" />
                     <button className="btn-outline whitespace-nowrap !py-1 text-xs" disabled={addSchedule.isPending} onClick={() => addSchedule.mutate()}>{t('wf.trigger.addSchedule')}</button>
                   </div>
-                  <div className="text-[10px] text-zinc-600 dark:text-zinc-400">{t('wf.trigger.cronHint')}</div>
+                  <div className="text-2xs text-zinc-600 dark:text-zinc-400">{t('wf.trigger.cronHint')}</div>
                   {addSchedule.error && <div className="text-xs text-rose-600 dark:text-rose-400">{(addSchedule.error as Error).message}</div>}
                   <ul className="mt-1 space-y-1 text-xs">
                     {schedQ.data?.map((s) => (
@@ -437,10 +437,10 @@ export function EditorPage() {
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-1 text-[10px] text-zinc-600 dark:text-zinc-400">body: {'{"text": "..."}'} 或任意 JSON，會當作第一站的 [外部輸入]</div>
+                  <div className="mt-1 text-2xs text-zinc-600 dark:text-zinc-400">body: {'{"text": "..."}'} 或任意 JSON，會當作第一站的 [外部輸入]</div>
                 </div>
                 {env.data && (
-                  <div className="text-[11px] text-zinc-600 dark:text-zinc-400">
+                  <div className="text-xs text-zinc-600 dark:text-zinc-400">
                     coding agents: {Object.entries(env.data.coding_tools).map(([k, v]) => `${k}${v.installed ? ' ✓' : ' ✗'}`).join('、')} · LINE {env.data.line_configured ? '✓' : '✗'}
                   </div>
                 )}

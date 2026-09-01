@@ -2,7 +2,7 @@
 export function DiffView({ text, testId = 'doc-diff' }: { text: string; testId?: string }) {
   if (!text) return <div className="text-xs text-zinc-600 dark:text-zinc-400" data-testid={`${testId}-empty`}>（無差異）</div>
   return (
-    <pre className="max-h-[26rem] overflow-auto rounded bg-zinc-100 p-2 text-[11px] leading-5 dark:bg-zinc-800" data-testid={testId}>
+    <pre className="max-h-[26rem] overflow-auto rounded bg-zinc-100 p-2 text-xs leading-5 dark:bg-zinc-800" data-testid={testId}>
       {text.split('\n').map((l, i) => (
         <div
           key={i}

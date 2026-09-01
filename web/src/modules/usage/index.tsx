@@ -42,7 +42,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
     <div className="card flex min-w-0 flex-col p-3">
       <div className="text-xs text-zinc-600 dark:text-zinc-400">{label}</div>
       <div className="text-xl font-semibold" data-testid={`stat-${label}`}>{value}</div>
-      {sub && <div className="mt-auto pt-1 text-[11px] leading-4 text-zinc-600 dark:text-zinc-400">{sub}</div>}
+      {sub && <div className="mt-auto pt-1 text-xs leading-4 text-zinc-600 dark:text-zinc-400">{sub}</div>}
     </div>
   )
 }

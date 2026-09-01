@@ -163,15 +163,15 @@ function CardView({ card, onOpen, onMove, handle, overlay }: { card: Card; onOpe
         {(card.diagnostics ?? []).length > 0 && <span title={(card.diagnostics ?? []).map((d) => d.title).join('\n')} className="shrink-0 text-amber-700 dark:text-amber-400 dark:text-amber-400">⚠</span>}
       </div>
       {card.body && <div className="mt-1 line-clamp-3 text-xs text-zinc-600 dark:text-zinc-400" title={card.body}>{card.body}</div>}
-      {(card.tags ?? []).length > 0 && <div className="mt-1 flex flex-wrap gap-1">{(card.tags ?? []).map((tg) => <span key={tg} className="badge max-w-full truncate bg-indigo-50 px-1 text-[10px] text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200" title={tg}>#{tg}</span>)}</div>}
-      <div className="mt-2 flex min-w-0 items-center gap-1 text-[10px]">
+      {(card.tags ?? []).length > 0 && <div className="mt-1 flex flex-wrap gap-1">{(card.tags ?? []).map((tg) => <span key={tg} className="badge max-w-full truncate bg-indigo-50 px-1 text-2xs text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200" title={tg}>#{tg}</span>)}</div>}
+      <div className="mt-2 flex min-w-0 items-center gap-1 text-2xs">
         <span className={`badge px-1.5 py-0.5 ${prioColor[card.priority_label]}`}>{t(`kanban.priorities.${card.priority_label}`)}</span>
         <span className="min-w-0 truncate text-zinc-600 dark:text-zinc-400" title={card.assignee ?? undefined}>{card.assignee ? `@${card.assignee}` : t('kanban.unassigned')}</span>
         <span className="shrink-0 whitespace-nowrap text-zinc-600 dark:text-zinc-400">{card.status}</span>
         {onMove && (
           <select
             aria-label={t('kanban.moveTo')}
-            className="ml-auto shrink-0 rounded border border-zinc-300 bg-transparent px-1 py-0.5 text-[10px] dark:border-zinc-700"
+            className="ml-auto shrink-0 rounded border border-zinc-300 bg-transparent px-1 py-0.5 text-2xs dark:border-zinc-700"
             value={columnOf(card.status) ?? 'todo'}
             onChange={(e) => { const s = e.target.value as HermesStatus; if (s !== 'running') onMove(card, s) }}
           >

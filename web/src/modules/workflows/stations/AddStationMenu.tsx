@@ -44,7 +44,7 @@ export function AddStationMenu({
           data-testid={`${testId}-menu`}
           className="absolute left-0 z-30 mt-1 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
         >
-          <div className="border-b border-zinc-200 px-3 py-1.5 text-[11px] text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">{t('wf.station.pickKind')}</div>
+          <div className="border-b border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">{t('wf.station.pickKind')}</div>
           <ul>
             {STATION_KINDS.map((k) => (
               <li key={k}>
@@ -56,7 +56,7 @@ export function AddStationMenu({
                   onClick={() => { setOpen(false); onPick(k) }}
                 >
                   <span className="block text-sm font-medium">{t(`wf.station.kinds.${k}`)}</span>
-                  <span className="block text-[11px] text-zinc-600 dark:text-zinc-400">{t(`wf.station.kindHints.${k}`)}</span>
+                  <span className="block text-xs text-zinc-600 dark:text-zinc-400">{t(`wf.station.kindHints.${k}`)}</span>
                 </button>
               </li>
             ))}

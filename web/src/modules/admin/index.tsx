@@ -255,7 +255,7 @@ function McpTab() {
           <tbody>
             {listQ.data?.servers.map((s) => (
               <tr key={s.name} className="border-t border-zinc-200 dark:border-zinc-800">
-                <td className="nowrap-cell p-1 font-medium">{s.name}{!s.enabled && <span className="ml-1 text-[10px] text-zinc-600 dark:text-zinc-400">(disabled)</span>}</td>
+                <td className="nowrap-cell p-1 font-medium">{s.name}{!s.enabled && <span className="ml-1 text-2xs text-zinc-600 dark:text-zinc-400">(disabled)</span>}</td>
                 <td className="nowrap-cell p-1">{s.transport}</td>
                 <td className="max-w-[320px] truncate p-1 text-xs" title={s.url ?? `${s.command} ${s.args.join(' ')}`}>{s.url ?? `${s.command ?? ''} ${s.args.join(' ')}`}</td>
                 <td className="nowrap-cell p-1 text-xs">{s.auth ?? '—'}</td>
@@ -301,7 +301,7 @@ function PluginsTab() {
         <tbody>
           {q2.data?.map((p) => (
             <tr key={p.name} className="border-t border-zinc-200 dark:border-zinc-800">
-              <td className="nowrap-cell p-1 font-medium">{p.name}<div className="text-[10px] text-zinc-600 dark:text-zinc-400">{p.version} · {p.source}</div></td>
+              <td className="nowrap-cell p-1 font-medium">{p.name}<div className="text-2xs text-zinc-600 dark:text-zinc-400">{p.version} · {p.source}</div></td>
               <td className="min-w-[10rem] max-w-[520px] p-1 text-xs text-zinc-600 dark:text-zinc-300"><span className="line-clamp-3" title={p.description}>{p.description}</span></td>
               <td className="nowrap-cell p-1 text-xs">{p.status}</td>
               <td className="nowrap-cell p-1 text-right">

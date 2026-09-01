@@ -52,7 +52,7 @@ function StageFilePreview({ pack, topic, path, onClose }: { pack: string; topic:
       <div className="card flex max-h-[85vh] w-full max-w-3xl flex-col p-4" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center gap-2">
           <code className="min-w-0 flex-1 truncate text-xs" title={path}>{path}</code>
-          {q.data && <span className="shrink-0 text-[11px] text-zinc-600 dark:text-zinc-400">{q.data.size} B</span>}
+          {q.data && <span className="shrink-0 text-xs text-zinc-600 dark:text-zinc-400">{q.data.size} B</span>}
           <div className="ml-auto flex shrink-0 gap-1">
             {!editing && !q.data?.binary && <button className="btn-outline !py-0.5 text-xs" onClick={() => setEditing(true)}>{t('packs.board.edit')}</button>}
             {editing && <button className="btn-primary !py-0.5 text-xs" disabled={save.isPending} onClick={() => save.mutate()}>{t('packs.board.save')}</button>}
@@ -99,14 +99,14 @@ function StageCard({ pack, topic, st, active, onSelect, onPreview }: {
       <div className="flex min-w-0 items-center gap-2">
         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${LIGHT[st.status]}`} />
         <span className="min-w-0 flex-1 font-semibold" title={st.title}>{st.title}</span>
-        <span className={`badge ml-auto px-1.5 py-0.5 text-[11px] font-medium ${BADGE[st.status]}`} data-testid={`stage-${st.id}-status`}>
+        <span className={`badge ml-auto px-1.5 py-0.5 text-xs font-medium ${BADGE[st.status]}`} data-testid={`stage-${st.id}-status`}>
           {t(`packs.board.status.${st.status}`)}
         </span>
       </div>
-      {st.gate && <div className="text-[11px] text-amber-700 dark:text-amber-300">✋ {t('packs.board.gate')}</div>}
+      {st.gate && <div className="text-xs text-amber-700 dark:text-amber-300">✋ {t('packs.board.gate')}</div>}
       <p className="text-xs text-zinc-600 dark:text-zinc-300">{st.description}</p>
       {(st.criteria || st.role || st.deliverables?.length) ? (
-        <dl className="space-y-0.5 text-[11px]" data-testid={`stage-${st.id}-spec`}>
+        <dl className="space-y-0.5 text-xs" data-testid={`stage-${st.id}-spec`}>
           {st.role && <div><dt className="inline font-medium text-zinc-600 dark:text-zinc-400">{t('packs.board.role')}：</dt><dd className="inline">{st.role}</dd></div>}
           {st.criteria && <div><dt className="inline font-medium text-zinc-600 dark:text-zinc-400">{t('packs.board.criteria')}：</dt><dd className="inline">{st.criteria}</dd></div>}
           {st.deliverables?.length ? (
@@ -116,16 +116,16 @@ function StageCard({ pack, topic, st, active, onSelect, onPreview }: {
         </dl>
       ) : null}
       {st.branch_result && st.branch_result.score != null && (
-        <div className="text-[11px] text-zinc-600 dark:text-zinc-300">{t('packs.board.score')}：{st.branch_result.score}／{st.branch_result.min}</div>
+        <div className="text-xs text-zinc-600 dark:text-zinc-300">{t('packs.board.score')}：{st.branch_result.score}／{st.branch_result.min}</div>
       )}
       {st.status === 'archived' && st.archived_reason && (
-        <div className="rounded bg-zinc-100 p-1.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('packs.board.archivedReason')}：{st.archived_reason}</div>
+        <div className="rounded bg-zinc-100 p-1.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('packs.board.archivedReason')}：{st.archived_reason}</div>
       )}
       {st.status === 'review' && st.review_hint && (
-        <div className="rounded bg-amber-50 p-1.5 text-[11px] text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-testid={`hint-${st.id}`}>{t('packs.board.aiHint')}：{st.review_hint}</div>
+        <div className="rounded bg-amber-50 p-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-testid={`hint-${st.id}`}>{t('packs.board.aiHint')}：{st.review_hint}</div>
       )}
       <div>
-        <div className="mb-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-400">{t('packs.board.files')}</div>
+        <div className="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('packs.board.files')}</div>
         <ul className="space-y-0.5 text-xs">
           {st.files.map((f: StageFile) => (
             <li key={f.path} className="flex items-center gap-1">
@@ -134,20 +134,20 @@ function StageCard({ pack, topic, st, active, onSelect, onPreview }: {
                   {f.path}
                 </button>
               ) : (
-                <span className="min-w-0 truncate font-mono text-zinc-600 dark:text-zinc-400" title={f.path}>{f.path} <span className="text-[10px]">({t('packs.board.missing')})</span></span>
+                <span className="min-w-0 truncate font-mono text-zinc-600 dark:text-zinc-400" title={f.path}>{f.path} <span className="text-2xs">({t('packs.board.missing')})</span></span>
               )}
             </li>
           ))}
         </ul>
       </div>
-      {st.feedback && <div className="rounded bg-amber-50 p-1.5 text-[11px] text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{t('packs.board.feedback')}：{st.feedback}</div>}
-      {st.error && st.status === 'failed' && <div className="rounded bg-rose-50 p-1.5 text-[11px] text-rose-800 dark:bg-rose-950/40 dark:text-rose-200">{t('packs.board.error')}：{st.error}</div>}
+      {st.feedback && <div className="rounded bg-amber-50 p-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{t('packs.board.feedback')}：{st.feedback}</div>}
+      {st.error && st.status === 'failed' && <div className="rounded bg-rose-50 p-1.5 text-xs text-rose-800 dark:bg-rose-950/40 dark:text-rose-200">{t('packs.board.error')}：{st.error}</div>}
       <div className="mt-auto flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
         {st.status === 'review' ? (
           <>
             <input className="input text-xs" placeholder={t('packs.board.rejectComment')} value={comment} onChange={(e) => setComment(e.target.value)} />
             {targets.length > 0 && (
-              <label className="flex min-w-0 items-center gap-1 text-[11px] text-zinc-600 dark:text-zinc-400">
+              <label className="flex min-w-0 items-center gap-1 text-xs text-zinc-600 dark:text-zinc-400">
                 {t('packs.board.rejectTo')}
                 <select className="input !py-0.5 text-xs" value={to} onChange={(e) => setTo(e.target.value)} data-testid={`reject-to-${st.id}`}>
                   <option value={st.id}>{st.title}</option>
@@ -167,11 +167,11 @@ function StageCard({ pack, topic, st, active, onSelect, onPreview }: {
           </button>
         )}
         {st.optional && (
-          <button className="btn-ghost text-[11px]" disabled={busy || st.can_toggle === false} onClick={() => toggle.mutate()} data-testid={`toggle-${st.id}`}>
+          <button className="btn-ghost text-xs" disabled={busy || st.can_toggle === false} onClick={() => toggle.mutate()} data-testid={`toggle-${st.id}`}>
             {st.status === 'skipped' ? t('packs.board.enable') : t('packs.board.disable')}
           </button>
         )}
-        {err && <div className="text-[11px] text-rose-600 dark:text-rose-400">{err}</div>}
+        {err && <div className="text-xs text-rose-600 dark:text-rose-400">{err}</div>}
       </div>
     </div>
   )
@@ -242,7 +242,7 @@ export function StageBoard() {
                 <button type="submit" className="btn-primary flex-1 text-xs" disabled={create.isPending || !title.trim()} data-testid="topic-create">{t('packs.board.create')}</button>
                 <button type="button" className="btn-ghost text-xs" onClick={() => setCreating(false)}>{t('packs.board.cancel')}</button>
               </div>
-              {create.error && <div className="text-[11px] text-rose-600 dark:text-rose-400">{String(create.error)}</div>}
+              {create.error && <div className="text-xs text-rose-600 dark:text-rose-400">{String(create.error)}</div>}
             </form>
           )}
           {topics.isLoading && <Loading />}
@@ -255,7 +255,7 @@ export function StageBoard() {
                   <div className="truncate font-medium" title={tp.title}>{tp.title}</div>
                   <div className="mt-1 flex items-center gap-1">
                     {tp.lights.map((l, i) => <span key={i} className={`h-2 w-2 shrink-0 rounded-full ${LIGHT[l]}`} title={pack.data!.stages[i]?.title} />)}
-                    <code className="ml-auto shrink-0 font-mono text-[10px] text-zinc-600 dark:text-zinc-400">{tp.id.slice(0, 8)}</code>
+                    <code className="ml-auto shrink-0 font-mono text-2xs text-zinc-600 dark:text-zinc-400">{tp.id.slice(0, 8)}</code>
                   </div>
                 </button>
               </li>
@@ -290,26 +290,26 @@ export function StageBoard() {
           {activeStage ? (
             <>
               <div className="mb-2 font-semibold">{activeStage.title}</div>
-              <div className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400">{t('packs.board.agent')}</div>
+              <div className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('packs.board.agent')}</div>
               <div className="mb-3">
                 <div className="truncate font-medium" title={agentOf(activeStage.agent)?.name ?? activeStage.agent}>{agentOf(activeStage.agent)?.name ?? activeStage.agent}</div>
-                <code className="id-text block text-[11px] text-zinc-600 dark:text-zinc-400" title={activeStage.agent}>{activeStage.agent}</code>
+                <code className="id-text block text-xs text-zinc-600 dark:text-zinc-400" title={activeStage.agent}>{activeStage.agent}</code>
                 {agentOf(activeStage.agent)?.title && <div className="text-xs text-zinc-600 dark:text-zinc-400">{agentOf(activeStage.agent)!.title}</div>}
                 {agentOf(activeStage.agent)?.agent_id && (
                   <Link to={`/agents?id=${agentOf(activeStage.agent)!.agent_id}`} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline dark:text-indigo-300">SOUL.md</Link>
                 )}
               </div>
-              <div className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400">{t('packs.board.lastRun')}</div>
+              <div className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('packs.board.lastRun')}</div>
               {activeStage.run_id ? (
                 <div className="space-y-1">
-                  <div className="text-xs">{fmt(activeStage.updated_at)} · <span className={`badge px-1 py-0.5 text-[11px] ${BADGE[activeStage.status]}`}>{t(`packs.board.status.${activeStage.status}`)}</span></div>
+                  <div className="text-xs">{fmt(activeStage.updated_at)} · <span className={`badge px-1 py-0.5 text-xs ${BADGE[activeStage.status]}`}>{t(`packs.board.status.${activeStage.status}`)}</span></div>
                   <div className="flex flex-wrap gap-1">
                     {activeStage.session_id && (
                       <button className="btn-outline !py-0.5 text-xs" onClick={() => setConv(activeStage.session_id)} data-testid="open-conversation">{t('packs.board.conversation')}</button>
                     )}
                     <Link to={`/workflows/runs/${activeStage.run_id}`} className="btn-outline !py-0.5 text-xs">{t('packs.board.runPage')}</Link>
                   </div>
-                  <code className="id-text block text-[10px] text-zinc-600 dark:text-zinc-400" title={activeStage.run_id}>{activeStage.run_id}</code>
+                  <code className="id-text block text-2xs text-zinc-600 dark:text-zinc-400" title={activeStage.run_id}>{activeStage.run_id}</code>
                 </div>
               ) : (
                 <div className="text-xs text-zinc-600 dark:text-zinc-400">{t('packs.board.noRun')}</div>

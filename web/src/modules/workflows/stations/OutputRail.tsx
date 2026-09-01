@@ -37,8 +37,8 @@ export function OutputRail({ stations, live }: { stations: Station[]; live?: Liv
     <div className="flex min-h-0 flex-1 flex-col" data-testid="output-rail">
       <div className="flex flex-wrap items-baseline gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
         <span className="min-w-0 truncate text-sm font-semibold" title={title}>{title}</span>
-        {d?.latest_version != null && <span className="badge bg-zinc-200 text-[10px] dark:bg-zinc-800">{t('wf.station.railDoc', { n: d.latest_version })}</span>}
-        <span className="w-full text-[11px] text-zinc-600 dark:text-zinc-400">{t('wf.station.railFrom', { name: pick.station.node.title || pick.station.node.id })}</span>
+        {d?.latest_version != null && <span className="badge bg-zinc-200 text-2xs dark:bg-zinc-800">{t('wf.station.railDoc', { n: d.latest_version })}</span>}
+        <span className="w-full text-xs text-zinc-600 dark:text-zinc-400">{t('wf.station.railFrom', { name: pick.station.node.title || pick.station.node.id })}</span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
         <FilePreview source={{ kind: 'inline', text: body, title, format: 'markdown' }} title={title} compact />

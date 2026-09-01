@@ -75,7 +75,7 @@ export function CreateAgentDialog({ profiles, onClose, onCreated }: {
               </option>
             ))}
           </select>
-          <span className="mt-1 block text-[11px] text-zinc-600 dark:text-zinc-400">{t('agents.runtimeHint')}</span>
+          <span className="mt-1 block text-xs text-zinc-600 dark:text-zinc-400">{t('agents.runtimeHint')}</span>
         </label>
 
         {notInstalled && (
@@ -97,9 +97,9 @@ export function CreateAgentDialog({ profiles, onClose, onCreated }: {
             <label className="block">
               <span className="text-xs text-zinc-600 dark:text-zinc-400">{t('agents.workspace')}</span>
               <input className="input font-mono text-xs" value={workspace} onChange={(e) => setWorkspace(e.target.value)} placeholder="/path/to/repo" aria-label={t('agents.workspace')} data-testid="new-agent-workspace" />
-              <span className="mt-1 block text-[11px] text-zinc-600 dark:text-zinc-400">{t('agents.workspaceHint')}</span>
+              <span className="mt-1 block text-xs text-zinc-600 dark:text-zinc-400">{t('agents.workspaceHint')}</span>
               {!!runtimesQ.data?.workspace_roots?.length && (
-                <ul className="mt-1 max-h-24 space-y-0.5 overflow-auto rounded border border-zinc-200 p-1 text-[11px] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400" data-testid="workspace-roots">
+                <ul className="mt-1 max-h-24 space-y-0.5 overflow-auto rounded border border-zinc-200 p-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400" data-testid="workspace-roots">
                   {runtimesQ.data.workspace_roots.map((r) => (
                     <li key={r.id}>
                       <button type="button" className="underline hover:text-zinc-800 dark:hover:text-zinc-200" onClick={() => setWorkspace(r.path)}>{r.path}</button>

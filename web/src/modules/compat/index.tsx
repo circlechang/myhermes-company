@@ -121,7 +121,7 @@ export function ReportTable({ report }: { report: Report }) {
               <Fragment key={it.id}>
                 <tr className="cursor-pointer border-t border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50" data-testid={`item-${it.id}`} onClick={() => setOpen((o) => ({ ...o, [it.id]: !o[it.id] }))}>
                   <td className={`font-bold ${statusClass[it.status]}`}>{{ pass: '✓', fail: '✗', skip: '–' }[it.status]}</td>
-                  <td><span className="font-medium">{it.label}</span> <code className="text-zinc-600 dark:text-zinc-400">{it.id}</code>{it.critical && <span className="ml-1 rounded bg-rose-100 px-1 text-[10px] text-rose-700 dark:bg-rose-900/40">{t('compat.critical')}</span>}</td>
+                  <td><span className="font-medium">{it.label}</span> <code className="text-zinc-600 dark:text-zinc-400">{it.id}</code>{it.critical && <span className="ml-1 rounded bg-rose-100 px-1 text-2xs text-rose-700 dark:bg-rose-900/40">{t('compat.critical')}</span>}</td>
                   <td>{it.kind}</td>
                   <td><span className={`rounded px-1 ${it.risk === 'high' ? 'bg-rose-100 dark:bg-rose-900/40' : it.risk === 'medium' ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-emerald-100 dark:bg-emerald-900/40'}`}>{t(`compat.risk.${it.risk}`)}</span></td>
                   <td className="text-zinc-600 dark:text-zinc-400">{it.affects.join(', ')}</td>

@@ -139,7 +139,7 @@ function RoomList({ rooms, loading, error, retry, active, onSelect }: { rooms: R
             >
               <div className="flex min-w-0 items-center justify-between gap-2">
                 <span className="min-w-0 truncate font-medium" title={r.name}>{r.name}</span>
-                <span className="shrink-0 whitespace-nowrap text-[10px] text-zinc-600 dark:text-zinc-400">{r.members.filter((x) => x.kind === 'ai').length} AI</span>
+                <span className="shrink-0 whitespace-nowrap text-2xs text-zinc-600 dark:text-zinc-400">{r.members.filter((x) => x.kind === 'ai').length} AI</span>
               </div>
               {r.last_message && <div className="truncate text-xs text-zinc-600 dark:text-zinc-400" title={`${r.last_message.sender_name}: ${r.last_message.content}`}>{r.last_message.sender_name}: {r.last_message.content}</div>}
             </button>
@@ -270,12 +270,12 @@ function RoomView({ roomId, onDeleted, showSettings, onCloseSettings }: { roomId
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 pb-2 text-sm dark:border-zinc-800">
         <span className="font-semibold">{r.name}</span>
         <span className="text-xs text-zinc-600 dark:text-zinc-400">{t(`groupchat.policies.${r.no_mention_policy}`)}</span>
-        <span className={`text-[10px] ${ws.status === 'open' ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-600 dark:text-zinc-400'}`} data-testid="ws-status">
+        <span className={`text-2xs ${ws.status === 'open' ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-600 dark:text-zinc-400'}`} data-testid="ws-status">
           {ws.status === 'open' ? t('groupchat.connected') : ws.status === 'connecting' ? t('groupchat.connecting') : t('groupchat.disconnected')}
         </span>
         <div className="ml-auto flex flex-wrap gap-1">
           {members.map((m) => (
-            <span key={m.id} className={`rounded-full border px-2 py-0.5 text-[11px] ${m.kind === 'ai' ? 'border-indigo-300' : 'border-zinc-300'} ${colorFor(m.display_name)}`} title={m.kind === 'ai' ? `${m.profile} ${m.model}` : ''}>
+            <span key={m.id} className={`rounded-full border px-2 py-0.5 text-xs ${m.kind === 'ai' ? 'border-indigo-300' : 'border-zinc-300'} ${colorFor(m.display_name)}`} title={m.kind === 'ai' ? `${m.profile} ${m.model}` : ''}>
               {m.kind === 'ai' ? '🤖 ' : '👤 '}{m.display_name}
             </span>
           ))}
@@ -345,7 +345,7 @@ function MessageRow({ m }: { m: RoomMessage }) {
       <div className="flex items-center gap-2 text-xs">
         <span className={`font-medium ${colorFor(m.sender_name)}`}>{isAi ? '🤖 ' : m.sender_kind === 'human' ? '👤 ' : ''}{m.sender_name}</span>
         <span className="text-zinc-600 dark:text-zinc-400">{time}</span>
-        {m.depth > 1 && <span className="rounded bg-zinc-200 px-1 text-[10px] dark:bg-zinc-800" title={t('groupchat.depthHint')}>↳{m.depth}</span>}
+        {m.depth > 1 && <span className="rounded bg-zinc-200 px-1 text-2xs dark:bg-zinc-800" title={t('groupchat.depthHint')}>↳{m.depth}</span>}
         <SpeakButton text={m.content} id={m.id} className="ml-auto opacity-0 group-hover:opacity-100 sm:opacity-60" />
       </div>
       <div className="prose prose-sm max-w-none dark:prose-invert">
@@ -377,7 +377,7 @@ function RoomSettings({ room, onClose, onDeleted }: { room: Room; onClose: () =>
       max={520}
       bodyClassName="flex flex-col gap-3 overflow-auto p-3 text-sm"
       data-testid="room-settings"
-      actions={<button className="btn-ghost !px-1 !py-0 text-[11px]" onClick={onClose}>{t('common.close')}</button>}
+      actions={<button className="btn-ghost !px-1 !py-0 text-xs" onClick={onClose}>{t('common.close')}</button>}
     >
       <section className="space-y-1">
         <div className="panel-title px-0">{t('groupchat.inviteCode')}</div>

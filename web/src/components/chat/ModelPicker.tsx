@@ -17,7 +17,7 @@ export function ModelBadge({ model, fallback, usage, onClick }: {
   return (
     <button
       type="button"
-      className="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+      className="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-300 px-2 py-0.5 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
       onClick={onClick}
       title={`${label}${model ? '' : ` (${t('chat.model.default')})`}`}
       data-testid="model-badge"
@@ -67,10 +67,10 @@ export function ModelPicker({ profile, value, onChange, onClose }: {
         </button>
         {q.isLoading && <div className="p-2 text-xs text-zinc-600 dark:text-zinc-400">{t('common.loading')}</div>}
         {q.data?.error && <div className="p-2 text-xs text-rose-600 dark:text-rose-400">{q.data.error}</div>}
-        {q.data?.fallback && <div className="p-2 text-[11px] text-amber-700 dark:text-amber-400">{t('chat.model.fallback')}</div>}
+        {q.data?.fallback && <div className="p-2 text-xs text-amber-700 dark:text-amber-400">{t('chat.model.fallback')}</div>}
         {groups.map((p) => (
           <div key={p.slug || p.name}>
-            <div className="mt-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">
+            <div className="mt-1 px-2 py-1 text-2xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">
               {p.name} {p.is_current && <span className="ml-1 rounded bg-emerald-100 px-1 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">{t('chat.model.current')}</span>}
               {p.authenticated === false && <span className="ml-1 text-amber-700 dark:text-amber-400">{t('chat.model.unauth')}</span>}
             </div>
@@ -82,8 +82,8 @@ export function ModelPicker({ profile, value, onChange, onClose }: {
                 onClick={() => pick(m)}
               >
                 <span className="min-w-0 truncate font-mono text-xs">{m.id}</span>
-                {m.pricing?.input && <span className="ml-auto shrink-0 text-[10px] text-zinc-600 dark:text-zinc-400">{m.pricing.input} / {m.pricing.output}</span>}
-                {m.pricing?.free && <span className="ml-auto shrink-0 text-[10px] text-emerald-600 dark:text-emerald-400">free</span>}
+                {m.pricing?.input && <span className="ml-auto shrink-0 text-2xs text-zinc-600 dark:text-zinc-400">{m.pricing.input} / {m.pricing.output}</span>}
+                {m.pricing?.free && <span className="ml-auto shrink-0 text-2xs text-emerald-600 dark:text-emerald-400">free</span>}
               </button>
             ))}
           </div>

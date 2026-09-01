@@ -26,7 +26,7 @@ export function HelpDrawer({ open, onClose }: { open: boolean; onClose: () => vo
       <aside className="relative flex h-full w-[380px] max-w-[92vw] flex-col overflow-y-auto border-l border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900" role="dialog" aria-modal="true" aria-labelledby="help-title">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <div className="text-[11px] uppercase tracking-wide text-zinc-600 dark:text-zinc-400">{t('guide.help.open')}</div>
+            <div className="text-xs uppercase tracking-wide text-zinc-600 dark:text-zinc-400">{t('guide.help.open')}</div>
             <h2 id="help-title" className="text-lg font-semibold" data-testid="help-title">{page?.title ?? t('guide.help.fallbackTitle')}</h2>
           </div>
           <button type="button" className="btn-ghost px-2" onClick={onClose} aria-label={t('guide.help.close')} data-testid="help-close"><CloseIcon className="h-4 w-4" aria-hidden /></button>

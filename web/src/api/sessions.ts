@@ -23,6 +23,8 @@ export interface ChatSession extends Session {
   imported_from?: string
   /** docs 模組：這個對話正在經營哪一份文件（文件模式）；空字串＝一般對話 */
   doc_id?: string
+  /** 側欄副標：第一則使用者訊息的單行摘要。標題重複時靠它辨識。 */
+  preview?: string
 }
 
 export interface Attachment {

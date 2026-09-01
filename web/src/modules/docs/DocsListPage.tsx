@@ -78,7 +78,7 @@ export function DocsListPage() {
             <span className="text-xs text-zinc-600 dark:text-zinc-400">v{d.latest_version ?? 0}</span>
             {d.drift && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('docs.driftShort')}</span>}
             <span className="text-xs text-zinc-500">{fmt(d.updated_at)}</span>
-            <code className="w-full truncate text-[11px] text-zinc-500">{d.path}</code>
+            <code className="w-full truncate text-xs text-zinc-500">{d.path}</code>
           </li>
         ))}
       </ul>

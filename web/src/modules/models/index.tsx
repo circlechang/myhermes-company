@@ -75,7 +75,7 @@ function OAuthFlow({ provider, onDone }: { provider: string; onDone: () => void 
       )}
       {sess?.status === 'done' && <div className="text-emerald-600 dark:text-emerald-400">{t('models.oauthDone')}</div>}
       {sess?.status === 'failed' && <div className="text-rose-600 dark:text-rose-400">{sess.error}</div>}
-      {sess?.output && <pre className="mt-1 max-h-24 overflow-auto text-[10px] text-zinc-600 dark:text-zinc-400">{sess.output}</pre>}
+      {sess?.output && <pre className="mt-1 max-h-24 overflow-auto text-2xs text-zinc-600 dark:text-zinc-400">{sess.output}</pre>}
     </div>
   )
 }
@@ -96,8 +96,8 @@ function ProviderCard({ p, profile, current, groups, onChanged }: { p: Provider;
         <span className={`inline-block h-2 w-2 rounded-full ${p.configured ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
         <button className="min-w-0 truncate font-medium" onClick={() => setOpen(!open)} title={p.name}>{p.name}</button>
         <code className="id-text shrink text-zinc-600 dark:text-zinc-400" title={p.id}>{p.id}</code>
-        {p.is_current && <span className="badge bg-indigo-100 text-[10px] text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">{t('models.current')}</span>}
-        {p.kind === 'custom' && <span className="badge bg-amber-100 text-[10px] text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{t('models.custom')}</span>}
+        {p.is_current && <span className="badge bg-indigo-100 text-2xs text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">{t('models.current')}</span>}
+        {p.kind === 'custom' && <span className="badge bg-amber-100 text-2xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{t('models.custom')}</span>}
         <span className="ml-auto text-xs text-zinc-600 dark:text-zinc-400">{p.key_env_set ? `${t('models.keyVia')} ${p.key_env_set}` : p.oauth_logged_in ? t('models.oauthLoggedIn') : p.credentials.length ? t('models.credentials', { n: p.credentials.length }) : t('models.notConfigured')}</span>
       </div>
       {p.oauth_error && <div className="text-xs text-rose-600 dark:text-rose-400">{p.oauth_error}</div>}

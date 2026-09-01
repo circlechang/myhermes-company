@@ -15,8 +15,38 @@ from ..modules.coding_agents import staff
 router = APIRouter(tags=["sessions"])
 
 
-def session_public(s: ChatSession) -> dict:
+PREVIEW_CHARS = 80
+
+
+def _snippet(text: Optional[str], limit: int = PREVIEW_CHARS) -> str:
+    """把訊息壓成單行摘要。換行與連續空白收成一個空格，超長截斷加省略號。"""
+    t = " ".join((text or "").split())
+    return t if len(t) <= limit else t[: limit - 1] + "\u2026"
+
+
+def previews_for(db: Session, session_ids: list[str]) -> dict[str, str]:
+    """每個對話取「最早的一則使用者訊息」當預覽。
+
+    用最早而不是最新：標題重複時要回答的是「這個對話在講什麼」，開場白最能識別，
+    而且不會隨著對話變長而跳動。一次 IN 查詢取完，不要每列打一次 DB。
+    """
+    if not session_ids:
+        return {}
+    rows = db.exec(
+        select(Message.session_id, Message.content)
+        .where(Message.session_id.in_(session_ids), Message.role == "user")
+        .order_by(Message.session_id, Message.created_at)
+    ).all()
+    out: dict[str, str] = {}
+    for sid, content in rows:
+        if sid not in out:
+            out[sid] = _snippet(content)
+    return out
+
+
+def session_public(s: ChatSession, preview: str = "") -> dict:
     return {
+        "preview": preview,
         "id": s.id, "agent_id": s.agent_id, "member_id": s.member_id, "title": s.title, "source": s.source,
         "created_at": s.created_at, "updated_at": s.updated_at, "last_message_at": s.last_message_at,
         "archived": bool(s.archived), "category_id": s.category_id, "model": s.model or "", "provider": s.provider or "",
@@ -75,7 +105,8 @@ def list_sessions(agent_id: Optional[str] = None, include_archived: bool = False
         q = q.where(ChatSession.category_id == category_id)
     rows = db.exec(q).all()
     rows.sort(key=_sort_key)
-    return [session_public(s) for s in rows]
+    prev = previews_for(db, [s.id for s in rows])
+    return [session_public(s, prev.get(s.id, "")) for s in rows]
 
 
 class SessionCreate(BaseModel):
@@ -231,4 +262,4 @@ def session_or_none(db: Session, p: Principal, session_id: str) -> Optional[Chat
         return None
 
 
-__all__ = ["router", "session_public", "message_public", "get_owned_session", "session_or_none", "or_"]
+__all__ = ["router", "session_public", "previews_for", "message_public", "get_owned_session", "session_or_none", "or_"]

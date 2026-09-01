@@ -94,7 +94,7 @@ export function Tour({ autoStart = true }: { autoStart?: boolean }) {
         <div className="absolute inset-0 bg-black/55" />
       )}
       <div className="card absolute w-[340px] max-w-[calc(100vw-24px)] p-4 shadow-2xl" style={pop} data-testid="tour-popover">
-        <div className="text-[11px] text-zinc-600 dark:text-zinc-400">{t('guide.tour.stepOf', { i: i + 1, n: TOUR_STEPS.length })}</div>
+        <div className="text-xs text-zinc-600 dark:text-zinc-400">{t('guide.tour.stepOf', { i: i + 1, n: TOUR_STEPS.length })}</div>
         <div className="mt-1 text-base font-semibold">{t(`guide.tour.steps.${step.key}.title`)}</div>
         <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{t(`guide.tour.steps.${step.key}.body`)}</p>
         <div className="mt-4 flex items-center gap-1">

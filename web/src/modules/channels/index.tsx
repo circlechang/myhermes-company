@@ -60,7 +60,7 @@ function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void 
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 font-medium">{p.label}
-            <span className={`rounded px-1.5 text-[10px] ${p.configured ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300'}`}>
+            <span className={`rounded px-1.5 text-2xs ${p.configured ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300'}`}>
               {p.configured ? t('channels.configured') : t('channels.notConfigured')}
             </span>
           </h2>
@@ -76,7 +76,7 @@ function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void 
       <div className="grid gap-2 md:grid-cols-2">
         {p.fields.map((f) => (
           <label key={f.name} className="text-xs">
-            <span className="text-zinc-600 dark:text-zinc-400">{f.label}{f.required && ' *'} <code className="text-[10px]">{f.name}</code>
+            <span className="text-zinc-600 dark:text-zinc-400">{f.label}{f.required && ' *'} <code className="text-2xs">{f.name}</code>
               {f.secret && f.set && <span className="ml-1 text-emerald-600 dark:text-emerald-400">{t('channels.keySet')}</span>}</span>
             {f.kind === 'bool' ? (
               <select className="input" value={env[f.name] ?? ''} onChange={(e) => setEnv({ ...env, [f.name]: e.target.value })}>
@@ -86,7 +86,7 @@ function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void 
               <input className="input" type={f.secret ? 'password' : 'text'} placeholder={f.secret ? (f.set ? t('channels.secretKeep') : '') : f.default || f.hint}
                 value={env[f.name] ?? ''} onChange={(e) => setEnv({ ...env, [f.name]: e.target.value })} autoComplete="off" aria-label={f.label} />
             )}
-            {f.hint && !f.secret && <span className="text-[10px] text-zinc-600 dark:text-zinc-400">{f.hint}</span>}
+            {f.hint && !f.secret && <span className="text-2xs text-zinc-600 dark:text-zinc-400">{f.hint}</span>}
           </label>
         ))}
       </div>
@@ -149,7 +149,7 @@ function GatewayCard() {
               {s.profiles.map((p) => <li key={p.name} className="rounded border px-1.5 dark:border-zinc-700">{p.running ? '✓' : '✗'} {p.name}</li>)}
             </ul>
           )}
-          {restart.data?.output && <pre className="mt-2 max-h-24 overflow-auto text-[10px] text-zinc-600 dark:text-zinc-400">{restart.data.output}</pre>}
+          {restart.data?.output && <pre className="mt-2 max-h-24 overflow-auto text-2xs text-zinc-600 dark:text-zinc-400">{restart.data.output}</pre>}
         </div>
       )}
     </div>

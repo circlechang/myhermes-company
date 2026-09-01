@@ -23,7 +23,7 @@ export function AttachmentChips({ items, onOpenFile }: { items: Attachment[]; on
         <button
           key={a.path}
           type="button"
-          className="inline-flex max-w-[16rem] items-center gap-1 rounded border border-current/20 bg-white/20 px-1.5 py-0.5 text-[11px] hover:bg-white/40 dark:bg-black/20"
+          className="inline-flex max-w-[16rem] items-center gap-1 rounded border border-current/20 bg-white/20 px-1.5 py-0.5 text-xs hover:bg-white/40 dark:bg-black/20"
           title={a.path}
           onClick={() => onOpenFile?.(a.path)}
         >
@@ -39,7 +39,7 @@ export function AttachmentChips({ items, onOpenFile }: { items: Attachment[]; on
 function Quote({ text }: { text: string }) {
   const { t } = useTranslation()
   return (
-    <div className="mb-1 border-l-2 border-current/40 pl-2 text-[11px] opacity-80" data-testid="quote">
+    <div className="mb-1 border-l-2 border-current/40 pl-2 text-xs opacity-80" data-testid="quote">
       <div className="opacity-70">{t('chat.replyingTo')}</div>
       <div className="line-clamp-3 whitespace-pre-wrap">{text}</div>
     </div>
@@ -73,7 +73,7 @@ function SubagentCard({ item }: { item: SubagentItem }) {
         <div className="border-t border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
           {meta && <div className="mb-1 text-zinc-600 dark:text-zinc-400">{meta}</div>}
           {item.summary && <div className="whitespace-pre-wrap" data-testid="subagent-summary">{item.summary}</div>}
-          {item.output_tail && <pre className="mt-1 max-h-48 overflow-auto rounded bg-zinc-100 p-2 font-mono text-[11px] dark:bg-zinc-800">{item.output_tail}</pre>}
+          {item.output_tail && <pre className="mt-1 max-h-48 overflow-auto rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-zinc-800">{item.output_tail}</pre>}
           {!item.summary && !item.output_tail && !running && <div className="text-zinc-600 dark:text-zinc-400">—</div>}
         </div>
       )}
@@ -135,7 +135,7 @@ export function MessageList({
         return (
           <div key={it.id} className={`group flex min-w-0 ${mine ? 'justify-end' : 'justify-start'}`} data-role={it.role} data-message-id={it.message_id ?? it.id}>
             <div className={`relative min-w-0 max-w-full rounded-lg px-3 py-2 text-sm sm:max-w-3xl ${mine ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800'}`}>
-              <div className={`mb-0.5 flex flex-wrap items-center gap-2 text-[10px] ${mine ? 'text-indigo-100' : 'text-zinc-600 dark:text-zinc-400'}`}>
+              <div className={`mb-0.5 flex flex-wrap items-center gap-2 text-2xs ${mine ? 'text-indigo-100' : 'text-zinc-600 dark:text-zinc-400'}`}>
                 <span>{mine ? t('chat.roleUser') : t('chat.roleAssistant')}</span>
                 {it.usage && typeof it.usage.total_tokens === 'number' && <span title={JSON.stringify(it.usage)}>· {String(it.usage.total_tokens)} tok</span>}
               </div>
@@ -148,7 +148,7 @@ export function MessageList({
               )}
               {it.streaming && <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-current align-middle" aria-hidden />}
               {!it.streaming && (
-                <div className={`mt-1 flex flex-wrap items-center gap-1 text-[11px] opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 ${mine ? 'text-indigo-100' : 'text-zinc-600 dark:text-zinc-400'}`} data-testid="message-actions">
+                <div className={`mt-1 flex flex-wrap items-center gap-1 text-xs opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 ${mine ? 'text-indigo-100' : 'text-zinc-600 dark:text-zinc-400'}`} data-testid="message-actions">
                   <CopyButton text={it.content} className={mine ? 'text-indigo-100 hover:bg-indigo-500 hover:text-white' : ''} />
                   {actions.onReply && (
                     <button type="button" className="rounded px-1.5 py-0.5 hover:bg-black/10 dark:hover:bg-white/10" onClick={() => actions.onReply!(it)}>

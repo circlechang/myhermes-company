@@ -31,7 +31,7 @@ export function RuntimeBadge({ agent, className = '' }: { agent: BadgeAgent; cla
   const label = agent.runtime_name || LABELS[rt]
   return (
     <span
-      className={`badge shrink-0 text-[10px] ${missing ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200' : STYLES[rt]} ${className}`}
+      className={`badge shrink-0 text-2xs ${missing ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200' : STYLES[rt]} ${className}`}
       data-testid={`runtime-badge-${rt}`}
       title={label}
     >

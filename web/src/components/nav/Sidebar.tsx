@@ -45,7 +45,7 @@ export function Sidebar({ groups, expanded, onToggle, drawer = false, onNavigate
         {groups.map((g) => (
           <section key={g.group} data-testid={`nav-group-${g.group}`} className="mb-2">
             {wide ? (
-              <h2 className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">{t(`nav.group.${g.group}`)}</h2>
+              <h2 className="px-4 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">{t(`nav.group.${g.group}`)}</h2>
             ) : (
               <div className="mx-3 my-2 border-t border-zinc-200 dark:border-zinc-800" aria-hidden />
             )}

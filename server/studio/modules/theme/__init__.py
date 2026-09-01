@@ -21,7 +21,7 @@ DEFAULTS: dict[str, Any] = {
     "mode": "system",        # light | dark | system
     "style": "rounded",      # rounded | square
     "density": "comfortable",  # comfortable | compact
-    "font_size": 14,         # px, 12..20
+    "font_size": 16,         # px, 12..20（16 = 瀏覽器預設，介面大量使用 text-xs/sm，基準再小就看不清）
     "text_color": "",        # css color or ""
     "primary": "#4f46e5",    # css color
     "background_opacity": 0.12,

@@ -17,7 +17,7 @@ export function ConversationModal({ sessionId, onClose }: { sessionId: string; o
         <div className="space-y-2">
           {q.data?.map((m) => (
             <div key={m.id} className={`rounded-md p-2 text-sm ${m.role === 'user' ? 'bg-indigo-50 dark:bg-indigo-950/40' : m.role === 'tool' ? 'bg-zinc-100 text-xs dark:bg-zinc-800' : 'bg-zinc-50 dark:bg-zinc-900'}`}>
-              <div className="mb-1 text-[10px] uppercase text-zinc-600 dark:text-zinc-400">{m.role}{m.tool_name ? ` · ${m.tool_name}` : ''}</div>
+              <div className="mb-1 text-2xs uppercase text-zinc-600 dark:text-zinc-400">{m.role}{m.tool_name ? ` · ${m.tool_name}` : ''}</div>
               <pre className="whitespace-pre-wrap font-sans">{m.content || (m.tool_result ? JSON.stringify(m.tool_result).slice(0, 800) : '')}</pre>
             </div>
           ))}

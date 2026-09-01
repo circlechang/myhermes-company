@@ -21,12 +21,12 @@ export function PdfView({ url, pages, total, search = '' }: { url: string | null
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="pdf-preview">
-      <div className="flex flex-wrap items-center gap-1 border-b border-zinc-200 px-2 py-1 text-[11px] dark:border-zinc-800">
+      <div className="flex flex-wrap items-center gap-1 border-b border-zinc-200 px-2 py-1 text-xs dark:border-zinc-800">
         <button className="btn-ghost !px-1.5 !py-0" onClick={() => go(page - 1)} disabled={page <= 1} aria-label={t('preview.prevPage')}>‹</button>
         <label className="flex items-center gap-1">
           <input
             type="number"
-            className="input h-6 w-14 px-1 py-0 text-center text-[11px]"
+            className="input h-6 w-14 px-1 py-0 text-center text-xs"
             value={page}
             min={1}
             max={count}
@@ -48,7 +48,7 @@ export function PdfView({ url, pages, total, search = '' }: { url: string | null
         )}
       </div>
       {hits.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1 border-b border-zinc-200 px-2 py-1 text-[11px] dark:border-zinc-800" data-testid="pdf-hits">
+        <div className="flex flex-wrap items-center gap-1 border-b border-zinc-200 px-2 py-1 text-xs dark:border-zinc-800" data-testid="pdf-hits">
           <span className="text-zinc-600 dark:text-zinc-400">{t('preview.searchHits', { n: hits.length })}</span>
           {hits.slice(0, 20).map((n) => (
             <button key={n} className="btn-ghost !px-1.5 !py-0" onClick={() => go(n)}>p.{n}</button>

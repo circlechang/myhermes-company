@@ -31,7 +31,7 @@ export function ApprovalsPage() {
               <StatusBadge s={a.status === 'pending' ? 'waiting_approval' : a.status === 'approved' ? 'completed' : a.status === 'rejected' ? 'failed' : 'stopped'} />
               <Link className="ml-auto text-xs text-indigo-600 dark:text-indigo-400" to={`/workflows/runs/${a.run_id}`}>{t('wf.approvalsPage.run')} {a.run_id}</Link>
             </div>
-            <div className="mt-1 text-[10px] text-zinc-600 dark:text-zinc-400">{new Date(a.created_at).toLocaleString()}{a.decided_by ? ` · ${a.decided_by}` : ''}</div>
+            <div className="mt-1 text-2xs text-zinc-600 dark:text-zinc-400">{new Date(a.created_at).toLocaleString()}{a.decided_by ? ` · ${a.decided_by}` : ''}</div>
             <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">{t('wf.approvalsPage.payload')}</div>
             <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-800">{a.payload}</pre>
             {a.status === 'pending' ? (

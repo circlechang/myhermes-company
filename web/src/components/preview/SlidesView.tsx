@@ -14,7 +14,7 @@ export function SlidesView({ pages }: { pages: PreviewPage[] }) {
         {pages.map((p, i) => (
           <li key={p.index} className="shrink-0 md:w-full">
             <button
-              className={`flex w-40 flex-col gap-0.5 rounded-md border p-2 text-left text-[11px] md:w-full ${
+              className={`flex w-40 flex-col gap-0.5 rounded-md border p-2 text-left text-xs md:w-full ${
                 i === cur
                   ? 'border-indigo-400 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-950/40'
                   : 'border-zinc-200 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800/60'
@@ -32,7 +32,7 @@ export function SlidesView({ pages }: { pages: PreviewPage[] }) {
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {slide && (
           <article className="card mx-auto max-w-3xl p-5" data-testid="slide-body">
-            <div className="text-[11px] text-zinc-500">{t('preview.slideN', { n: slide.index, total: pages.length })}</div>
+            <div className="text-xs text-zinc-500">{t('preview.slideN', { n: slide.index, total: pages.length })}</div>
             <h2 className="mt-1 text-lg font-semibold">{slide.title || t('preview.untitledSlide')}</h2>
             {slide.body?.length ? (
               <ul className="mt-3 space-y-1 text-sm">

@@ -48,7 +48,7 @@ export function DocDetailPage() {
           {t(`docs.origin.${doc.data.origin}`)}
           {doc.data.stage ? ` · ${doc.data.stage}` : ''} · {t('docs.updatedAt')} {fmt(doc.data.updated_at)}
         </span>
-        <code className="text-[11px] text-zinc-500">{doc.data.abs_path}</code>
+        <code className="text-xs text-zinc-500">{doc.data.abs_path}</code>
         <button
           type="button"
           className="btn-outline ml-auto"

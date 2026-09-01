@@ -44,10 +44,10 @@ export function WfNodeView({ id, data, selected }: NodeProps<FlowNode>) {
       <div className="flex items-center gap-1.5">
         <span>{KIND_ICONS[kind]}</span>
         <span className="truncate font-semibold">{n.title || id}</span>
-        {st && st !== 'pending' && <span className="ml-auto rounded bg-zinc-200/80 px-1 text-[10px] dark:bg-zinc-700">{t(`wf.status.${st}`)}</span>}
+        {st && st !== 'pending' && <span className="ml-auto rounded bg-zinc-200/80 px-1 text-2xs dark:bg-zinc-700">{t(`wf.status.${st}`)}</span>}
       </div>
-      <div className="truncate text-[11px] text-zinc-600 dark:text-zinc-400">{subtitle || t(`wf.kinds.${kind}`)}</div>
-      {(n.prompt || stream) && <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-[11px] text-zinc-600 dark:text-zinc-400">{stream ? stream.slice(-160) : n.prompt}</div>}
+      <div className="truncate text-xs text-zinc-600 dark:text-zinc-400">{subtitle || t(`wf.kinds.${kind}`)}</div>
+      {(n.prompt || stream) && <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs text-zinc-600 dark:text-zinc-400">{stream ? stream.slice(-160) : n.prompt}</div>}
       {handles.length === 1 ? (
         <Handle type="source" position={Position.Bottom} id="output" className="!h-2.5 !w-2.5 !bg-indigo-500" />
       ) : (
@@ -56,7 +56,7 @@ export function WfNodeView({ id, data, selected }: NodeProps<FlowNode>) {
         ))
       )}
       {handles.length > 1 && (
-        <div className="mt-1 flex justify-around text-[9px] text-zinc-600 dark:text-zinc-400">
+        <div className="mt-1 flex justify-around text-2xs text-zinc-600 dark:text-zinc-400">
           {handles.map((h) => (
             <span key={h}>{h}</span>
           ))}
@@ -77,7 +77,7 @@ export function WfEdgeView({ id, sourceX, sourceY, targetX, targetY, sourcePosit
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={{ stroke: color, strokeWidth: selected ? 3 : decision === true ? 2.5 : 1.5, strokeDasharray: data?.loop_back ? '6 4' : decision === false ? '2 4' : undefined }} />
       {label && (
         <EdgeLabelRenderer>
-          <div style={{ transform: `translate(-50%,-50%) translate(${lx}px,${ly}px)` }} className="nodrag nopan pointer-events-none absolute rounded bg-white/90 px-1 text-[10px] text-zinc-600 dark:bg-zinc-900/90 dark:text-zinc-300">
+          <div style={{ transform: `translate(-50%,-50%) translate(${lx}px,${ly}px)` }} className="nodrag nopan pointer-events-none absolute rounded bg-white/90 px-1 text-2xs text-zinc-600 dark:bg-zinc-900/90 dark:text-zinc-300">
             {label}
           </div>
         </EdgeLabelRenderer>

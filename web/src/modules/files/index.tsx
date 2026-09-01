@@ -144,7 +144,7 @@ export function FilesPage() {
             <input ref={fileInput} type="file" multiple hidden aria-label={t('files.upload')} onChange={(e) => doUpload(e.target.files)} />
             <button className="btn-ghost" disabled={!writable} onClick={() => { const n = prompt(t('files.mkdirPrompt')); if (n) act.mutate(() => filesApi.mkdir(`${dir}/${n}`)) }}>{t('files.mkdir')}</button>
           </div>
-          {!writable && root && <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">{t('files.readonly')}</div>}
+          {!writable && root && <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">{t('files.readonly')}</div>}
           {notice && <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-300" role="status">{notice}</div>}
         </div>
         <div className="min-h-0 flex-1 overflow-auto px-2 pb-2" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (writable) doUpload(e.dataTransfer.files) }}>
@@ -157,7 +157,7 @@ export function FilesPage() {
                 <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => (e.kind === 'dir' ? (setDir(e.path), setSelected(null)) : setSelected(e.path))}>
                   <span aria-hidden>{e.kind === 'dir' ? '📁' : '📄'}</span>
                   <span className="truncate">{e.name}</span>
-                  <span className="ml-auto shrink-0 text-[11px] text-zinc-600 dark:text-zinc-400">{e.kind === 'file' ? fmtSize(e.size) : ''}</span>
+                  <span className="ml-auto shrink-0 text-xs text-zinc-600 dark:text-zinc-400">{e.kind === 'file' ? fmtSize(e.size) : ''}</span>
                 </button>
                 <details className="relative">
                   <summary className="cursor-pointer list-none px-1 text-zinc-600 dark:text-zinc-400" aria-label={`${e.name} 操作`}>⋯</summary>
