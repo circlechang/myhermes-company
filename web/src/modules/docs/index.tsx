@@ -38,7 +38,13 @@ const zhTW = {
       status: '狀態', origin: '來源', stage: '站別', search: '搜尋標題／路徑',
       allStatus: '全部狀態', allOrigin: '全部來源', allStage: '全部站別',
     },
+    workbench: {
+      open: '開一份文件',
+      openHint: '把這個對話變成經營一份文件：AI 每輪會更新它，右側可直接預覽',
+      bound: '文件模式',
+    },
     panel: {
+      title: '文件',
       latest: '最新版',
       history: '版本',
       showDiff: '看差異',
@@ -93,7 +99,13 @@ const en = {
       status: 'Status', origin: 'Origin', stage: 'Stage', search: 'Search title / path',
       allStatus: 'All statuses', allOrigin: 'All origins', allStage: 'All stages',
     },
+    workbench: {
+      open: 'Open a document',
+      openHint: 'Turn this conversation into work on a document: the AI updates it each turn, previewed on the right',
+      bound: 'Document mode',
+    },
     panel: {
+      title: 'Document',
       latest: 'Latest',
       history: 'Versions',
       showDiff: 'Diff',

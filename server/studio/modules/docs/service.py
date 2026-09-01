@@ -19,7 +19,7 @@ from typing import Any, Iterable, Optional
 from sqlmodel import Session, select
 
 from ...models import now
-from .models import Doc, DocLink, DocVersion
+from .models import DEFAULT_FORMAT, Doc, DocLink, DocVersion
 
 log = logging.getLogger("studio.docs")
 
@@ -56,19 +56,23 @@ def slugify(text: str, fallback: str = "doc") -> str:
     return (s or fallback)[:60]
 
 
-def default_path(doc_id: str, title: str) -> str:
-    return f"docs/{doc_id}_{slugify(title, 'doc')}.md"
+def default_path(doc_id: str, title: str, fmt: str = DEFAULT_FORMAT) -> str:
+    ext = "md" if fmt == "md" else "html"
+    return f"docs/{doc_id}_{slugify(title, 'doc')}.{ext}"
+
+
+ALLOWED_EXT = (".html", ".md")
 
 
 def resolve(workspace: Path, rel: str) -> Path:
-    """工作區內相對路徑 → 絕對路徑；越界或非 .md 一律拒絕。"""
+    """工作區內相對路徑 → 絕對路徑；越界或副檔名不在白名單一律拒絕。"""
     rel = (rel or "").strip()
     if not rel:
         raise DocError("bad_path", "path 不可空白")
     if rel.startswith("/") or Path(rel).is_absolute() or ".." in Path(rel).parts:
         raise DocError("bad_path", "path 必須是工作區內的相對路徑")
-    if not rel.lower().endswith(".md"):
-        raise DocError("bad_path", "文件必須是 .md")
+    if not rel.lower().endswith(ALLOWED_EXT):
+        raise DocError("bad_path", "文件必須是 .html 或 .md")
     root = Path(workspace).resolve()
     p = (root / rel).resolve()
     if p != root and root not in p.parents:
@@ -178,15 +182,17 @@ def create_doc(db: Session, workspace: Path, *, company_id: str, title: str, pat
                status: str = "draft", stage: str = "", owner_agent_id: str = "", parent_doc_id: str = "",
                origin: str = "chat", meta: Optional[dict] = None, created_by: str = "",
                author_kind: str = "human", author_id: str = "", summary: str = "", session_id: str = "",
-               run_id: str = "") -> tuple[Doc, Optional[DocVersion]]:
+               run_id: str = "", fmt: str = DEFAULT_FORMAT) -> tuple[Doc, Optional[DocVersion]]:
     """建立文件。`content=None` → 先建空檔、0 個版本（AI 的第一份輸出才是版本 1）。"""
     title = (title or "").strip() or "未命名文件"
+    # 明寫 path 時以副檔名為準（.md 的既有流程不會被硬轉成 html）
+    fmt = "md" if (path or "").lower().endswith(".md") else ("md" if fmt == "md" else DEFAULT_FORMAT)
     doc = Doc(company_id=company_id, title=title[:200], status=status, stage=stage, owner_agent_id=owner_agent_id,
               parent_doc_id=parent_doc_id, origin=origin, meta_json=json.dumps(meta or {}, ensure_ascii=False),
-              created_by=created_by)
+              created_by=created_by, format=fmt)
     db.add(doc)
     db.flush()  # 拿 id 做預設路徑
-    doc.path = to_relative(workspace, path) if path else default_path(doc.id, title)
+    doc.path = to_relative(workspace, path) if path else default_path(doc.id, title, fmt)
     resolve(workspace, doc.path)  # 驗證
     v: Optional[DocVersion] = None
     if content is None:
@@ -480,7 +486,19 @@ DOC_RULES = (
 )
 
 
-def doc_context(title: str, path: str, version: Optional[int], content: str) -> str:
+HTML_RULES = (
+    "\n[HTML 文件規則]\n"
+    "7. 這份文件是 HTML，圍欄裡請輸出**完整的 HTML 文件**（含 <!doctype html>、<html>、<head>、<body>）。\n"
+    "8. 樣式寫在 <head> 的 <style> 裡，自成一體。不要外連 CSS／JS／字型，"
+    "預覽在沙箱 iframe 裡跑，外部資源一律載不到。\n"
+    "9. 版面要能直接看：正常的標題階層、段落、表格、清單；深淺色都要看得清楚"
+    "（給 body 明確的背景色與文字色，不要只靠瀏覽器預設）。\n"
+    "10. 不要放 <script>；沙箱不會執行它，寫了只是白費。"
+)
+
+
+def doc_context(title: str, path: str, version: Optional[int], content: str, fmt: str = DEFAULT_FORMAT) -> str:
     v = f"v{version}" if version else "（尚無版本）"
-    return (f"[目前文件]\n標題：{title}\n路徑：{path}\n版本：{v}\n"
-            f"----- 文件開始 -----\n{content}\n----- 文件結束 -----\n\n{DOC_RULES}")
+    rules = DOC_RULES + (HTML_RULES if fmt != "md" else "")
+    return (f"[目前文件]\n標題：{title}\n路徑：{path}\n格式：{fmt}\n版本：{v}\n"
+            f"----- 文件開始 -----\n{content}\n----- 文件結束 -----\n\n{rules}")

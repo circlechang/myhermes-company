@@ -14,11 +14,11 @@ const ok = (body: unknown, status = 200) =>
   new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 const fail = (status: number, code: string, message: string) => ok({ error: { code, message } }, status)
 
-type S = Session & { archived?: boolean; category_id?: string | null; model?: string; provider?: string; running?: boolean; run_status?: string; usage?: unknown }
+type S = Session & { archived?: boolean; category_id?: string | null; model?: string; provider?: string; running?: boolean; run_status?: string; usage?: unknown; doc_id?: string }
 
 const full = (s: S) => ({
   archived: false, category_id: null, model: '', provider: '', running: false, run_status: '',
-  usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, context_tokens: 0 }, ...s,
+  usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, context_tokens: 0 }, doc_id: '', ...s,
 })
 
 export const mockHermesSources = [
@@ -96,6 +96,7 @@ export function chatMock(state: ChatMockState, path: string, method: string, bod
     if (typeof body.archived === 'boolean') s.archived = body.archived
     if (body.category_id !== undefined) s.category_id = body.category_id === '' ? null : (body.category_id as string)
     if (typeof body.model === 'string') s.model = body.model
+    if (typeof body.doc_id === 'string') s.doc_id = body.doc_id  // '' ＝ 解除文件綁定
     s.updated_at = now()
     return ok(full(s))
   }

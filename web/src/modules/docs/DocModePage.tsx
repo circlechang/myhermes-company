@@ -1,4 +1,5 @@
-// /doc-mode：工作臺的「文件模式」。左聊天、右文件。
+// /doc-mode：工作臺的「文件模式」。左文件清單、中央文件、右側對話。
+// 文件在視線正中央是刻意的：這個系統以文件為核心，對話是編輯它的手段，不是主角。
 //
 // 使用者的心智模型：一個對話串的核心就是完成一份文件；不停對話＝不停更新這份文件。
 // 所以這裡每個對話都綁一份 doc：AI 每輪用 ```doc 圍欄回完整新版 → 後端建版本 → WS 推 doc.updated →
@@ -136,7 +137,7 @@ export function DocModePage() {
   )
 
   return (
-    <div className="grid h-full grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_minmax(320px,38%)]" data-testid="doc-mode-page">
+    <div className="grid h-full grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_minmax(340px,32%)]" data-testid="doc-mode-page">
       {/* 左：文件清單 */}
       <aside className="flex min-h-0 flex-col overflow-auto border-r border-zinc-200 dark:border-zinc-800">
         <div className="panel-title">{t('docs.mode.docs')}</div>
@@ -168,8 +169,16 @@ export function DocModePage() {
         </ul>
       </aside>
 
-      {/* 中：對話 */}
-      <section className="flex min-h-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
+      {/* 中：文件（主角） */}
+      <section className="flex min-h-0 flex-col overflow-hidden">
+        {docId ? (
+          <DocPanel docId={docId} pending={pending[docId]} onAccept={() => setPending((p) => ({ ...p, [docId]: undefined as unknown as PendingUpdate }))} />
+        ) : (
+          <div className="p-6 text-center text-xs text-zinc-600 dark:text-zinc-400">{t('docs.mode.pickDoc')}</div>
+        )}
+      </section>
+      {/* 右：對話 */}
+      <section className="flex min-h-0 flex-col border-l border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-800">
           <span className="min-w-0 flex-1 truncate font-medium">{docsQ.data?.find((d) => d.id === docId)?.title ?? t('docs.mode.pickDoc')}</span>
           <select className="input h-6 w-36 py-0 text-xs" aria-label={t('workbench.agent')} value={agentId ?? ''} onChange={(e) => setAgentId(e.target.value)} data-testid="doc-mode-agent">
@@ -218,14 +227,6 @@ export function DocModePage() {
         )}
       </section>
 
-      {/* 右：文件 */}
-      <aside className="flex min-h-0 flex-col overflow-hidden">
-        {docId ? (
-          <DocPanel docId={docId} pending={pending[docId]} onAccept={() => setPending((p) => ({ ...p, [docId]: undefined as unknown as PendingUpdate }))} />
-        ) : (
-          <div className="p-6 text-center text-xs text-zinc-600 dark:text-zinc-400">{t('docs.mode.pickDoc')}</div>
-        )}
-      </aside>
     </div>
   )
 }

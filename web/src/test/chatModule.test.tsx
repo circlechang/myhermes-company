@@ -264,6 +264,30 @@ describe('工作臺整合（mock fetch + 假 WebSocket）', () => {
     expect(tg).toHaveTextContent('客戶問報價')
   })
 
+  it('以文件為核心：對話可以開一份 HTML 文件，右側出現可預覽的文件面板', async () => {
+    const { user, ws } = await openWorkbench('LINE 貼文草稿')
+    // 還沒綁文件：顯示入口，右側是 session 資訊
+    expect(screen.getByTestId('workbench-open-doc')).toBeInTheDocument()
+    expect(screen.queryByTestId('workbench-doc-panel')).not.toBeInTheDocument()
+
+    await user.click(screen.getByTestId('workbench-open-doc'))
+
+    // 綁上之後：入口換成徽章，右側讓給文件本身
+    expect(await screen.findByTestId('doc-bound')).toBeInTheDocument()
+    const panel = await screen.findByTestId('workbench-doc-panel')
+    expect(panel).toBeInTheDocument()
+    expect(screen.queryByTestId('workbench-open-doc')).not.toBeInTheDocument()
+
+    // 建出來的是 html 文件（新文件的預設格式）
+    const created = mockState.docs.at(-1)!
+    expect(created.format).toBe('html')
+    expect(created.path).toMatch(/\.html$/)
+
+    // AI 更新文件 → doc.updated 進來 → 面板亮出新版本
+    ws.emit({ type: 'doc.updated', session_id: 's2', run_id: 'r1', doc_id: created.id, version: 1, summary: '先給大綱', diff_stat: { added: 12, removed: 0 } })
+    expect(await within(panel).findByText(/先給大綱/)).toBeInTheDocument()
+  })
+
   it('手機版：☰ 開抽屜側欄', async () => {
     const { user } = await openWorkbench('LINE 貼文草稿')
     expect(screen.queryByTestId('sidebar-drawer')).not.toBeInTheDocument()

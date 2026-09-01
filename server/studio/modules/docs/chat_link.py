@@ -37,9 +37,9 @@ def context_for(engine, workspace: Path, session_id: str) -> Optional[dict[str, 
             return None
         last = svc.latest(db, doc.id)
         content = last.content if last else ""
-        return {"doc_id": doc.id, "title": doc.title, "path": doc.path,
+        return {"doc_id": doc.id, "title": doc.title, "path": doc.path, "format": doc.fmt(),
                 "version": last.version if last else None,
-                "instructions": svc.doc_context(doc.title, doc.path, last.version if last else None, content)}
+                "instructions": svc.doc_context(doc.title, doc.path, last.version if last else None, content, doc.fmt())}
 
 
 def summarize(body: str, fallback: str = "更新文件") -> str:

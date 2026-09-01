@@ -14,7 +14,7 @@ from ...auth import Principal, current_principal, get_db
 from ...errors import ApiError
 from ...models import now
 from . import service as svc
-from .models import DOC_ORIGINS, DOC_STATUSES, LINK_KINDS, Doc, DocLink, DocVersion
+from .models import DEFAULT_FORMAT, DOC_FORMATS, DOC_ORIGINS, DOC_STATUSES, LINK_KINDS, Doc, DocLink, DocVersion
 
 log = logging.getLogger("studio.docs")
 router = APIRouter(prefix="/docs", tags=["docs"])
@@ -83,6 +83,7 @@ class DocCreate(BaseModel):
     meta: dict[str, Any] = {}
     summary: str = ""
     session_id: str = ""
+    format: str = DEFAULT_FORMAT  # html | md
 
 
 @router.post("", status_code=201)
@@ -91,6 +92,8 @@ def create_doc(body: DocCreate, request: Request, p: Principal = Depends(current
         raise ApiError(400, "bad_request", f"status 必須是 {'/'.join(DOC_STATUSES)}")
     if body.origin not in DOC_ORIGINS:
         raise ApiError(400, "bad_request", f"origin 必須是 {'/'.join(DOC_ORIGINS)}")
+    if body.format not in DOC_FORMATS:
+        raise ApiError(400, "bad_request", f"format 必須是 {'/'.join(DOC_FORMATS)}")
     ws = workspace_of(request)
     if body.parent_doc_id:
         _doc(db, p, body.parent_doc_id)
@@ -99,7 +102,7 @@ def create_doc(body: DocCreate, request: Request, p: Principal = Depends(current
                                 status=body.status, stage=body.stage, owner_agent_id=body.owner_agent_id,
                                 parent_doc_id=body.parent_doc_id, origin=body.origin, meta=body.meta,
                                 created_by=p.member.id, author_kind="human", author_id=p.member.id,
-                                summary=body.summary, session_id=body.session_id)
+                                summary=body.summary, session_id=body.session_id, fmt=body.format)
         if body.parent_doc_id:
             svc.link(db, body.parent_doc_id, doc.id, "derived", company_id=p.company_id)
         db.commit()

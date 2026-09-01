@@ -62,13 +62,31 @@ def mk(client, auth, **body):
     return r.json()
 
 
-def test_create_writes_md_to_workspace_and_starts_with_no_version(client, auth, app):
+def test_create_writes_html_to_workspace_and_starts_with_no_version(client, auth, app):
+    """預設格式是 HTML：文件要能直接預覽，不用先在腦內把 markdown 轉成畫面。"""
     d = mk(client, auth, title="登入規格")
     assert d["latest_version"] is None and d["versions"] == 0
     p = Path(d["abs_path"])
     assert p.is_file() and p.read_text() == ""
-    assert d["path"].startswith("docs/") and d["path"].endswith(".md")
+    assert d["path"].startswith("docs/") and d["path"].endswith(".html")
+    assert d["format"] == "html"
     assert d["status"] == "draft" and d["origin"] == "chat" and d["drift"] is False
+
+
+def test_markdown_docs_still_supported_explicitly(client, auth):
+    """既有的 .md 文件不能被硬轉成 html——明寫 format 或明寫 .md 路徑都要留在 markdown。"""
+    by_format = client.post("/docs", json={"title": "舊規格", "format": "md"}, headers=auth).json()
+    assert by_format["format"] == "md" and by_format["path"].endswith(".md")
+    # 路徑副檔名優先於 format 參數：明寫 .md 就是 md，不會被預設值蓋掉
+    by_path = client.post("/docs", json={"title": "手寫路徑", "path": "docs/manual.md"}, headers=auth).json()
+    assert by_path["format"] == "md" and by_path["path"] == "docs/manual.md"
+    assert client.post("/docs", json={"title": "壞格式", "format": "pdf"}, headers=auth).status_code == 400
+
+
+def test_path_rejects_extensions_outside_the_whitelist(client, auth):
+    for bad in ("docs/x.txt", "docs/x.js", "../escape.html"):
+        r = client.post("/docs", json={"title": "壞路徑", "path": bad}, headers=auth)
+        assert r.status_code == 400, f"{bad} 應該被擋下"
 
 
 def test_version_increments_and_file_follows(client, auth):

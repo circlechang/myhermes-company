@@ -1,5 +1,6 @@
 // 文件面板：目前版本／有新版時看 diff（綠增紅刪）／接受或還原上一版／版本下拉看歷史／直接編輯。
-// 工作臺的文件模式與 /docs/{id} 詳情頁共用這個元件；Markdown 檢視重用 components/preview 的 MarkdownView。
+// 工作臺的文件模式與 /docs/{id} 詳情頁共用這個元件。
+// 渲染依 doc.format 分流：html 走沙箱 iframe（見 HtmlPreview），md 沿用 components/preview 的 MarkdownView。
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MarkdownView } from '../../components/preview'
@@ -62,6 +63,7 @@ export function DocPanel({
   }, [docId, showVersion])
 
   const body = useMemo(() => (showVersion !== null ? (historyContent ?? '') : (doc.data?.content ?? '')), [showVersion, historyContent, doc.data])
+  const isHtml = (doc.data?.format ?? 'html') !== 'md'
 
   if (doc.isLoading) return <Loading />
   if (doc.error) return <ErrorBox error={doc.error} onRetry={() => doc.refetch()} />
@@ -180,7 +182,7 @@ export function DocPanel({
             )}
           </div>
         ) : body ? (
-          <MarkdownView text={body} />
+          isHtml ? <HtmlPreview html={body} title={doc.data?.title ?? ''} /> : <MarkdownView text={body} />
         ) : (
           <div className="p-6 text-center text-xs text-zinc-600 dark:text-zinc-400" data-testid="doc-empty">
             {t('docs.panel.empty')}
@@ -188,5 +190,24 @@ export function DocPanel({
         )}
       </div>
     </div>
+  )
+}
+
+
+/** HTML 文件預覽。
+ *
+ * 內容是模型產生的，等同不可信輸入，所以一律關進 `sandbox=""` 的 iframe：
+ * 沒有 script、沒有 same-origin、沒有表單送出，拿不到頁面的 DOM 與登入 token。
+ * 這也是 components/preview/FilePreview 對 HTML 附件用的同一套隔離。
+ */
+function HtmlPreview({ html, title }: { html: string; title: string }) {
+  return (
+    <iframe
+      title={title}
+      sandbox=""
+      srcDoc={html}
+      className="h-full min-h-0 w-full flex-1 border-0 bg-white"
+      data-testid="doc-html-preview"
+    />
   )
 }

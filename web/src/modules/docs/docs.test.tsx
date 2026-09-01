@@ -24,11 +24,13 @@ const versions: DocVersionMeta[] = [
 ]
 let drift = false
 const doc = (): Doc => ({
-  id: 'doc_1', title: '登入規格', path: 'docs/doc_1_登入規格.md', status: 'draft', stage: 'intake', owner_agent_id: '',
+  id: 'doc_1', title: '登入規格', path: 'docs/doc_1_登入規格.md', format: 'md', status: 'draft', stage: 'intake', owner_agent_id: '',
   parent_doc_id: '', origin: 'chat', meta: {}, created_at: '2026-08-31T01:00:00', updated_at: '2026-08-31T02:00:00',
   latest_version: 2, versions: 2, latest: versions[0], drift, abs_path: '/ws/docs/doc_1_登入規格.md', content: V2,
   file_content: drift ? '有人改過' : V2,
 })
+let docOverride: Doc | null = null
+
 const other: Doc = { ...doc(), id: 'doc_2', title: '出貨規格', status: 'final', stage: 'final', origin: 'workflow', latest_version: 5, drift: false }
 
 const lineage: Lineage = {
@@ -58,7 +60,7 @@ function fakeFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Re
     return Promise.resolve(ok(rows))
   }
   if (p === '/docs' && method === 'POST') return Promise.resolve(ok({ ...doc(), id: 'doc_new', title: '新規格' }, 201))
-  if (p === '/docs/doc_1') return Promise.resolve(ok(doc()))
+  if (p === '/docs/doc_1') return Promise.resolve(ok(docOverride ?? doc()))
   if (p === '/docs/doc_1/versions' && method === 'GET') return Promise.resolve(ok(versions))
   if (p === '/docs/doc_1/versions/1') return Promise.resolve(ok({ ...versions[1], content: V1 }))
   if (p === '/docs/doc_1/versions/2') return Promise.resolve(ok({ ...versions[0], content: V2 }))
@@ -75,6 +77,7 @@ beforeEach(() => {
   setFetchImpl(fakeFetch as typeof fetch)
   calls.length = 0
   drift = false
+  docOverride = null  // 測試之間不互相污染
 })
 
 describe('stripDocFence', () => {
@@ -112,6 +115,18 @@ describe('DocsListPage', () => {
 })
 
 describe('DocPanel', () => {
+  it('HTML 文件走沙箱 iframe：內容進 srcdoc，不進頁面 DOM', async () => {
+    const html = '<!doctype html><html><body><h1>驗收條件</h1></body></html>'
+    docOverride = { ...doc(), format: 'html', path: 'docs/doc_1.html', content: html }
+    renderApp(<DocPanel docId="doc_1" />)
+    const frame = await screen.findByTestId('doc-html-preview')
+    expect(frame.getAttribute('srcdoc')).toContain('驗收條件')
+    // sandbox="" ＝ 不給 script、不給 same-origin。內容來自模型，不能拿到頁面 token。
+    expect(frame.getAttribute('sandbox')).toBe('')
+    // 沒有被當成一般 HTML 塞進頁面
+    expect(screen.queryByRole('heading', { name: '驗收條件' })).not.toBeInTheDocument()
+  })
+
   it('渲染目前版本的 Markdown，版本徽章是最新版', async () => {
     renderApp(<DocPanel docId="doc_1" />)
     expect(await screen.findByTestId('doc-title')).toHaveTextContent('登入規格')

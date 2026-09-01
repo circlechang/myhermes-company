@@ -15,6 +15,8 @@ from sqlmodel import Field, SQLModel
 from ...models import new_id, now
 
 DOC_STATUSES = ("draft", "review", "final", "archived")
+DOC_FORMATS = ("html", "md")
+DEFAULT_FORMAT = "html"
 DOC_ORIGINS = ("chat", "workflow", "pack", "upload")
 LINK_KINDS = ("derived", "split", "merged", "selected")
 AUTHOR_KINDS = ("human", "agent")
@@ -25,7 +27,10 @@ class Doc(SQLModel, table=True):
     id: str = Field(default_factory=lambda: new_id("doc"), primary_key=True)
     company_id: str = Field(index=True)
     title: str = ""
-    path: str = Field(default="", index=True)  # 工作區內相對路徑，.md
+    path: str = Field(default="", index=True)  # 工作區內相對路徑，.html 或 .md
+    # 空字串＝沿用路徑副檔名（見 fmt()）。刻意不給預設值："" 讓自動 migration 補欄位時
+    # 不會把既有的 .md 文件一律標成 html；新文件在建立時明寫 format。
+    format: str = ""
     status: str = "draft"  # draft | review | final | archived
     stage: str = ""  # 屬於哪一站（工作流節點 id 或套件階段 id）
     owner_agent_id: str = ""
@@ -39,6 +44,12 @@ class Doc(SQLModel, table=True):
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
 
+    def fmt(self) -> str:
+        """這份文件的格式。欄位為空時以路徑副檔名回推，舊資料不用 migration 也對。"""
+        if self.format in DOC_FORMATS:
+            return self.format
+        return "md" if (self.path or "").lower().endswith(".md") else DEFAULT_FORMAT
+
     def meta(self) -> dict[str, Any]:
         try:
             m = json.loads(self.meta_json or "{}")
@@ -47,7 +58,7 @@ class Doc(SQLModel, table=True):
         return m if isinstance(m, dict) else {}
 
     def to_dict(self, **extra: Any) -> dict[str, Any]:
-        return {"id": self.id, "company_id": self.company_id, "title": self.title, "path": self.path, "status": self.status,
+        return {"id": self.id, "company_id": self.company_id, "title": self.title, "path": self.path, "format": self.fmt(), "status": self.status,
                 "stage": self.stage, "owner_agent_id": self.owner_agent_id, "parent_doc_id": self.parent_doc_id,
                 "origin": self.origin, "meta": self.meta(), "created_by": self.created_by,
                 "created_at": self.created_at, "updated_at": self.updated_at, **extra}
@@ -95,4 +106,5 @@ class DocLink(SQLModel, table=True):
                 "run_id": self.run_id, "node_id": self.node_id, "created_at": self.created_at}
 
 
-__all__ = ["Doc", "DocVersion", "DocLink", "DOC_STATUSES", "DOC_ORIGINS", "LINK_KINDS", "AUTHOR_KINDS"]
+__all__ = ["Doc", "DocVersion", "DocLink", "DOC_STATUSES", "DOC_FORMATS", "DEFAULT_FORMAT", "DOC_ORIGINS",
+           "LINK_KINDS", "AUTHOR_KINDS"]

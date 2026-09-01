@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '../components/EmptyState'
 import { CollapsiblePanel, WorkArea } from '../components/layout/index'
+import { DocPanel, type PendingUpdate } from '../modules/docs/DocPanel'
+import { docsApi, stripDocFence } from '../modules/docs/api'
 import '../guide/i18n'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAgents } from '../api/hooks'
@@ -47,6 +49,8 @@ export function WorkbenchPage() {
   const [reply, setReply] = useState<TextItem | undefined>()
   const [editing, setEditing] = useState<TextItem | undefined>()
   const [previewPath, setPreviewPath] = useState<string | undefined>()
+  const [docPending, setDocPending] = useState<Record<string, PendingUpdate | undefined>>({})
+  const [docBusy, setDocBusy] = useState(false)
   const [external, setExternal] = useState<Attachment[] | undefined>()
   const [searchOpen, setSearchOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -88,6 +92,13 @@ export function WorkbenchPage() {
 
   const onEvent = useCallback(
     (ev: WsServerEvent) => {
+      // 綁了文件的對話：AI 每一輪都可能產出新版本，右側文件面板要跟著亮起來
+      if (ev.type === 'doc.updated') {
+        const e = ev as unknown as { doc_id: string; version: number; summary?: string; diff_stat?: { added: number; removed: number } }
+        setDocPending((prev) => ({ ...prev, [e.doc_id]: { version: e.version, summary: e.summary, diff_stat: e.diff_stat } }))
+        qc.invalidateQueries({ queryKey: ['docs'] })
+        return
+      }
       if (!ev.session_id) return
       update(ev.session_id, (s) => applyEvent(s, ev))
       if (ev.type === 'run.started' || ev.type === 'run.completed' || ev.type === 'run.failed' || ev.type === 'run.cancelled') {
@@ -157,6 +168,27 @@ export function WorkbenchPage() {
 
   const agent = agentsQ.data?.find((a) => a.id === agentId)
   const session = sessionsQ.data?.find((s) => s.id === sessionId)
+  const docId = session?.doc_id || ''
+
+  /** 把這個對話變成「經營一份文件」：建一份 HTML 文件並綁上去。
+   *  綁上之後每一輪 AI 都會拿到文件全文，並用 ```doc 圍欄回完整新版（見後端 docs/chat_link）。 */
+  // 綁了文件時對話裡不重複貼整份文件：圍欄內容後端已抽掉，串流中的用前端再擋一次
+  const chatItems = useMemo(
+    () => (docId ? chat.items.map((it) => (it.kind === 'text' && it.role === 'assistant' ? { ...it, content: stripDocFence(it.content) } : it)) : chat.items),
+    [chat.items, docId],
+  )
+
+  const openDoc = async () => {
+    if (!session || docId || docBusy) return
+    setDocBusy(true)
+    try {
+      const d = await docsApi.create({ title: session.title || t('workbench.untitled'), origin: 'chat', format: 'html' })
+      await patchSession.mutateAsync({ id: session.id, body: { doc_id: d.id } })
+      await qc.invalidateQueries({ queryKey: ['docs'] })
+    } finally {
+      setDocBusy(false)
+    }
+  }
   const usage = chat.sessionUsage ?? session?.usage
 
   const sidebar = (
@@ -234,6 +266,24 @@ export function WorkbenchPage() {
         <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-800">
           <button type="button" className="btn-ghost px-2 md:hidden" onClick={() => setSidebarOpen(true)} aria-label={t('chat.mobile.openSidebar')}>☰</button>
           <span className="min-w-0 truncate font-medium">{hermesView ? t('chat.hermes.title') : session?.title ?? agent?.name ?? ''}</span>
+          {session && !hermesView && (
+            docId ? (
+              <span className="badge shrink-0 bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200" data-testid="doc-bound">
+                {t('docs.workbench.bound')}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="btn-ghost shrink-0 !px-2 !py-0.5 text-xs"
+                onClick={() => void openDoc()}
+                disabled={docBusy}
+                title={t('docs.workbench.openHint')}
+                data-testid="workbench-open-doc"
+              >
+                + {t('docs.workbench.open')}
+              </button>
+            )
+          )}
           {session && (
             <div className="relative ml-auto shrink-0">
               <ModelBadge model={session.model} fallback={agent?.model} usage={usage} onClick={() => setPickerOpen((o) => !o)} />
@@ -265,7 +315,7 @@ export function WorkbenchPage() {
                 <div className="p-8 text-center text-sm text-zinc-600 dark:text-zinc-400">{t('workbench.emptyChat', { name: agent?.name ?? '' })}</div>
               )}
               <MessageList
-                items={chat.items}
+                items={chatItems}
                 onDecide={decide}
                 running={chat.running}
                 actions={{ onOpenFile: setPreviewPath, onReply: (it) => { setReply(it); setEditing(undefined) }, onEdit: (it) => { setEditing(it); setReply(undefined) }, onRegenerate: regenerate }}
@@ -312,7 +362,30 @@ export function WorkbenchPage() {
           />
         </aside>
       )}
-      {!previewPath && (
+      {/* 綁了文件的對話：右側讓給文件本身。系統以文件為核心，session 資訊不該擋在前面。 */}
+      {!previewPath && docId && (
+        <div className="hidden lg:contents">
+          <CollapsiblePanel
+            id="workbench.doc"
+            side="right"
+            title={t('docs.panel.title')}
+            icon="FileText"
+            defaultWidth={420}
+            min={320}
+            max={720}
+            bodyClassName="flex flex-col overflow-hidden"
+            data-testid="workbench-doc-panel"
+          >
+            <DocPanel
+              docId={docId}
+              pending={docPending[docId]}
+              onAccept={() => setDocPending((prev) => ({ ...prev, [docId]: undefined }))}
+              compact
+            />
+          </CollapsiblePanel>
+        </div>
+      )}
+      {!previewPath && !docId && (
         <div className="hidden lg:contents">
         <CollapsiblePanel
           id="workbench.right"

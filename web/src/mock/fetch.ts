@@ -15,6 +15,24 @@ export interface MockState {
   messages: Record<string, Message[]>
   tasks: KanbanTask[]
   workflows: Workflow[]
+  docs: MockDoc[]
+}
+
+/** mock 用的極簡文件：只帶 UI 真的會讀的欄位。 */
+export interface MockDoc {
+  id: string
+  title: string
+  path: string
+  format: 'html' | 'md'
+  status: string
+  stage: string
+  origin: string
+  content: string
+  latest_version: number | null
+  versions: number
+  drift: boolean
+  created_at: string
+  updated_at: string
 }
 
 export function freshState(): MockState {
@@ -25,6 +43,7 @@ export function freshState(): MockState {
     messages: structuredClone(d.mockMessages),
     tasks: structuredClone(d.mockTasks),
     workflows: structuredClone(d.mockWorkflows),
+    docs: [],
   }
 }
 
@@ -196,6 +215,26 @@ export async function mockFetch(input: RequestInfo | URL, init: RequestInit = {}
   }
   if ((m = path.match(/^\/kanban\/cards\/([^/]+)\/dispatch$/))) return ok({ assign: { ok: true }, promote: { ok: true }, dispatch: { spawned: 1 } })
   if (path === '/voice/capabilities') return ok({ stt: { available: false }, tts: { available: false }, browser_first: true })
+
+  // docs（以文件為核心：工作臺可以開文件，右側面板讀這幾條）
+  if (path === '/docs' && method === 'GET') return ok(state.docs)
+  if (path === '/docs' && method === 'POST') {
+    const fmt = (body.format ?? 'html') as 'html' | 'md'
+    const id = nid('doc')
+    const doc: MockDoc = {
+      id, title: body.title || '未命名文件', path: `docs/${id}.${fmt === 'md' ? 'md' : 'html'}`, format: fmt,
+      status: body.status ?? 'draft', stage: body.stage ?? '', origin: body.origin ?? 'chat',
+      content: body.content ?? '', latest_version: body.content ? 1 : null, versions: body.content ? 1 : 0,
+      drift: false, created_at: now(), updated_at: now(),
+    }
+    state.docs.push(doc)
+    return ok(doc, 201)
+  }
+  if ((m = path.match(/^\/docs\/([^/]+)$/)) && method === 'GET') {
+    const doc = state.docs.find((x) => x.id === m![1])
+    return doc ? ok(doc) : fail(404, 'not_found', 'doc not found')
+  }
+  if ((m = path.match(/^\/docs\/([^/]+)\/versions$/)) && method === 'GET') return ok([])
 
   // workflows
   if (path === '/workflow-env') return ok({ coding_tools: { 'claude-code': { bin: 'claude', path: null, installed: false } }, line_configured: false, workspace: '/tmp' })

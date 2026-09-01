@@ -31,6 +31,8 @@ export interface Doc {
   id: string
   title: string
   path: string
+  /** 'html'（預設，可直接預覽）或 'md'（既有文件）。後端以路徑副檔名回推，一定有值。 */
+  format?: 'html' | 'md'
   status: DocStatus
   stage: string
   owner_agent_id: string
