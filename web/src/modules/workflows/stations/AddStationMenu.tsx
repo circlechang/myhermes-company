@@ -1,7 +1,9 @@
-// 「＋ 新增一站」：一個選單，每一項一句白話說明（不是六顆並排的按鈕）。
+// 「＋ 加一步」：只有三種動作（請員工做／等我看／送出去），每一項一句白話說明。
+// 分岔、迴圈是工程師的事，開了工程師模式才多出來。
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { STATION_KINDS } from './describe'
+import { useEngineerMode } from '../../../prefs/engineerMode'
+import { ENGINEER_KINDS, STATION_KINDS } from './describe'
 import type { NodeKind } from '../types'
 
 export function AddStationMenu({
@@ -16,8 +18,10 @@ export function AddStationMenu({
   variant?: 'outline' | 'ghost'
 }) {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
+  const kinds = engineer ? [...STATION_KINDS, ...ENGINEER_KINDS] : STATION_KINDS
   useEffect(() => {
     if (!open) return
     const off = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
@@ -46,7 +50,7 @@ export function AddStationMenu({
         >
           <div className="border-b border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">{t('wf.station.pickKind')}</div>
           <ul>
-            {STATION_KINDS.map((k) => (
+            {kinds.map((k) => (
               <li key={k}>
                 <button
                   type="button"

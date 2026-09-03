@@ -313,7 +313,7 @@ const en = {
 const mod: StudioModule = {
   name: 'models',
   routes: [{ path: '/models', element: <ModelsPage /> }],
-  nav: [{ to: '/models', key: 'models', order: 41, group: 'agents', icon: 'Sparkles' }],
+  nav: [{ to: '/models', key: 'models', order: 32, group: 'agents', icon: 'Sparkles' }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

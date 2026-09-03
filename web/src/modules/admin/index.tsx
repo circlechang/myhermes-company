@@ -530,7 +530,7 @@ export function StudioUpdateCard({ d }: { d: StudioUpdateInfo & { studio: { vers
 const mod: StudioModule = {
   name: 'admin',
   routes: [{ path: '/admin', element: <AdminPage /> }],
-  nav: [{ to: '/admin', key: 'admin', order: 90, group: 'system', icon: 'Server' }],
+  nav: [{ to: '/admin', key: 'admin', order: 97, group: 'settings', icon: 'Server', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

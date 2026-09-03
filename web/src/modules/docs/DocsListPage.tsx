@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../../components/PageHeader'
 import { Empty, ErrorBox, Loading } from '../../components/QueryState'
+import { DocActions } from './DocActions'
 import { STATUS_ORDER, useDocMutations, useDocs, type DocOrigin } from './api'
 
 const ORIGINS: DocOrigin[] = ['chat', 'workflow', 'pack', 'upload']
@@ -78,6 +79,7 @@ export function DocsListPage() {
             <span className="text-xs text-zinc-600 dark:text-zinc-400">v{d.latest_version ?? 0}</span>
             {d.drift && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('docs.driftShort')}</span>}
             <span className="text-xs text-zinc-500">{fmt(d.updated_at)}</span>
+            <DocActions doc={d} />
             <code className="w-full truncate text-xs text-zinc-500">{d.path}</code>
           </li>
         ))}

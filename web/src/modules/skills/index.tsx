@@ -372,7 +372,7 @@ function JourneyTab({ profile }: { profile: string }) {
 const mod: StudioModule = {
   name: 'skills',
   routes: [{ path: '/skills', element: <SkillsPage /> }],
-  nav: [{ to: '/skills', key: 'skills', order: 42, group: 'agents', icon: 'Puzzle' }],
+  nav: [{ to: '/skills', key: 'skills', order: 31, group: 'agents', icon: 'Puzzle' }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

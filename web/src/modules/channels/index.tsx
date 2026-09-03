@@ -214,7 +214,7 @@ const en = {
 const mod: StudioModule = {
   name: 'channels',
   routes: [{ path: '/channels', element: <ChannelsPage /> }],
-  nav: [{ to: '/channels', key: 'channels', order: 42, group: 'connect', icon: 'Cable' }],
+  nav: [{ to: '/channels', key: 'channels', order: 91, group: 'settings', icon: 'Cable', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

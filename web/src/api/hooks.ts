@@ -9,6 +9,7 @@ export const qk = {
   soul: (id: string) => ['agents', id, 'soul'] as const,
   skills: (id: string) => ['agents', id, 'skills'] as const,
   runtimes: ['agents', 'runtimes'] as const,
+  dossier: (id: string, days: number) => ['agents', id, 'dossier', days] as const,
   sessions: (agentId?: string) => ['sessions', agentId ?? 'all'] as const,
   messages: (id: string) => ['sessions', id, 'messages'] as const,
   kanban: ['kanban'] as const,
@@ -105,3 +106,7 @@ export function useDeleteWorkflow() {
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.workflows }),
   })
 }
+
+/** 人事檔案：選到員工才抓；派工／對話後 30 秒內自動更新 */
+export const useAgentDossier = (id?: string, days = 7) =>
+  useQuery({ queryKey: qk.dossier(id ?? '', days), queryFn: () => api.agents.dossier(id!, days), enabled: !!id, staleTime: 30_000 })

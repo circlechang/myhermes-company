@@ -22,15 +22,28 @@ import { SessionSidebar } from '../components/chat/SessionSidebar'
 import { Empty, ErrorBox, Loading } from '../components/QueryState'
 import { RuntimeBadge, isCoding } from '../components/agents/RuntimeBadge'
 import { useChatSocket } from '../ws/chatSocket'
+import { useEngineerMode } from '../prefs/engineerMode'
 import { addUserMessage, applyEvent, dropLastTurn, emptyChat, fromMessages, markApprovalDecided, type ChatState, type TextItem } from '../ws/chatState'
 
 const fmt = (s?: string) => (s ? new Date(s).toLocaleString() : '—')
+
+const AGENTS_OPEN_KEY = 'mhc.workbench.agents'
 
 export function WorkbenchPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const agentsQ = useAgents()
+  // 工程師模式關：右欄只留老闆看得懂的（連線、員工、來源、時間、訊息數、用量）
+  const engineer = useEngineerMode()
   const [agentId, setAgentId] = useState<string | undefined>()
+  const [agentsOpen, setAgentsOpenState] = useState<boolean>(() => {
+    try { return localStorage.getItem(AGENTS_OPEN_KEY) !== '0' } catch { return true }
+  })
+  const setAgentsOpen = (fn: (v: boolean) => boolean) => setAgentsOpenState((v) => {
+    const next = fn(v)
+    try { localStorage.setItem(AGENTS_OPEN_KEY, next ? '1' : '0') } catch { /* 私密視窗 */ }
+    return next
+  })
   const [sessionId, setSessionId] = useState<string | undefined>()
   const [hermesView, setHermesView] = useState<{ profile: string; id: string } | undefined>()
   const [openHermesProfile, setOpenHermesProfile] = useState<string | undefined>()
@@ -193,14 +206,29 @@ export function WorkbenchPage() {
 
   const sidebar = (
     <>
-      <div className="panel-title">{t('workbench.agents')}</div>
-      <div className="max-h-[32%] overflow-auto px-2">
+      {/* 員工清單可收合：收起時只留標題＋目前選的員工，把高度讓給對話清單；狀態記在 localStorage */}
+      <button
+        type="button"
+        className="panel-title flex w-full items-center gap-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
+        aria-expanded={agentsOpen}
+        aria-label={t('workbench.agentsToggle')}
+        onClick={() => setAgentsOpen((v) => !v)}
+        data-testid="workbench-agents-toggle"
+      >
+        <span className="w-3 shrink-0 text-center">{agentsOpen ? '▾' : '▸'}</span>
+        <span className="min-w-0 truncate">{t('workbench.agents')}</span>
+        {!agentsOpen && agent && <span className="min-w-0 truncate font-normal normal-case tracking-normal text-zinc-700 dark:text-zinc-300">· {agent.name}</span>}
+        <span className="badge ml-auto bg-zinc-200 px-1 text-2xs font-normal dark:bg-zinc-700">{agentsQ.data?.length ?? 0}</span>
+      </button>
+      {agentsOpen && (
+      <div className="max-h-[32%] overflow-auto px-2" data-testid="workbench-agents-list">
         {agentsQ.isLoading && <Loading />}
         {agentsQ.error && <ErrorBox error={agentsQ.error} onRetry={() => agentsQ.refetch()} />}
         {agentsQ.data?.map((a) => (
           <AgentRow key={a.id} agent={a} active={a.id === agentId} onClick={() => { setAgentId(a.id); setSessionId(undefined); setHermesView(undefined) }} />
         ))}
       </div>
+      )}
       {!agentId && <Empty text={t('workbench.noAgent')} />}
       {sessionsQ.isLoading && <Loading />}
       <SessionSidebar
@@ -390,7 +418,7 @@ export function WorkbenchPage() {
         <CollapsiblePanel
           id="workbench.right"
           side="right"
-          title={t('workbench.sessionInfo')}
+          title={engineer ? t('workbench.sessionInfo') : t('workbench.sessionInfoPlain')}
           icon="Info"
           defaultWidth={300}
           min={220}
@@ -403,24 +431,26 @@ export function WorkbenchPage() {
               {status === 'open' ? t('workbench.wsConnected') : status === 'connecting' ? t('workbench.wsConnecting') : t('workbench.wsDisconnected')}
             </Info>
             <Info k={t('workbench.agent')}>{agent?.name ?? '—'}</Info>
-            <Info k={agent && isCoding(agent) ? t('agents.workspace') : t('workbench.profile')}>
-              <code className="break-all">{(agent && isCoding(agent) ? agent.workspace : agent?.profile) || '—'}</code>
-            </Info>
+            {engineer && (
+              <Info k={agent && isCoding(agent) ? t('agents.workspace') : t('workbench.profile')}>
+                <code className="break-all">{(agent && isCoding(agent) ? agent.workspace : agent?.profile) || '—'}</code>
+              </Info>
+            )}
             {agent && isCoding(agent) && <Info k={t('agents.runtime')}><RuntimeBadge agent={agent} /></Info>}
-            <Info k={t('workbench.model')}>{session?.model || agent?.model || '—'}{session && !session.model && <span className="text-zinc-600 dark:text-zinc-400"> ({t('chat.model.default')})</span>}</Info>
-            <Info k={t('workbench.sessionId')}><code className="break-all">{session?.id ?? '—'}</code></Info>
+            {engineer && <Info k={t('workbench.model')}>{session?.model || agent?.model || '—'}{session && !session.model && <span className="text-zinc-600 dark:text-zinc-400"> ({t('chat.model.default')})</span>}</Info>}
+            {engineer && <Info k={t('workbench.sessionId')}><code className="break-all">{session?.id ?? '—'}</code></Info>}
             <Info k={t('workbench.source')}>{session?.source ?? '—'}</Info>
             <Info k={t('workbench.createdAt')}>{fmt(session?.created_at)}</Info>
             <Info k={t('workbench.updatedAt')}>{fmt(session?.last_message_at ?? session?.updated_at)}</Info>
             <Info k={t('workbench.messages')}>{chat.items.filter((i) => i.kind === 'text').length}</Info>
-            <Info k={t('workbench.runId')}><code className="break-all">{chat.runId ?? '—'}</code></Info>
+            {engineer && <Info k={t('workbench.runId')}><code className="break-all">{chat.runId ?? '—'}</code></Info>}
             {usage && (
-              <Info k={t('chat.info.tokens')}>
+              <Info k={engineer ? t('chat.info.tokens') : t('workbench.usage')}>
                 <div>{t('chat.info.inTok')} {usage.input_tokens} · {t('chat.info.outTok')} {usage.output_tokens}</div>
                 <div>Σ {usage.total_tokens} · {t('chat.info.ctxTok')} {usage.context_tokens}</div>
               </Info>
             )}
-            {chat.usage && <Info k={t('workbench.usage')}><pre className="whitespace-pre-wrap">{JSON.stringify(chat.usage, null, 1)}</pre></Info>}
+            {engineer && chat.usage && <Info k={t('workbench.usage')}><pre className="whitespace-pre-wrap">{JSON.stringify(chat.usage, null, 1)}</pre></Info>}
           </dl>
         </CollapsiblePanel>
         </div>

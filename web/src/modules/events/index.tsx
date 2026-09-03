@@ -147,7 +147,7 @@ export function EventsPage() {
         actions={<div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto"><GlobalSearchBox className="min-w-0 flex-1" /><button className="btn-outline" onClick={exportHref} disabled={!total}>{t('events.exportCsv')}</button></div>} />
       {query.isLoading && <Loading />}
       {query.error && <ErrorBox error={query.error} onRetry={() => query.refetch()} />}
-      {query.data && query.data.items.length === 0 && <EmptyState testId="empty-events" title={t('guide.empty.events.title')} body={t('guide.empty.events.body')} action={{ label: t('guide.empty.events.action'), to: '/' }} />}
+      {query.data && query.data.items.length === 0 && <EmptyState testId="empty-events" title={t('guide.empty.events.title')} body={t('guide.empty.events.body')} action={{ label: t('guide.empty.events.action'), to: '/workbench' }} />}
       <ol className="relative ml-3 border-l border-zinc-300 dark:border-zinc-700">
         {(query.data?.items ?? []).map((e) => (
           <li key={e.id} className="ml-4 py-2" data-testid={`event-${e.id}`}>
@@ -210,7 +210,7 @@ const en = {
 const mod: StudioModule = {
   name: 'events',
   routes: [{ path: '/events', element: <EventsPage /> }, { path: '/search', element: <SearchPage /> }],
-  nav: [{ to: '/events', key: 'events', order: 46 }, { to: '/search', key: 'search', order: 46.5, icon: 'Search' }], // round3：/search 有 help 頁後掛上側欄
+  nav: [{ to: '/events', key: 'events', order: 98, group: 'settings', icon: 'ListTree', hidden: true }, { to: '/search', key: 'search', order: 98.5, group: 'settings', icon: 'Search', hidden: true }], // 藏進「設定」總覽，不佔側欄
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

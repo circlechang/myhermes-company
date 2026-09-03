@@ -44,7 +44,8 @@ export function Sidebar({ groups, expanded, onToggle, drawer = false, onNavigate
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {groups.map((g) => (
           <section key={g.group} data-testid={`nav-group-${g.group}`} className="mb-2">
-            {wide ? (
+            {/* 「今天」只有一項：不畫群標題，直接是最上面的入口 */}
+            {g.group === 'today' ? null : wide ? (
               <h2 className="px-4 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">{t(`nav.group.${g.group}`)}</h2>
             ) : (
               <div className="mx-3 my-2 border-t border-zinc-200 dark:border-zinc-800" aria-hidden />

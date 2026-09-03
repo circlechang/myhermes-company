@@ -37,7 +37,7 @@ export function SetupPage() {
     return (
       <Shell>
         <p className="text-sm" data-testid="setup-not-owner">{t('setup.notOwner')}</p>
-        <button type="button" className="btn-outline mt-4" onClick={() => nav('/')}>{t('setup.done.go')}</button>
+        <button type="button" className="btn-outline mt-4" onClick={() => nav('/today')}>{t('setup.done.go')}</button>
       </Shell>
     )
   }
@@ -90,7 +90,7 @@ export function SetupPage() {
         </div>
       )}
       <div className="mt-6 flex items-center justify-between border-t border-zinc-200 pt-4 dark:border-zinc-800">
-        <button type="button" className="btn-ghost text-xs" onClick={() => { setSetupSkipped(true); nav('/') }} title={t('setup.skipHint')} data-testid="setup-skip">
+        <button type="button" className="btn-ghost text-xs" onClick={() => { setSetupSkipped(true); nav('/today') }} title={t('setup.skipHint')} data-testid="setup-skip">
           {t('setup.skip')}
         </button>
         <div className="flex gap-2">

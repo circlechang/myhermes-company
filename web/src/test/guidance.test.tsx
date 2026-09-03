@@ -31,7 +31,7 @@ describe('首次導覽（Tour）', () => {
     const { unmount } = renderApp(<App />, { route: '/' })
     const tour = await screen.findByTestId('tour')
     expect(tour.dataset.step).toBe('sidebar')
-    expect(within(tour).getByText('側欄分四群')).toBeInTheDocument()
+    expect(within(tour).getByText('側欄分五群')).toBeInTheDocument()
     await userEvent.setup().click(screen.getByTestId('tour-skip'))
     expect(screen.queryByTestId('tour')).not.toBeInTheDocument()
     expect(window.localStorage.getItem(TOUR_KEY)).toBe('1')
@@ -41,7 +41,7 @@ describe('首次導覽（Tour）', () => {
     expect(screen.queryByTestId('tour')).not.toBeInTheDocument()
   })
 
-  it('六步可走完，最後一步是「完成」，每步都對到真實元素', async () => {
+  it('每一步都可走完，最後一步是「完成」，每步都對到真實元素', async () => {
     renderApp(<App />, { route: '/' })
     const user = userEvent.setup()
     const tour = await screen.findByTestId('tour')
@@ -75,7 +75,7 @@ describe('「？」說明抽屜', () => {
   })
 
   it('內容依當前路由切換（工作臺 → 看板 → 工作流）', async () => {
-    renderApp(<App />, { route: '/' })
+    renderApp(<App />, { route: '/workbench' })
     const user = userEvent.setup()
     await screen.findByTestId('sidebar')
     await user.click(screen.getByTestId('help-button'))
@@ -99,7 +99,8 @@ describe('「？」說明抽屜', () => {
     expect(helpFor('/workflows/abc')?.path).toBe('/workflows')
     expect(helpFor('/workflows/approvals')?.path).toBe('/workflows/approvals')
     expect(helpFor('/workflows/runs/xyz')?.path).toBe('/workflows/runs')
-    expect(helpFor('/', 'en')?.title).toBe('Workbench')
+    expect(helpFor('/workbench', 'en')?.title).toBe('Workbench')
+    expect(helpFor('/today')?.title).toBe('今天')
     expect(helpFor('/nope')).toBeUndefined()
   })
 })
@@ -122,7 +123,7 @@ describe('空狀態卡（EmptyState）', () => {
   it('工作臺沒選對話時顯示空狀態卡', async () => {
     setupMocks({ loggedIn: true })
     window.localStorage.setItem(TOUR_KEY, '1')
-    renderApp(<App />, { route: '/' })
+    renderApp(<App />, { route: '/workbench' })
     expect(await screen.findByTestId('empty-sessions')).toHaveTextContent('還沒有對話')
   })
 })

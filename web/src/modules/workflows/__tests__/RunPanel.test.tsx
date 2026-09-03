@@ -30,11 +30,11 @@ const nodes: WfNode[] = [
 const handlers = () => ({ onRun: vi.fn(), onStop: vi.fn(), onRerun: vi.fn(), onApprove: vi.fn(), onReject: vi.fn(), onOpenConversation: vi.fn() })
 
 describe('RunPanel', () => {
-  it('尚未執行：顯示執行按鈕與提示', async () => {
+  it('還沒跑過：顯示跑一次按鈕與提示', async () => {
     const h = handlers()
     render(<RunPanel nodes={nodes} canRun {...h} />)
-    expect(screen.getByText('尚未執行')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /執行/ }))
+    expect(screen.getByText('還沒跑過')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /跑一次/ }))
     expect(h.onRun).toHaveBeenCalled()
   })
   it('執行中：節點狀態徽章、串流片段、停止按鈕', () => {
@@ -45,14 +45,14 @@ describe('RunPanel', () => {
     const h = handlers()
     render(<RunPanel nodes={nodes} canRun live={live} {...h} />)
     const a = screen.getByTestId('run-node-a')
-    expect(within(a).getByTestId('status-badge')).toHaveTextContent('執行中')
+    expect(within(a).getByTestId('status-badge')).toHaveTextContent('進行中')
     expect(within(a).getByText('×2')).toBeInTheDocument()
     expect(within(a).getByText('三個熱點…')).toBeInTheDocument()
-    expect(within(screen.getByTestId('run-node-b')).getByTestId('status-badge')).toHaveTextContent('待執行')
+    expect(within(screen.getByTestId('run-node-b')).getByTestId('status-badge')).toHaveTextContent('還沒跑')
     expect(screen.getByRole('button', { name: /停止/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /重跑/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /再跑一次/ })).not.toBeInTheDocument()
   })
-  it('等待審批：顯示上游結果，核准／退回帶意見', async () => {
+  it('等你看：顯示上游結果，可以／退回帶意見', async () => {
     let live = emptyRun('wr_1', ['a', 'g', 'b'])
     live = applyWsEvent(live, { type: 'node.status', run_id: 'wr_1', node_id: 'a', status: 'completed', output: 'AAA' })
     live = applyWsEvent(live, { type: 'approval.request', run_id: 'wr_1', node_id: 'g', approval_id: 'wa_9', payload: '### 熱點\nAAA' })
@@ -64,7 +64,7 @@ describe('RunPanel', () => {
     await userEvent.type(within(box).getByLabelText(/意見/), '再短一點')
     await userEvent.click(within(box).getByRole('button', { name: '退回' }))
     expect(h.onReject).toHaveBeenCalledWith('wa_9', '再短一點')
-    await userEvent.click(within(box).getByRole('button', { name: '核准' }))
+    await userEvent.click(within(box).getByRole('button', { name: '可以' }))
     expect(h.onApprove).toHaveBeenCalledWith('wa_9', '再短一點')
   })
   it('結束後：重跑、從節點重跑、展開輸出並開對話', async () => {
@@ -77,10 +77,10 @@ describe('RunPanel', () => {
     render(<RunPanel nodes={nodes} canRun live={live} {...h} />)
     expect(screen.getAllByText('b: boom')[0]).toBeInTheDocument()
     expect(screen.getByText(/9 tok/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /重跑/ }))
+    await userEvent.click(screen.getByRole('button', { name: /再跑一次/ }))
     expect(h.onRerun).toHaveBeenCalledWith(undefined, false)
     const a = screen.getByTestId('run-node-a')
-    await userEvent.click(within(a).getByTitle('從此節點重跑'))
+    await userEvent.click(within(a).getByTitle('從這步再跑'))
     expect(h.onRerun).toHaveBeenCalledWith('a', false)
     await userEvent.click(within(a).getByText('熱點'))
     expect(await within(a).findByText('結果A')).toBeInTheDocument()
@@ -111,7 +111,7 @@ describe('RunPanel harness 借鏡', () => {
     render(<RunPanel nodes={nodes} canRun live={live} {...h} />)
     expect(within(screen.getByTestId('run-node-a')).getByTestId('status-badge')).toHaveTextContent('結果未知')
     await userEvent.click(screen.getByLabelText(/強制全跑/))
-    await userEvent.click(screen.getByRole('button', { name: /重跑/ }))
+    await userEvent.click(screen.getByRole('button', { name: /再跑一次/ }))
     expect(h.onRerun).toHaveBeenCalledWith(undefined, true)
   })
 })

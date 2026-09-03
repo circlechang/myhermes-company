@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '../App'
 import { renderApp, setupMocks } from './utils'
+import { setEngineerMode } from '../prefs/engineerMode'
 
 describe('AI 員工＝Coding Agent（前端）', () => {
   beforeEach(() => setupMocks({ loggedIn: true }))
@@ -20,6 +21,7 @@ describe('AI 員工＝Coding Agent（前端）', () => {
     renderApp(<App />, { route: '/agents' })
     const user = userEvent.setup()
     await user.click(await screen.findByText('工程師'))
+    await user.click(await screen.findByTestId('agent-tab-soul'))  // 預設分頁是人事檔案；分頁狀態跨員工保留
     expect(await screen.findByTestId('coding-no-soul')).toBeInTheDocument()
     expect(screen.queryByLabelText('SOUL.md')).not.toBeInTheDocument()
     const panel = screen.getByTestId('coding-settings')
@@ -82,8 +84,9 @@ describe('AI 員工＝Coding Agent（前端）', () => {
     expect(await within(dialog).findByText(/工作目錄不在允許清單內/)).toBeInTheDocument()
   })
 
-  it('工作臺：coding 員工在員工列表有徽章，選到他時右欄顯示工作目錄而不是 profile', async () => {
-    renderApp(<App />, { route: '/' })
+  it('工作臺：coding 員工在員工列表有徽章，選到他時右欄（工程師模式）顯示工作目錄而不是 profile', async () => {
+    setEngineerMode(true)
+    renderApp(<App />, { route: '/workbench' })
     const user = userEvent.setup()
     const sidebar = await screen.findByTestId('sidebar-desktop')
     await user.click(await within(sidebar).findByText('工程師'))

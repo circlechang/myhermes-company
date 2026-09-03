@@ -53,14 +53,59 @@ type T = (k: string, o?: Record<string, unknown>) => string
 export function whoOf(node: WfNode, kind: NodeKind, agents: Agent[], t: T): string {
   if (kind === 'gate') return t('wf.station.who_.human')
   if (kind === 'delivery' || kind === 'loop') return t('wf.station.who_.system')
-  if (kind === 'coding-agent') return `${node.tool ?? 'claude-code'}${node.cwd ? ` · ${node.cwd}` : ''}`
   if (kind === 'condition' && node.mode !== 'ai') return t('wf.station.who_.rule')
   const a = agents.find((x) => x.id === node.agent_id)
   if (a) {
     const suffix = a.runtime && a.runtime !== 'hermes' ? `（${a.runtime_name ?? a.runtime}）` : a.title ? `（${a.title}）` : ''
     return `${a.name}${suffix}`
   }
+  // 跑程式的那一步沒綁員工：退回顯示工具名
+  if (kind === 'coding-agent') return `${node.tool ?? 'claude-code'}${node.cwd ? ` · ${node.cwd}` : ''}`
   return node.profile || t('wf.station.who_.unset')
+}
+
+/** 收起來那一行的「誰」：只要名字，不帶職稱（研究員／你／送到 LINE） */
+export function whoShort(node: WfNode, kind: NodeKind, agents: Agent[], t: T): string {
+  if (kind === 'gate') return t('wf.station.who_.human')
+  if (kind === 'delivery') {
+    const ch = node.channel ?? 'file'
+    const target = ch === 'line' ? node.to : ch === 'webhook' ? node.url : node.path
+    return `${t(`wf.station.deliver.${ch}`)}${target ? ` · ${target}` : ''}`
+  }
+  if (kind === 'loop') return t('wf.station.who_.system')
+  if (kind === 'condition' && node.mode !== 'ai') return t('wf.station.who_.rule')
+  const a = agents.find((x) => x.id === node.agent_id)
+  if (a) return a.name
+  if (kind === 'coding-agent') return node.tool ?? 'claude-code'
+  return node.profile || t('wf.station.who_.unset')
+}
+
+/** 收起來那一行的「做什麼」：指令第一行（≤ max 字），沒指令就用步名 */
+export function whatShort(node: WfNode, kind: NodeKind, max = 60): string {
+  // 送出去／等我看的「誰」已經把去向講完了（送到 LINE · 行銷組），不再重複步名
+  if (kind === 'delivery' || kind === 'gate') return ''
+  const src = kind === 'hermes' || kind === 'coding-agent' || (kind === 'condition' && node.mode === 'ai') ? node.prompt : ''
+  const line = (src ?? '').split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0) ?? ''
+  const text = line || node.title || ''
+  return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
+/** 清單卡片上的參與者鏈：研究員 → 你 → 小編 → LINE */
+export function participantOf(node: WfNode, kind: NodeKind, agents: Agent[], t: T): string {
+  if (kind === 'gate') return t('wf.list.you')
+  if (kind === 'delivery') return t(`wf.list.${node.channel ?? 'file'}`)
+  if (kind === 'loop') return t('wf.list.repeat')
+  if (kind === 'condition' && node.mode !== 'ai') return t('wf.list.branch')
+  const a = agents.find((x) => x.id === node.agent_id)
+  if (a) return a.name
+  if (kind === 'coding-agent') return node.tool ?? 'claude-code'
+  return node.profile || t('wf.list.unset')
+}
+
+/** 這位員工的 runtime 是不是 coding CLI（挑到它，這一步就自動變成「跑程式」） */
+export const CODING_RUNTIMES = ['claude-code', 'codex', 'pi'] as const
+export function codingToolOf(a?: Agent): WfNode['tool'] | undefined {
+  return a?.runtime && (CODING_RUNTIMES as readonly string[]).includes(a.runtime) ? (a.runtime as WfNode['tool']) : undefined
 }
 
 /** 這一站產出什麼（也是連接線上「帶著：〇〇」的內容）。 */
@@ -98,7 +143,9 @@ export function doneOf(node: WfNode, kind: NodeKind, t: T): string | null {
 
 /** 有沒有「指令」可以直接在卡片上改。 */
 export const HAS_PROMPT: NodeKind[] = ['hermes', 'coding-agent', 'condition']
-/** 可以在卡片上換 AI 員工的站。 */
-export const HAS_AGENT: NodeKind[] = ['hermes', 'condition']
+/** 可以在卡片上換 AI 員工的站（跑程式那一步也在同一個下拉裡挑員工）。 */
+export const HAS_AGENT: NodeKind[] = ['hermes', 'coding-agent', 'condition']
 
-export const STATION_KINDS: NodeKind[] = ['hermes', 'coding-agent', 'gate', 'condition', 'loop', 'delivery']
+/** 老闆看得到的三種動作；分岔／迴圈只有工程師模式才出現 */
+export const STATION_KINDS: NodeKind[] = ['hermes', 'gate', 'delivery']
+export const ENGINEER_KINDS: NodeKind[] = ['condition', 'loop']

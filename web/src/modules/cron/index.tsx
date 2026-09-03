@@ -193,7 +193,7 @@ const en = {
 const mod: StudioModule = {
   name: 'cron',
   routes: [{ path: '/cron', element: <CronPage /> }],
-  nav: [{ to: '/cron', key: 'cron', order: 43, group: 'connect', icon: 'CalendarClock' }],
+  nav: [{ to: '/cron', key: 'cron', order: 92, group: 'settings', icon: 'CalendarClock', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

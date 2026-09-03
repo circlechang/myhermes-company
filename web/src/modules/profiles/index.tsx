@@ -270,7 +270,7 @@ const en = {
 const mod: StudioModule = {
   name: 'profiles',
   routes: [{ path: '/profiles', element: <ProfilesPage /> }],
-  nav: [{ to: '/profiles', key: 'profiles', order: 40, group: 'agents', icon: 'Users' }],
+  nav: [{ to: '/profiles', key: 'profiles', order: 99.5, group: 'settings', icon: 'Users', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

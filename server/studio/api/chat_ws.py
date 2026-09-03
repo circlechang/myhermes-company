@@ -47,7 +47,7 @@ from ..modules.coding_agents import staff
 from ..modules.coding_agents.models import CodingRun
 from ..modules.coding_agents.router import PROCESSES
 from ..modules.docs import chat_link as doc_link
-from .sessions import get_owned_session
+from .sessions import apply_auto_title, get_owned_session
 
 log = logging.getLogger("studio.ws")
 router = APIRouter()
@@ -110,15 +110,17 @@ def image_parts(attachments: list[dict[str, Any]]) -> list[dict[str, Any]]:
 _BRIDGES: "set[ChatBridge]" = set()
 
 
-async def notify_approval_decided(run_id: str, approval_id: str, decision: str) -> int:
-    """給 inbox 模組呼叫：把決定推給所有持有這個 run 的對話 WS。回推送數。"""
+async def notify_approval_decided(run_id: str, approval_id: str, decision: str, *, session_id: str = "", member_id: str = "") -> int:
+    """給 inbox 模組呼叫：把決定推給所有持有這個 run 的對話 WS。回推送數。
+    run 已經跑完、bridge 不再持有它時，退而找同一位成員開著的對話 WS（帶 session_id），避免對話頁卡在等決定。"""
     n = 0
     for b in list(_BRIDGES):
         info = b.runs.get(run_id)
-        if info is None:
+        sid = info["session_id"] if info is not None else (session_id if member_id and getattr(getattr(b, "p", None), "member", None) and b.p.member.id == member_id else "")
+        if not sid:
             continue
         try:
-            await b.send({"type": "approval.responded", "session_id": info["session_id"], "run_id": run_id,
+            await b.send({"type": "approval.responded", "session_id": sid, "run_id": run_id,
                           "approval_id": approval_id, "decision": decision, "via": "inbox"})
             n += 1
         except Exception:
@@ -261,6 +263,8 @@ class ChatBridge:
             m = Message(session_id=s.id, role="user", content=text, reply_to=reply_to,
                         attachments=json.dumps(attachments, ensure_ascii=False) if attachments else None)
             db.add(m)
+            # 第一句話就是標題：側欄不再一排「與 default 的對話」；人改過的標題不動
+            apply_auto_title(s, agent.name, text)
             s.last_message_at = now()
             s.updated_at = now()
             db.add(s)
@@ -343,6 +347,7 @@ class ChatBridge:
         db.add(user_msg)
         db.flush()
         user_msg_id = user_msg.id
+        apply_auto_title(s, agent.name, text)
         meta.status = "running"
         s.last_run_id = run_id
         s.run_status = "running"
@@ -411,6 +416,15 @@ class ChatBridge:
             return
         info = self.runs.get(run_id)
         if info is None:
+            # run 已經跑完但人又按了一次核准：收件匣若早有決定，回 already_decided 而不是 unknown_run，
+            # 對話頁才不會停在「等你決定」（收件匣先答、run 隨即結束的時序會走到這裡）。
+            if kind == "approval":
+                approval_id = str(msg.get("approval_id") or run_id)
+                prior = inbox_svc.lookup(run_id, approval_id, engine=self.engine)
+                if prior and prior.get("status") == "resolved":
+                    await self.send({"type": "approval.ack", "session_id": str(prior.get("session_id") or ""), "run_id": run_id,
+                                     "approval_id": approval_id, "already_decided": True, "decision": prior.get("decision")})
+                    return
             await self.error(f"unknown run_id: {run_id}", "unknown_run", run_id=run_id)
             return
         profile = info["profile"]

@@ -23,7 +23,7 @@ export function App() {
   const { member } = useAuth()
   return (
     <Routes>
-      <Route path="/login" element={member ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/login" element={member ? <Navigate to="/today" replace /> : <LoginPage />} />
       <Route
         path="/setup"
         element={
@@ -41,7 +41,9 @@ export function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<WorkbenchPage />} />
+        {/* 首頁是「今天」；/ 保留成轉址，舊書籤不會 404 */}
+        <Route index element={<Navigate to="/today" replace />} />
+        <Route path="/workbench" element={<WorkbenchPage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/kanban" element={<KanbanPage />} />
         <Route path="/workflows" element={<WorkflowsPage />} />
@@ -50,7 +52,7 @@ export function App() {
           <Route key={r.path} path={r.path} element={r.element} />
         ))}
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/today" replace />} />
     </Routes>
   )
 }

@@ -49,26 +49,47 @@ describe('版面：側欄分群', () => {
     setMobile(false)
   })
 
-  it('groupNav：沒指定 group 的放「其他」，群內依 order 排序', () => {
+  it('groupNav：沒指定 group 的放「設定」，群內依 order 排序，hidden 不進側欄', () => {
     const g = groupNav([
       { to: '/b', key: 'b', group: 'work', order: 20 },
       { to: '/x', key: 'x' },
+      { to: '/h', key: 'h', group: 'work', hidden: true },
       { to: '/a', key: 'a', group: 'work', order: 10 },
     ])
-    expect(g.map((x) => x.group)).toEqual(['work', 'other'])
+    expect(g.map((x) => x.group)).toEqual(['work', 'settings'])
     expect(g[0].items.map((i) => i.key)).toEqual(['a', 'b'])
     expect(g[1].items[0].key).toBe('x')
   })
 
-  it('四個群組都在側欄，且既有 18 條路由都有連結', async () => {
+  it('五個群組都在側欄；只剩每天會用的連結，其他藏進「設定」', async () => {
     renderApp(<App />, { route: '/' })
     const sidebar = await screen.findByTestId('sidebar')
-    for (const g of ['work', 'agents', 'connect', 'system']) expect(within(sidebar).getByTestId(`nav-group-${g}`)).toBeInTheDocument()
+    for (const g of ['today', 'chat', 'work', 'agents', 'settings']) expect(within(sidebar).getByTestId(`nav-group-${g}`)).toBeInTheDocument()
     const hrefs = within(sidebar).getAllByRole('link').map((a) => a.getAttribute('href'))
-    for (const p of ['/', '/groupchat', '/workflows', '/kanban', '/coding', '/agents', '/profiles', '/models', '/skills', '/channels', '/cron', '/files', '/usage', '/logs', '/admin', '/theme', '/voice', '/settings'])
-      expect(hrefs).toContain(p)
-    expect(within(within(sidebar).getByTestId('nav-group-work')).getByText('工作臺')).toBeInTheDocument()
-    expect(within(within(sidebar).getByTestId('nav-group-system')).getByText('Hermes 狀態')).toBeInTheDocument()
+    const visible = ['/today', '/workbench', '/doc-mode', '/groupchat', '/inbox', '/workflows', '/kanban', '/docs', '/packs', '/coding', '/agents', '/skills', '/models', '/settings']
+    for (const p of visible) expect(hrefs).toContain(p)
+    // 藏起來的：不進側欄，但頁標題仍解析得到，且會列在設定總覽
+    const hidden = ['/profiles', '/channels', '/cron', '/files', '/usage', '/limits', '/theme', '/logs', '/voice', '/admin', '/compat', '/events', '/search', '/soul-history']
+    for (const p of hidden) expect(hrefs).not.toContain(p)
+    expect(hrefs).not.toContain('/')
+    expect(hrefs).toHaveLength(visible.length)
+    for (const p of hidden) expect(activeNavItem(p, allNav)?.hidden, p).toBe(true)
+    expect(activeNavItem('/usage', allNav)?.key).toBe('usage')
+    expect(activeNavItem('/workbench', allNav)?.key).toBe('workbench')
+    expect(within(within(sidebar).getByTestId('nav-group-chat')).getByText('工作臺')).toBeInTheDocument()
+    expect(within(within(sidebar).getByTestId('nav-group-settings')).getByRole('link', { name: '設定' })).toHaveAttribute('href', '/settings')
+    // 「今天」是單一入口，不畫群標題
+    expect(within(within(sidebar).getByTestId('nav-group-today')).queryByRole('heading')).not.toBeInTheDocument()
+  })
+
+  it('藏起來的頁面：頂欄標題仍正確，設定總覽有它的入口', async () => {
+    renderApp(<App />, { route: '/usage' })
+    expect(await screen.findByTestId('page-title')).toHaveTextContent('用量')
+    expect(within(screen.getByTestId('sidebar')).queryByRole('link', { name: '用量' })).not.toBeInTheDocument()
+    renderApp(<App />, { route: '/settings' })
+    expect(await screen.findByTestId('settings-tile-usage')).toHaveAttribute('href', '/usage')
+    expect(screen.getByTestId('settings-tile-channels')).toHaveAttribute('href', '/channels')
+    expect(screen.getByTestId('settings-tile-profiles')).toHaveAttribute('href', '/profiles')
   })
 
   it('展開／收合記到 localStorage，收合後只剩圖示', async () => {

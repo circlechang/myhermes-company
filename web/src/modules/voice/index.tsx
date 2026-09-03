@@ -47,7 +47,7 @@ const en = {
 const mod: StudioModule = {
   name: 'voice',
   routes: [{ path: '/voice', element: <VoicePage /> }],
-  nav: [{ to: '/voice', key: 'voice', order: 82, group: 'system', icon: 'Mic' }],
+  nav: [{ to: '/voice', key: 'voice', order: 95.5, group: 'settings', icon: 'Mic', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

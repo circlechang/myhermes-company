@@ -155,7 +155,7 @@ export function LogsPage() {
 const mod: StudioModule = {
   name: 'logs',
   routes: [{ path: '/logs', element: <LogsPage /> }],
-  nav: [{ to: '/logs', key: 'logs', order: 81, group: 'system', icon: 'ScrollText' }],
+  nav: [{ to: '/logs', key: 'logs', order: 96, group: 'settings', icon: 'ScrollText', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

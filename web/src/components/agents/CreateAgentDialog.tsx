@@ -38,7 +38,13 @@ export function CreateAgentDialog({ profiles, onClose, onCreated }: {
     } else {
       body.profile = profile
     }
-    const a = await create.mutateAsync(body)
+    // 錯誤由 create.error 顯示在對話框裡；這裡接住，免得變成未處理的 rejection
+    let a
+    try {
+      a = await create.mutateAsync(body)
+    } catch {
+      return
+    }
     onCreated(a.id)
     onClose()
   }

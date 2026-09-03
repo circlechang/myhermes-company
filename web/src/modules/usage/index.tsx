@@ -241,7 +241,7 @@ const en = {
 const mod: StudioModule = {
   name: 'usage',
   routes: [{ path: '/usage', element: <UsagePage /> }],
-  nav: [{ to: '/usage', key: 'usage', order: 44, group: 'system', icon: 'Wallet' }],
+  nav: [{ to: '/usage', key: 'usage', order: 94.5, group: 'settings', icon: 'Wallet', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

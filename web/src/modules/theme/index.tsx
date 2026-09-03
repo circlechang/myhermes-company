@@ -219,7 +219,7 @@ export function ThemePage() {
 const mod: StudioModule = {
   name: 'theme',
   routes: [{ path: '/theme', element: <ThemePage /> }],
-  nav: [{ to: '/theme', key: 'theme', order: 80, group: 'system', icon: 'Palette' }],
+  nav: [{ to: '/theme', key: 'theme', order: 95, group: 'settings', icon: 'Palette', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

@@ -28,7 +28,8 @@ class FakeGatewayState:
         self.approvals: list[tuple[str, str]] = []
         self.stopped: list[str] = []
         self.steered: list[tuple[str, str]] = []
-        self.scenario = "simple"  # simple | tools | approval | failed
+        self.scenario = "simple"  # simple | tools | approval | failed | subagent | canned
+        self.canned_text = ""  # scenario=canned 時整段當 run 的最終輸出（測 LLM 回覆的解析）
 
 
 def make_fake_gateway(state: FakeGatewayState) -> FastAPI:
@@ -105,7 +106,7 @@ def make_fake_gateway(state: FakeGatewayState) -> FastAPI:
                                 break
                             await asyncio.sleep(0.01)
                     yield frame({"event": "tool.completed", "run_id": run_id, "tool": "terminal", "duration": 0.1, "error": False})
-                text = f"echo[{r['profile']}|h={hist_n}]: {inp}"
+                text = state.canned_text if state.scenario == "canned" else f"echo[{r['profile']}|h={hist_n}]: {inp}"
                 for ch in (text[:5], text[5:]):
                     yield frame({"event": "message.delta", "run_id": run_id, "delta": ch})
                 r["status"] = "completed"

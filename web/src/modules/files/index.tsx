@@ -243,7 +243,7 @@ export function FilesPage() {
 const mod: StudioModule = {
   name: 'files',
   routes: [{ path: '/files', element: <FilesPage /> }],
-  nav: [{ to: '/files', key: 'files', order: 45, group: 'connect', icon: 'FileText' }],
+  nav: [{ to: '/files', key: 'files', order: 93, group: 'settings', icon: 'FileText', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

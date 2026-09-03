@@ -1,14 +1,16 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '../App'
 import { MockWebSocket } from '../mock/MockWebSocket'
 import { renderApp, setupMocks } from './utils'
+import { setEngineerMode } from '../prefs/engineerMode'
 
 async function openSession(user: ReturnType<typeof userEvent.setup>, title = '本週熱點選題') {
   await user.click(await screen.findByText(title))
-  await screen.findByTestId('message-list')
+  const list = await screen.findByTestId('message-list')
   // 等歷史訊息載完（s1 有訊息；其他 session 為空，等空狀態文字）
-  if (title === '本週熱點選題') await screen.findByText(/^本週三個熱點/)
+  // 只在訊息區裡找：側欄的 session-preview 也會出現同一句，不能拿它當「載完」
+  if (title === '本週熱點選題') await within(list).findByText(/^本週三個熱點/)
   else await screen.findByText(/開始跟/)
   await waitFor(() => expect(MockWebSocket.instances.at(-1)?.readyState).toBe(MockWebSocket.OPEN))
   return MockWebSocket.instances.at(-1)!
@@ -18,10 +20,11 @@ describe('工作臺聊天（假 WebSocket）', () => {
   beforeEach(() => setupMocks({ loggedIn: true, wsDelayMs: 0 }))
 
   it('載入歷史訊息並顯示工具卡', async () => {
-    renderApp(<App />)
+    renderApp(<App />, { route: '/workbench' })
     const user = userEvent.setup()
     await openSession(user)
-    expect(screen.getByText(/^本週三個熱點/)).toBeInTheDocument()
+    // 側欄 session-preview 也有這句，只認訊息區的
+    expect(within(screen.getByTestId('message-list')).getByText(/^本週三個熱點/)).toBeInTheDocument()
     const card = screen.getByTestId('tool-card')
     expect(card).toHaveTextContent('web_search')
     await user.click(within(card).getByRole('button'))
@@ -29,7 +32,7 @@ describe('工作臺聊天（假 WebSocket）', () => {
   })
 
   it('送出訊息後逐段串流渲染，並送出正確的 run 事件', async () => {
-    renderApp(<App />)
+    renderApp(<App />, { route: '/workbench' })
     const user = userEvent.setup()
     const ws = await openSession(user)
     const ta = screen.getByPlaceholderText(/輸入訊息/)
@@ -45,7 +48,7 @@ describe('工作臺聊天（假 WebSocket）', () => {
   })
 
   it('可用 emit 直接推事件，delta 累積在同一泡泡', async () => {
-    renderApp(<App />)
+    renderApp(<App />, { route: '/workbench' })
     const user = userEvent.setup()
     const ws = await openSession(user, 'LINE 貼文草稿')
     ws.emit({ type: 'run.started', session_id: 's2', run_id: 'rX' })
@@ -57,7 +60,7 @@ describe('工作臺聊天（假 WebSocket）', () => {
   })
 
   it('審批卡：四個按鈕，按下後送 approval 事件並鎖定', async () => {
-    renderApp(<App />)
+    renderApp(<App />, { route: '/workbench' })
     const user = userEvent.setup()
     const ws = await openSession(user, 'LINE 貼文草稿')
     await user.type(screen.getByPlaceholderText(/輸入訊息/), '請刪除暫存{Enter}')
@@ -74,7 +77,7 @@ describe('工作臺聊天（假 WebSocket）', () => {
   })
 
   it('審批卡：拒絕', async () => {
-    renderApp(<App />)
+    renderApp(<App />, { route: '/workbench' })
     const user = userEvent.setup()
     const ws = await openSession(user, 'LINE 貼文草稿')
     await user.type(screen.getByPlaceholderText(/輸入訊息/), 'approve this{Enter}')
@@ -82,5 +85,25 @@ describe('工作臺聊天（假 WebSocket）', () => {
     await user.click(within(card).getByRole('button', { name: '拒絕' }))
     expect(ws.sent.at(-1)).toMatchObject({ type: 'approval', decision: 'deny' })
     expect(await screen.findByText('好的，我不執行該指令。')).toBeInTheDocument()
+  })
+})
+
+describe('工作臺右欄：工程師模式', () => {
+  beforeEach(() => setupMocks({ loggedIn: true, wsDelayMs: 0 }))
+
+  it('預設藏 Session ID／Run ID／模型，開了工程師模式才出現', async () => {
+    setEngineerMode(false)
+    renderApp(<App />, { route: '/workbench' })
+    const user = userEvent.setup()
+    await openSession(user)
+    const info = screen.getByTestId('session-info')
+    expect(within(info).getByText('這個對話')).toBeInTheDocument()
+    expect(within(info).queryByText('Session ID')).not.toBeInTheDocument()
+    expect(within(info).queryByText('Run ID')).not.toBeInTheDocument()
+    expect(within(info).getByText('AI 員工')).toBeInTheDocument()
+    act(() => setEngineerMode(true))
+    expect(await within(info).findByText('Session ID')).toBeInTheDocument()
+    expect(within(info).getByText('Run ID')).toBeInTheDocument()
+    expect(within(info).getByText('Session 資訊')).toBeInTheDocument()
   })
 })

@@ -8,11 +8,15 @@ from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from ...auth import Principal, current_principal, get_db, principal_from_ws
+from ...auth import Principal, allowed_profiles, current_principal, get_db, principal_from_ws
 from ...errors import ApiError, not_found
-from ...models import Workflow, WorkflowApproval, WorkflowRun, WorkflowRunNode, WorkflowSchedule, WorkflowWebhook, now
-from ...workflow_validate import WorkflowValidationError, validate_workflow
+from ...hermes.gateway import GatewayError
+from ...models import Agent, Workflow, WorkflowApproval, WorkflowRun, WorkflowRunNode, WorkflowSchedule, WorkflowWebhook, now
+from ...workflow_validate import WorkflowValidationError, node_kind, validate_workflow
+from ..coding_agents import staff
 from .cron import CronError, parse_cron
+from .draft import DraftFailed, draft_workflow
+from .engine import NOT_TRIABLE_KINDS, TERMINAL_RUN, TRY_TRIGGER
 from .runners import coding_tools_status, line_token
 from .scheduler import compute_next
 
@@ -52,6 +56,11 @@ class RerunBody(BaseModel):
     force: bool = False  # True＝不用效果快取，全部重跑
 
 
+class TryBody(BaseModel):
+    input: Optional[str] = None  # 當 [外部輸入] 塞給這一站
+    use_latest_upstream: bool = True  # 帶上一次正式執行的上游輸出當 [上游結果]
+
+
 class DecisionBody(BaseModel):
     comment: str = ""
     choice: str = ""  # doc_select 閘門：選了哪一份文件（doc_id）
@@ -74,6 +83,11 @@ class ImportBody(BaseModel):
     name: Optional[str] = None
 
 
+class DraftBody(BaseModel):
+    text: str
+    agent_id: Optional[str] = None  # 指定排草稿的員工；不給就用第一位啟用的 Hermes 員工
+
+
 # -- runs -------------------------------------------------------------------
 @router.post("/workflows/{wf_id}/run", status_code=202)
 async def run_workflow(wf_id: str, request: Request, body: Optional[RunBody] = None, p: Principal = Depends(current_principal),
@@ -88,16 +102,65 @@ async def run_workflow(wf_id: str, request: Request, body: Optional[RunBody] = N
     return {"run_id": run.id, "status": run.status}
 
 
-@router.get("/workflows/{wf_id}/runs")
-def list_runs(wf_id: str, limit: int = 50, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+@router.post("/workflows/{wf_id}/nodes/{node_id}/try", status_code=202)
+async def try_node(wf_id: str, node_id: str, request: Request, body: Optional[TryBody] = None, p: Principal = Depends(current_principal),
+                   db: Session = Depends(get_db)):
+    """試跑這一站：只跑這一個節點，上游結果從上一次正式執行借來（找不到就只用 input 當 [外部輸入]）。
+    產生的 run trigger="try"，不進執行歷史、不能當重跑父 run。"""
     wf = _wf(db, p, wf_id)
-    rows = db.exec(select(WorkflowRun).where(WorkflowRun.workflow_id == wf.id).order_by(WorkflowRun.created_at.desc()).limit(limit)).all()
+    nodes = json.loads(wf.nodes_json)
+    node = next((n for n in nodes if str(n.get("id")) == node_id), None)
+    if node is None:
+        raise not_found("node")
+    kind = node_kind(node)
+    if kind in NOT_TRIABLE_KINDS:
+        raise ApiError(422, "node_not_triable", "這一站要靠上游結果才有意義（等我確認／看情況分岔／重複直到），請執行整條線")
+    try:
+        validate_workflow([node], [])
+    except WorkflowValidationError as e:
+        raise ApiError(422, "workflow_invalid", "; ".join(e.errors))
+    body = body or TryBody()
+    inp: dict[str, Any] = {"source": TRY_TRIGGER, "node_id": node_id}
+    if body.input:
+        inp["text"] = body.input
+    if body.use_latest_upstream:
+        sources = [str(e["source"]) for e in json.loads(wf.edges_json) if str(e.get("target")) == node_id and not e.get("loop_back")]
+        if sources:
+            titles = {str(n.get("id")): (n.get("title") or str(n.get("id"))) for n in nodes}
+            latest = db.exec(select(WorkflowRun).where(WorkflowRun.workflow_id == wf.id, WorkflowRun.trigger != TRY_TRIGGER,
+                                                        WorkflowRun.status.in_(list(TERMINAL_RUN)))  # type: ignore[attr-defined]
+                             .order_by(WorkflowRun.created_at.desc())).first()
+            if latest is not None:
+                states = json.loads(latest.node_states_json or "{}")
+                ups = [{"node_id": s, "title": titles.get(s, s), "output": states[s].get("output") or ""}
+                       for s in sources if states.get(s, {}).get("status") in ("completed", "reused") and states[s].get("output")]
+                if ups:
+                    inp["upstream"] = ups
+                    inp["upstream_run_id"] = latest.id
+    db.expunge(wf)
+    try:
+        run = await _engine(request).start(wf, member_id=p.member.id, trigger=TRY_TRIGGER, input=inp, only_node=node_id)
+    except ValueError as e:
+        raise ApiError(422, "bad_request", str(e))
+    return {"run_id": run.id, "status": run.status, "upstream_run_id": inp.get("upstream_run_id")}
+
+
+@router.get("/workflows/{wf_id}/runs")
+def list_runs(wf_id: str, limit: int = 50, include_try: bool = False, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    wf = _wf(db, p, wf_id)
+    q = select(WorkflowRun).where(WorkflowRun.workflow_id == wf.id)
+    if not include_try:  # 試跑不算「上一次的產出」，也不進歷史清單
+        q = q.where(WorkflowRun.trigger != TRY_TRIGGER)
+    rows = db.exec(q.order_by(WorkflowRun.created_at.desc()).limit(limit)).all()
     return [r.to_dict(full=False) for r in rows]
 
 
 @router.get("/workflow-runs")
-def list_all_runs(status: Optional[str] = None, limit: int = 100, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+def list_all_runs(status: Optional[str] = None, limit: int = 100, include_try: bool = False, p: Principal = Depends(current_principal),
+                  db: Session = Depends(get_db)):
     q = select(WorkflowRun).where(WorkflowRun.company_id == p.company_id)
+    if not include_try:
+        q = q.where(WorkflowRun.trigger != TRY_TRIGGER)
     if status:
         q = q.where(WorkflowRun.status == status)
     rows = db.exec(q.order_by(WorkflowRun.created_at.desc()).limit(limit)).all()
@@ -133,6 +196,8 @@ async def rerun(run_id: str, request: Request, body: Optional[RerunBody] = None,
     parent = _run(db, p, run_id)
     if parent.status not in ("completed", "failed", "stopped", "timeout", "budget_exceeded", "needs_attention"):
         raise ApiError(409, "still_running", "run 尚未結束，無法重跑")
+    if parent.trigger == TRY_TRIGGER:
+        raise ApiError(422, "try_run", "試跑只有一站，不能當重跑的起點；請重跑正式執行")
     wf = db.get(Workflow, parent.workflow_id)
     if wf is None:
         raise not_found("workflow")
@@ -372,6 +437,32 @@ def import_workflow(body: ImportBody, p: Principal = Depends(current_principal),
     db.commit()
     db.refresh(wf)
     return wf.to_dict()
+
+
+# -- draft（一句話建流程）------------------------------------------------------
+@router.post("/workflows/draft")
+async def draft(body: DraftBody, request: Request, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """請一位 Hermes 員工把老闆的一句話排成草稿鏈。只回草稿，不建流程（對話框確認後才 POST /workflows）。"""
+    text = body.text.strip()
+    if not text:
+        raise ApiError(400, "bad_request", "text 不可空白")
+    allowed = allowed_profiles(p.member)
+    rows = db.exec(select(Agent).where(Agent.company_id == p.company_id, Agent.enabled == True)  # noqa: E712
+                   .order_by(Agent.created_at)).all()
+    # 給 LLM 看的名單＝這個人看得到的啟用員工（coding 員工也列，讓它知道有誰；但排草稿只能是 Hermes）
+    agents = [a for a in rows if staff.is_coding(staff.runtime_of(a)) or allowed is None or a.profile in allowed]
+    hermes = [a for a in agents if not staff.is_coding(staff.runtime_of(a))]
+    drafter = next((a for a in hermes if a.id == body.agent_id), None) if body.agent_id else (hermes[0] if hermes else None)
+    if drafter is None:
+        raise ApiError(422, "no_agent", "沒有可用的 Hermes 員工；先在「AI 員工」啟用一位")
+    for a in agents:
+        db.expunge(a)
+    try:
+        return await draft_workflow(request.app.state.gateway, drafter, agents, text)
+    except DraftFailed as e:
+        raise ApiError(422, "draft_failed", str(e), detail=e.excerpt)
+    except GatewayError as e:
+        raise ApiError(502, "gateway_error", f"問 AI 員工失敗：{e}")
 
 
 # -- environment -------------------------------------------------------------

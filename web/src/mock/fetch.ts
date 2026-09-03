@@ -122,6 +122,9 @@ export async function mockFetch(input: RequestInfo | URL, init: RequestInit = {}
     }
     return ok({ content: state.souls[m[1]] ?? '' })
   }
+  if ((m = path.match(/^\/agents\/([^/]+)\/dossier$/))) {
+    return ok(m[1] === 'a1' ? d.mockDossier : d.emptyDossier(m[1]))
+  }
   if ((m = path.match(/^\/agents\/([^/]+)\/skills$/))) {
     return ok([
       { name: 'web_search', enabled: true, description: '網路搜尋' },
@@ -234,13 +237,68 @@ export async function mockFetch(input: RequestInfo | URL, init: RequestInit = {}
     const doc = state.docs.find((x) => x.id === m![1])
     return doc ? ok(doc) : fail(404, 'not_found', 'doc not found')
   }
+  if ((m = path.match(/^\/docs\/([^/]+)$/)) && method === 'PATCH') {
+    const doc = state.docs.find((x) => x.id === m![1])
+    if (!doc) return fail(404, 'not_found', 'doc not found')
+    Object.assign(doc, body, { updated_at: now() })
+    return ok(doc)
+  }
+  if ((m = path.match(/^\/docs\/([^/]+)$/)) && method === 'DELETE') {
+    state.docs = state.docs.filter((x) => x.id !== m![1])
+    return new Response(null, { status: 204 })
+  }
   if ((m = path.match(/^\/docs\/([^/]+)\/versions$/)) && method === 'GET') return ok([])
+
+  // today／inbox／limits：給 /today 用的最小 mock。/inbox/count 固定回 0，因為頂欄 badge 測試假設一開始沒數字
+  if (path === '/inbox/count') return ok({ count: 0, by_kind: {} })
+  if (path === '/inbox' && method === 'GET') return ok(d.mockInbox)
+  if (path === '/workflow-approvals/ap1/approve' || path === '/workflow-approvals/ap1/reject') return ok({ ok: true })
+  if (path === '/limits' && method === 'GET') return ok(d.mockLimits)
+  if (path === '/limits/today') return ok(d.mockLimitsToday())
+  // /workflow-runs 不帶 status 維持空陣列（工作流頁的既有假設）；帶 status 才回今日的幾筆
+  if (path === '/workflow-runs' && u.searchParams.get('status')) {
+    const st = u.searchParams.get('status')
+    return ok(d.mockRuns().filter((r) => r.status === st))
+  }
 
   // workflows
   if (path === '/workflow-env') return ok({ coding_tools: { 'claude-code': { bin: 'claude', path: null, installed: false } }, line_configured: false, workspace: '/tmp' })
   if (path === '/workflow-runs') return ok([])
   if (path === '/workflow-approvals' || path.startsWith('/workflow-approvals?')) return ok([])
-  if ((m = path.match(/^\/workflows\/([^/]+)\/(runs|schedules|webhooks)$/)) && method === 'GET') return ok([])
+  // 流程 w1 有跑過一次＋一條排程（清單卡、最近一次分頁、截圖用）；其他流程都是空的
+  if ((m = path.match(/^\/workflows\/([^/]+)\/runs$/)) && method === 'GET') return ok(m[1] === 'w1' ? d.mockWorkflowRuns() : m[1] === 'w2' ? d.mockWorkflowRunsW2() : [])
+  if ((m = path.match(/^\/workflows\/([^/]+)\/schedules$/)) && method === 'GET') return ok(m[1] === 'w1' ? d.mockSchedules() : [])
+  if ((m = path.match(/^\/workflows\/([^/]+)\/webhooks$/)) && method === 'GET') return ok([])
+  if ((m = path.match(/^\/workflow-runs\/([^/]+)$/)) && method === 'GET') return m[1] === 'wr1' ? ok(d.mockRunDetail()) : m[1] === 'wr2' ? ok(d.mockRunDetailW2()) : fail(404, 'not_found', 'run not found')
+  if ((m = path.match(/^\/workflows\/([^/]+)\/run$/)) && method === 'POST') return ok({ run_id: nid('wr'), status: 'pending' }, 202)
+  if ((m = path.match(/^\/workflows\/([^/]+)\/schedules$/)) && method === 'POST')
+    return ok({ id: nid('sc'), workflow_id: m[1], cron: body.cron, enabled: true, input: body.input ?? {}, last_run_at: null, next_run_at: null }, 201)
+  // 一句話建流程：固定回四步草稿（研究員 → 你 → 小編 → LINE）＋每天 08:00；只回草稿不建流程
+  if (path === '/workflows/draft' && method === 'POST') {
+    if (!String(body.text ?? '').trim()) return fail(400, 'bad_request', 'text 不可空白')
+    const hermes = state.agents.filter((a) => a.enabled && (a.runtime ?? 'hermes') === 'hermes')
+    if (!hermes.length) return fail(422, 'no_agent', '沒有可用的 Hermes 員工；先在「AI 員工」啟用一位')
+    const research = hermes.find((a) => a.name === '研究員') ?? hermes[0]
+    const writer = hermes.find((a) => a.name === '小編') ?? hermes[0]
+    const pos = (i: number) => ({ x: 40 + i * 260, y: 120 })
+    const nodes = [
+      { id: 's1', kind: 'hermes', title: '找出今天三個熱點', agent_id: research.id, prompt: '找出今天三個循環包裝的熱點，每個用一句話講重點並附來源。', position: pos(0) },
+      { id: 's2', kind: 'gate', title: '我挑一個', position: pos(1) },
+      { id: 's3', kind: 'hermes', title: '依選題寫 LINE 貼文', agent_id: writer.id, prompt: '依老闆挑的題目寫一則 LINE 貼文：短句、先講結論、結尾一個行動呼籲。', position: pos(2) },
+      { id: 's4', kind: 'delivery', title: '送到 LINE', channel: 'line', to: '行銷組', position: pos(3) },
+    ]
+    const edges = nodes.slice(1).map((n, i) => ({ id: `${nodes[i].id}-${n.id}`, source: nodes[i].id, target: n.id, sourceHandle: 'output', targetHandle: 'input' }))
+    const steps = [
+      { id: 's1', kind: 'hermes', who: research.name, detail: '找出今天三個熱點' },
+      { id: 's2', kind: 'gate', who: '你', detail: '我挑一個' },
+      { id: 's3', kind: 'hermes', who: writer.name, detail: '依選題寫 LINE 貼文' },
+      { id: 's4', kind: 'delivery', who: '送到 LINE', detail: '行銷組' },
+    ]
+    return ok({ name: '每日熱點內容產線', nodes, edges, schedule: { cron: '0 8 * * *', label: '每天 08:00' }, agent_id: research.id, raw: '', steps })
+  }
+  // 試跑這一站：只回 run_id，之後的節點狀態由 WS 事件推
+  if ((m = path.match(/^\/workflows\/([^/]+)\/nodes\/([^/]+)\/try$/)) && method === 'POST') return ok({ run_id: nid('wr_try'), status: 'running', upstream_run_id: null }, 202)
+  if ((m = path.match(/^\/workflow-approvals\/([^/]+)\/(approve|reject)$/)) && method === 'POST') return ok({ ok: true, approval_id: m[1], decision: m[2], choice: '' })
   if (path === '/workflows' && method === 'GET') return ok(state.workflows)
   if (path === '/workflows' && method === 'POST') {
     if (!body.nodes?.length) return fail(422, 'validation', '至少需要一個節點')

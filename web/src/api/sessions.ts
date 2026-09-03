@@ -25,6 +25,10 @@ export interface ChatSession extends Session {
   doc_id?: string
   /** 側欄副標：第一則使用者訊息的單行摘要。標題重複時靠它辨識。 */
   preview?: string
+  /** 側欄一行結果：最後一則回覆第一行／「失敗：…」／「文件已更新到 vN」；空字串＝還沒有回覆 */
+  result?: string
+  /** result 的種類，圖示靠它不靠字串猜：ok | failed | doc | "" */
+  result_kind?: 'ok' | 'failed' | 'doc' | ''
 }
 
 export interface Attachment {

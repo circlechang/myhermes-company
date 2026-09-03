@@ -9,11 +9,12 @@ export const TOUR_EVENT = 'mhc:tour:start'
 /** 步驟：key 對應 guide.tour.steps.<key>；selector 指到有 data-tour 的真實元素 */
 export const TOUR_STEPS: { key: string; selector: string }[] = [
   { key: 'sidebar', selector: '[data-tour="sidebar"]' },
+  { key: 'today', selector: '[data-tour="nav-today"]' },
   { key: 'workbench', selector: '[data-tour="nav-workbench"]' },
   { key: 'agents', selector: '[data-tour="nav-agents"]' },
   { key: 'workflows', selector: '[data-tour="nav-workflows"]' },
   { key: 'inbox', selector: '[data-tour="nav-inbox"], [data-tour="inbox"]' },
-  { key: 'limits', selector: '[data-tour="nav-limits"]' },
+  { key: 'settings', selector: '[data-tour="nav-settings"]' },
 ]
 
 export function isTourDone(): boolean {

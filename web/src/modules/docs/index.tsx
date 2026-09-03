@@ -7,6 +7,7 @@ import { DocsListPage } from './DocsListPage'
 
 export * from './api'
 export { DocPanel } from './DocPanel'
+export { DocActions } from './DocActions'
 export { DiffView, DiffStatBadge } from './DiffView'
 export { LineageGraph, layout } from './LineageGraph'
 export { DocsListPage, DocDetailPage, DocModePage }
@@ -28,6 +29,13 @@ const zhTW = {
     diffLatest: '與最新比',
     revertTo: '還原到此版',
     fork: '分出一份',
+    archive: '封存',
+    archiveHint: '收起來不刪：清單預設不顯示，隨時可取消封存',
+    unarchive: '取消封存',
+    deleteHint: '刪掉版本紀錄與血緣；工作區裡的檔案會留著',
+    confirmDelete: '確定刪除「{{title}}」？版本紀錄與血緣會一起刪掉，工作區裡的檔案會保留。',
+    showArchived: '顯示封存（{{n}}）',
+    hideArchived: '隱藏封存',
     updatedAt: '更新於',
     driftShort: '檔案已被外部改動',
     status: { draft: '草稿', review: '審核中', final: '定稿', archived: '封存' },
@@ -89,6 +97,13 @@ const en = {
     diffLatest: 'Diff latest',
     revertTo: 'Revert to this',
     fork: 'Fork',
+    archive: 'Archive',
+    archiveHint: 'Hide without deleting; hidden from the list by default, can be unarchived anytime',
+    unarchive: 'Unarchive',
+    deleteHint: 'Deletes versions and lineage; the file in the workspace is kept',
+    confirmDelete: 'Delete "{{title}}"? Versions and lineage go with it; the workspace file is kept.',
+    showArchived: 'Show archived ({{n}})',
+    hideArchived: 'Hide archived',
     updatedAt: 'updated',
     driftShort: 'file changed outside',
     status: { draft: 'Draft', review: 'In review', final: 'Final', archived: 'Archived' },
@@ -141,8 +156,8 @@ const mod: StudioModule = {
     { path: '/doc-mode', element: <DocModePage /> },
   ],
   nav: [
-    { to: '/doc-mode', key: 'docMode', order: 6, icon: 'FileText', group: 'work' },
-    { to: '/docs', key: 'docs', order: 7, icon: 'Folder', group: 'work' },
+    { to: '/doc-mode', key: 'docMode', order: 11, icon: 'FileText', group: 'chat' },
+    { to: '/docs', key: 'docs', order: 23, icon: 'Folder', group: 'work' },
   ],
   i18n: { 'zh-TW': zhTW, en },
 }

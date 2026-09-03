@@ -73,3 +73,29 @@ def test_session_preview_is_truncated_not_unbounded(client, auth, app):
         db.commit()
     prev = next(x for x in client.get("/sessions", headers=auth).json() if x["id"] == s["id"])["preview"]
     assert len(prev) == PREVIEW_CHARS and prev.endswith("…")
+
+
+def test_session_list_result_prefers_doc_version_written_by_this_session(client, auth, app):
+    """文件模式：這個對話寫出過版本 → 結果行講「文件已更新到 vN」，不講回覆本文。"""
+    from sqlmodel import Session as DbSession
+
+    from studio.models import Message
+    from studio.modules.docs.models import Doc, DocVersion
+
+    aid = _agent_id(client, auth)
+    a = client.post("/sessions", json={"agent_id": aid}, headers=auth).json()
+    b = client.post("/sessions", json={"agent_id": aid}, headers=auth).json()
+    with DbSession(app.state.engine) as db:
+        db.add(Doc(id="doc_x", company_id="c", title="規格書", path="x.md"))
+        db.add(DocVersion(doc_id="doc_x", version=2, session_id=a["id"]))
+        db.add(DocVersion(doc_id="doc_x", version=3, session_id=a["id"]))
+        db.add(DocVersion(doc_id="doc_x", version=4, session_id="s_other"))  # 別的對話寫的不算
+        db.add(Message(session_id=a["id"], role="assistant", content="已更新規格書"))
+        db.add(Message(session_id=b["id"], role="assistant", content="# 一般回覆\n細節"))
+        db.commit()
+        from studio.models import ChatSession
+        sa = db.get(ChatSession, a["id"]); sa.doc_id = "doc_x"; db.add(sa); db.commit()
+
+    by_id = {s["id"]: s for s in client.get("/sessions", headers=auth).json()}
+    assert by_id[a["id"]]["result"] == "文件已更新到 v3" and by_id[a["id"]]["result_kind"] == "doc"
+    assert by_id[b["id"]]["result"] == "一般回覆" and by_id[b["id"]]["result_kind"] == "ok"

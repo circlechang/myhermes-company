@@ -40,6 +40,8 @@ log = logging.getLogger("studio.workflows.engine")
 
 DONE = {"completed", "failed", "skipped", "reused", "stopped", "outcome_unknown"}
 TERMINAL_RUN = {"completed", "failed", "stopped", "timeout", "budget_exceeded", "needs_attention"}
+TRY_TRIGGER = "try"  # 試跑這一站：不進「上一次的產出」、不能當重跑父 run
+NOT_TRIABLE_KINDS = {"gate", "condition", "loop"}  # 沒有上游邊就沒意義的站
 SYSTEM_PROMPT = ("你在執行工作流「{wf}」的節點「{node}」。只做本節點任務，不要重做上游已完成的工作；"
                  "直接輸出可交給下游使用的結果，不要寒暄。")
 
@@ -178,13 +180,22 @@ class WorkflowEngine:
 
     # ------------------------------------------------------------------ public
     async def start(self, wf: Workflow, *, member_id: str, trigger: str = "manual", input: Optional[dict[str, Any]] = None,
-                    parent: Optional[WorkflowRun] = None, from_node: Optional[str] = None, force: bool = False) -> WorkflowRun:
+                    parent: Optional[WorkflowRun] = None, from_node: Optional[str] = None, force: bool = False,
+                    only_node: Optional[str] = None) -> WorkflowRun:
+        if parent is not None and parent.trigger == TRY_TRIGGER:
+            # 試跑的快照只有一站、也沒有邊，拿來當父 run 會讓效果快取／沿用邏輯全錯
+            raise ValueError("試跑（try）不能當重跑的父 run")
         snapshot = {"workflow_id": wf.id, "name": wf.name, "profile": wf.profile, "version": wf.version,
                     "nodes": json.loads(wf.nodes_json), "edges": json.loads(wf.edges_json),
                     "viewport": json.loads(wf.viewport_json or "{}"), "budget": json.loads(wf.budget_json or "{}")}
         if parent is not None:  # rerun keeps the parent's frozen graph
             psnap = json.loads(parent.snapshot_json)
             snapshot.update({k: psnap[k] for k in ("nodes", "edges", "viewport", "budget", "version") if k in psnap})
+        if only_node is not None:  # 試跑這一站：快照只留這一站、不留邊；上游結果由 input["upstream"] 帶進來
+            snapshot["nodes"] = [n for n in snapshot["nodes"] if str(n.get("id")) == only_node]
+            snapshot["edges"] = []
+            if not snapshot["nodes"]:
+                raise ValueError(f"工作流裡沒有節點 {only_node}")
         run = WorkflowRun(company_id=wf.company_id, workflow_id=wf.id, workflow_name=wf.name, status="running", trigger=trigger,
                           snapshot_json=json.dumps(snapshot, ensure_ascii=False), input_json=json.dumps(input or {}, ensure_ascii=False),
                           created_by=member_id, parent_run_id=parent.id if parent else "", started_at=now())
@@ -484,6 +495,12 @@ class WorkflowEngine:
             out = ctx.states[src].get("output") or ""
             parts.append(f"### {ctx.nodes[src].get('title') or src}\n{out}".strip())
         if not parts and not ctx.incoming(nid, include_loop_back=True):
+            # 試跑這一站：input["upstream"] 是上一次正式執行的上游輸出，排版跟真正接了邊時一模一樣
+            ups = ctx.input.get("upstream") if isinstance(ctx.input, dict) else None
+            if isinstance(ups, list):
+                for u in ups:
+                    if isinstance(u, dict) and u.get("output"):
+                        parts.append(f"### {u.get('title') or u.get('node_id') or '上游'}\n{u['output']}".strip())
             payload = ctx.input.get("payload") if isinstance(ctx.input, dict) else None
             text = ctx.input.get("text") if isinstance(ctx.input, dict) else None
             if text:

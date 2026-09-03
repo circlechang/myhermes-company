@@ -79,6 +79,10 @@ export interface Session {
   updated_at: string
   last_message_at?: string
   source?: string
+  run_status?: string
+  /** 側欄一行結果（後端算好）與它的種類：ok | failed | doc | "" */
+  result?: string
+  result_kind?: string
 }
 
 export type MessageRole = 'user' | 'assistant' | 'tool'
@@ -116,7 +120,7 @@ export interface WorkflowNode {
   skills?: string[]
   prompt?: string
   attachments?: string[]
-  kind: 'agent' | 'gate' | 'condition'
+  kind: 'agent' | 'hermes' | 'coding-agent' | 'gate' | 'condition' | 'loop' | 'delivery'
 }
 
 export interface WorkflowEdge {
@@ -178,3 +182,24 @@ export type WsServerEvent =
   | (WsBase & { type: 'run.failed'; error: string })
   | (WsBase & { type: 'run.cancelled' })
   | (WsBase & { type: string; [k: string]: unknown })
+
+/** 人事檔案：AI 員工最近 N 天做了什麼、花了多少、被退回幾次（GET /agents/{id}/dossier） */
+export type DossierKind = 'chat' | 'workflow' | 'doc'
+export interface DossierRecent {
+  kind: DossierKind
+  title: string
+  at: string | null
+  status: string
+  link: string
+}
+export interface AgentDossier {
+  agent_id: string
+  days: number
+  since: string
+  chat: { sessions: number; messages: number }
+  workflow: { node_runs: number; completed: number; failed: number; workflows: { workflow_name: string; count: number }[] }
+  usage: { input_tokens: number; output_tokens: number; total_tokens: number; cost_usd: number }
+  approvals: { requested: number; approved: number; rejected: number }
+  docs: { versions: number; docs: number }
+  recent: DossierRecent[]
+}

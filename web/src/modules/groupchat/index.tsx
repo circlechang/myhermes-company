@@ -43,7 +43,7 @@ const en = {
 const mod: StudioModule = {
   name: 'groupchat',
   routes: [{ path: '/groupchat', element: <GroupChatPage /> }],
-  nav: [{ to: '/groupchat', key: 'groupchat', order: 20, group: 'work', icon: 'MessageSquare' }],
+  nav: [{ to: '/groupchat', key: 'groupchat', order: 12, group: 'chat', icon: 'MessageSquare' }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

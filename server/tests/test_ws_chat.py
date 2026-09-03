@@ -145,7 +145,8 @@ def test_ws_approval_lands_in_inbox_and_chat_decision_resolves_it(client, auth, 
         ws2.receive_text()
         ws2.send_text(json.dumps({"type": "approval", "run_id": run_id, "decision": "deny"}))
         err = json.loads(ws2.receive_text())
-    assert err["type"] == "error" and err["code"] == "unknown_run"  # run 已結束，這條 WS 也不持有它
+    # run 已結束、這條 WS 也不持有它，但收件匣有決定紀錄 → 回 already_decided（不是 unknown_run），對話頁才不會卡在等決定
+    assert err["type"] == "approval.ack" and err["already_decided"] is True and err["decision"] == "once"
     assert gw_state.approvals == [(run_id, "once")]
 
 
@@ -189,3 +190,42 @@ def test_ws_subagent_events_forwarded_and_persisted(client, auth, token, gw_stat
     msgs = client.get(f"/sessions/{sid}/messages", headers=auth).json()
     sub = [m for m in msgs if m["role"] == "tool" and m["tool_name"] == "subagent"]
     assert len(sub) == 1 and sub[0]["tool_args"]["goal"] == "查資料" and sub[0]["tool_result"]["summary"] == "找到 3 筆"
+
+
+def test_ws_first_message_becomes_title_and_reply_becomes_result(client, auth, token, gw_state):
+    """側欄不再一排「與 default 的對話」：第一句話當標題、最後回覆第一行當結果。"""
+    sid = _mk_session(client, auth)
+    assert client.get(f"/sessions/{sid}", headers=auth).json()["title"] == "與 default 的對話"
+    long_text = "幫我整理" + "資" * 40
+    with client.websocket_connect(f"/ws/chat?token={token}") as ws:
+        ws.receive_text()
+        ws.send_text(json.dumps({"type": "run", "session_id": sid, "input": long_text}))
+        _collect(ws)
+        ws.send_text(json.dumps({"type": "run", "session_id": sid, "input": "第二句不該改標題"}))
+        _collect(ws)
+    s = next(x for x in client.get("/sessions", headers=auth).json() if x["id"] == sid)
+    assert s["title"] == long_text[:29] + "…" and len(s["title"]) == 30
+    assert s["result"] == "echo[default|h=2]: 第二句不該改標題"
+    assert s["run_status"] == "completed"
+
+
+def test_ws_human_title_survives_run(client, auth, token, gw_state):
+    sid = _mk_session(client, auth)
+    client.patch(f"/sessions/{sid}", json={"title": "Q3 董事會"}, headers=auth)
+    with client.websocket_connect(f"/ws/chat?token={token}") as ws:
+        ws.receive_text()
+        ws.send_text(json.dumps({"type": "run", "session_id": sid, "input": "幫我整理"}))
+        _collect(ws)
+    assert client.get(f"/sessions/{sid}", headers=auth).json()["title"] == "Q3 董事會"
+
+
+def test_ws_failed_run_shows_failed_result(client, auth, token, gw_state):
+    gw_state.scenario = "failed"
+    sid = _mk_session(client, auth)
+    with client.websocket_connect(f"/ws/chat?token={token}") as ws:
+        ws.receive_text()
+        ws.send_text(json.dumps({"type": "run", "session_id": sid, "input": "會失敗的任務"}))
+        _collect(ws)
+    s = next(x for x in client.get("/sessions", headers=auth).json() if x["id"] == sid)
+    assert s["title"] == "會失敗的任務" and s["run_status"] == "failed"
+    assert s["result"].startswith("失敗")

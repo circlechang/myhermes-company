@@ -9,6 +9,11 @@ export interface LiveRun {
   error?: string
   usage?: RunDetail['usage']
   log: { ts: string; text: string }[]
+  /** 「最近一次」分頁的頭一行要講幾點開始、幾點完成；WS 進來時用事件時間補 */
+  startedAt?: string | null
+  finishedAt?: string | null
+  createdAt?: string | null
+  trigger?: string
 }
 
 export const TERMINAL: RunStatus[] = ['completed', 'failed', 'stopped', 'timeout', 'budget_exceeded', 'needs_attention']
@@ -23,6 +28,10 @@ export function fromDetail(d: RunDetail): LiveRun {
   live.status = d.status
   live.error = d.error
   live.usage = d.usage
+  live.startedAt = d.started_at ?? d.created_at
+  live.finishedAt = d.finished_at
+  live.createdAt = d.created_at
+  live.trigger = d.trigger
   for (const [k, v] of Object.entries(d.node_states)) live.nodes[k] = { ...v }
   for (const a of d.approvals) if (a.status === 'pending') live.pendingApprovals[a.node_id] = { approval_id: a.id, payload: a.payload }
   return live
@@ -37,10 +46,19 @@ export function applyWsEvent(s: LiveRun, ev: WfWsEvent): LiveRun {
   const cur = (id: string) => nodes[id] ?? { status: 'pending' as const }
   switch (ev.type) {
     case 'run.status':
-      return { ...s, status: ev.status as RunStatus, error: ev.error || s.error, usage: ev.usage ?? s.usage, log: [...s.log, { ts, text: `run ${ev.status}${ev.error ? `：${ev.error}` : ''}` }] }
+      return {
+        ...s,
+        status: ev.status as RunStatus,
+        error: ev.error || s.error,
+        usage: ev.usage ?? s.usage,
+        startedAt: s.startedAt ?? (ev.status === 'running' ? ts : s.startedAt),
+        finishedAt: isTerminal(ev.status) ? ts : s.finishedAt,
+        log: [...s.log, { ts, text: `run ${ev.status}${ev.error ? `：${ev.error}` : ''}` }],
+      }
     case 'node.status': {
       const id = ev.node_id!
       const prev = cur(id)
+      const ended = ev.status === 'completed' || ev.status === 'failed' || ev.status === 'reused' || ev.status === 'skipped'
       nodes[id] = {
         ...prev,
         status: ev.status as NodeState['status'],
@@ -50,6 +68,9 @@ export function applyWsEvent(s: LiveRun, ev: WfWsEvent): LiveRun {
         usage: ev.usage ?? prev.usage,
         reason: ev.reason,
         streaming: ev.status === 'running' ? '' : prev.streaming,
+        // 每步花多久：後端事件沒帶時間就用收到的時間
+        started_at: ev.status === 'running' ? ts : prev.started_at,
+        finished_at: ended ? ts : prev.finished_at,
       }
       const approvals = { ...s.pendingApprovals }
       if (ev.status !== 'waiting_approval') delete approvals[id]

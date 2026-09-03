@@ -1,4 +1,4 @@
-// 待辦收件匣：聚合工作流閘門／對話危險指令／看板 blocked／群聊 @ 我／上限超額，一頁處理。
+// 待辦收件匣：聚合流程等你看／對話危險指令／看板 blocked／群聊 @ 我／上限超額，一頁處理。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,7 +52,8 @@ function fmtTime(s: string | null) {
   return isNaN(d.getTime()) ? s : d.toLocaleString()
 }
 
-function Item({ it, onDone }: { it: InboxItem; onDone: () => void }) {
+/** 單筆待辦列；/today 的「等你決定」也用這一個，避免兩套核准按鈕 */
+export function InboxRow({ it, onDone }: { it: InboxItem; onDone: () => void }) {
   const { t } = useTranslation()
   const nav = useNavigate()
   const [comment, setComment] = useState('')
@@ -138,7 +139,7 @@ export function InboxPage() {
       {q.isLoading && <Loading />}
       {q.error && <ErrorBox error={q.error} onRetry={() => q.refetch()} />}
       {q.data && items.length === 0 && <EmptyState testId="empty-inbox" title={t('guide.empty.inbox.title')} body={t('guide.empty.inbox.body')} action={{ label: t('guide.empty.inbox.action'), to: '/workflows' }} />}
-      <ul className="space-y-2">{items.map((it) => <Item key={it.id} it={it} onDone={refresh} />)}</ul>
+      <ul className="space-y-2">{items.map((it) => <InboxRow key={it.id} it={it} onDone={refresh} />)}</ul>
     </div>
   )
 }
@@ -146,10 +147,10 @@ export function InboxPage() {
 const zhTW = {
   nav: { inbox: '收件匣' },
   inbox: {
-    title: '待辦收件匣', subtitle: '所有需要人決定的事：工作流閘門、對話危險指令、看板卡住、群聊點名、用量超額', refresh: '重新整理',
+    title: '待辦收件匣', subtitle: '所有需要人決定的事：流程等你看、對話危險指令、看板卡住、群聊點名、用量超額', refresh: '重新整理',
     all: '全部', empty: '沒有待辦，太好了。', more: '展開', less: '收合', comment: '意見', commentPh: '核准／退回意見（選填）',
     approve: '核准', reject: '退回', done: '已處理', goto: '前往',
-    kind: { workflow_gate: '工作流閘門', chat_approval: '危險指令', kanban_blocked: '看板卡住', groupchat_mention: '群聊點名', limit_exceeded: '用量超額', notice: '通知' },
+    kind: { workflow_gate: '流程等你看', chat_approval: '危險指令', kanban_blocked: '看板卡住', groupchat_mention: '群聊點名', limit_exceeded: '用量超額', notice: '通知' },
     decision: { once: '允許一次', session: '本次對話允許', always: '永遠允許', deny: '拒絕' },
   },
 }
@@ -167,7 +168,7 @@ const en = {
 const mod: StudioModule = {
   name: 'inbox',
   routes: [{ path: '/inbox', element: <InboxPage /> }],
-  nav: [{ to: '/inbox', key: 'inbox', order: 15, group: 'work', icon: 'Inbox' }],
+  nav: [{ to: '/inbox', key: 'inbox', order: 20, group: 'work', icon: 'Inbox' }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

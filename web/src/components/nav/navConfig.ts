@@ -3,11 +3,11 @@ import { moduleNav, groupNav } from '../../modules/registry'
 
 /** App.tsx 內建頁面（非模組）的導覽項 */
 export const baseNav: NavItem[] = [
-  { to: '/', key: 'workbench', group: 'work', icon: 'LayoutDashboard', order: 10 },
-  { to: '/workflows', key: 'workflows', group: 'work', icon: 'Workflow', order: 30 },
-  { to: '/kanban', key: 'kanban', group: 'work', icon: 'KanbanSquare', order: 40 },
-  { to: '/agents', key: 'agents', group: 'agents', icon: 'Bot', order: 10 },
-  { to: '/settings', key: 'settings', group: 'system', icon: 'Settings', order: 99 },
+  { to: '/workbench', key: 'workbench', group: 'chat', icon: 'LayoutDashboard', order: 10 },
+  { to: '/workflows', key: 'workflows', group: 'work', icon: 'Workflow', order: 21 },
+  { to: '/kanban', key: 'kanban', group: 'work', icon: 'KanbanSquare', order: 22 },
+  { to: '/agents', key: 'agents', group: 'agents', icon: 'Bot', order: 30 },
+  { to: '/settings', key: 'settings', group: 'settings', icon: 'Settings', order: 90 },
 ]
 
 export const allNav: NavItem[] = [...baseNav, ...moduleNav]
@@ -24,4 +24,4 @@ export function activeNavItem(pathname: string, items: NavItem[] = allNav): NavI
 }
 
 /** g 之後的第二鍵 → 路徑 */
-export const GO_KEYS: Record<string, string> = { w: '/', a: '/agents', k: '/kanban', f: '/workflows' }
+export const GO_KEYS: Record<string, string> = { t: '/today', w: '/workbench', a: '/agents', k: '/kanban', f: '/workflows' }

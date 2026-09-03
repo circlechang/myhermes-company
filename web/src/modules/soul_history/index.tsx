@@ -172,7 +172,7 @@ const en = {
 const mod: StudioModule = {
   name: 'soul_history',
   routes: [{ path: '/soul-history', element: <SoulHistoryPage /> }],
-  nav: [{ to: '/soul-history', key: 'soulHistory', order: 47 }],
+  nav: [{ to: '/soul-history', key: 'soulHistory', order: 99, group: 'settings', icon: 'ScrollText', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

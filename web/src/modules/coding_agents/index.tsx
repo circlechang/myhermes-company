@@ -38,7 +38,7 @@ const en = {
 const mod: StudioModule = {
   name: 'coding_agents',
   routes: [{ path: '/coding', element: <CodingPage /> }],
-  nav: [{ to: '/coding', key: 'coding', order: 60, group: 'work', icon: 'Code2' }],
+  nav: [{ to: '/coding', key: 'coding', order: 25, group: 'work', icon: 'Code2' }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

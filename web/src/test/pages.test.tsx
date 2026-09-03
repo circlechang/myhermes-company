@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { App } from '../App'
 import { mockHermesStatus } from '../mock/data'
 import { renderApp, setupMocks } from './utils'
+import { setEngineerMode } from '../prefs/engineerMode'
 
 describe('其他頁面（mock）', () => {
   beforeEach(() => setupMocks({ loggedIn: true }))
@@ -11,6 +12,7 @@ describe('其他頁面（mock）', () => {
     renderApp(<App />, { route: '/agents' })
     const user = userEvent.setup()
     await user.click(await screen.findByText('研究員'))
+    await user.click(await screen.findByTestId('agent-tab-soul'))  // 預設分頁是人事檔案
     const ta = (await screen.findByLabelText('SOUL.md')) as HTMLTextAreaElement
     await waitFor(() => expect(ta.value).toContain('你先找證據'))
     await user.type(ta, '\n- 新規則')
@@ -32,32 +34,40 @@ describe('其他頁面（mock）', () => {
     expect(await within(screen.getByTestId('col-done')).findByText('寫 LINE 週報文案')).toBeInTheDocument()
   })
 
-  it('工作流：清單顯示既有流程，建立先選範本、選完進生產線視圖', async () => {
+  it('流程：清單一條一張卡，選範本建立、新流程沒跑過就落在「怎麼跑」、步驟預設收起', async () => {
     renderApp(<App />, { route: '/workflows' })
     const user = userEvent.setup()
     expect(await screen.findByText('每日熱點內容產線')).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: /建立工作流/ }))
-    // 先選範本（不是直接丟一張空白畫布）
+    // 「等你確認」不再是這頁的按鈕
+    expect(screen.queryByRole('link', { name: /等你確認|等我看/ })).toBeNull()
+    await user.click(await screen.findByRole('button', { name: /選範本/ }))
     await user.click(await screen.findByTestId('template-content'))
-    await user.type(screen.getByLabelText('這條線叫什麼'), '測試流程')
+    await user.type(screen.getByLabelText('這條流程叫什麼'), '測試流程')
     await user.click(screen.getByTestId('template-create'))
     const nameInput = (await screen.findByLabelText('名稱')) as HTMLInputElement
     expect(nameInput.value).toBe('測試流程')
-    // 預設是生產線視圖：三張站卡，中間那站是「等我確認」
+    // 沒跑過 → 怎麼跑；三步都收成一行，中間那步是「你」
     expect(await screen.findByTestId('stations-view')).toBeInTheDocument()
+    expect(screen.getByTestId('station-s1')).toHaveAttribute('data-expanded', '0')
+    expect(screen.getByTestId('station-s2-summary')).toHaveTextContent('你')
+    await user.click(screen.getByTestId('station-s1-row'))
     expect(screen.getByTestId('station-s1-title')).toHaveValue('找題材')
-    expect(screen.getByTestId('station-s2-title')).toHaveValue('等我確認')
-    expect(screen.getByTestId('station-s3-title')).toHaveValue('寫成文章')
   })
 
-  it('Hermes 狀態頁', async () => {
+  it('設定頁：工程師模式開才看得到 Hermes 狀態', async () => {
+    setEngineerMode(false)
     renderApp(<App />, { route: '/settings' })
+    expect(await screen.findByTestId('engineer-mode-toggle')).not.toBeChecked()
+    expect(screen.queryByTestId('settings-hermes-status')).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByTestId('engineer-mode-toggle'))
+    expect(await screen.findByTestId('settings-hermes-status')).toBeInTheDocument()
     expect(await screen.findByText('0.20.5')).toBeInTheDocument()
     expect(screen.getByText('researcher')).toBeInTheDocument()
     expect(screen.getByText('正常')).toBeInTheDocument()
   })
 
-  it('Hermes 狀態頁：key 被拒時顯示「API key 錯誤」而不是「無法連線」', async () => {
+  it('設定頁：key 被拒時顯示「API key 錯誤」橫幅，工程師模式關著也看得到', async () => {
+    setEngineerMode(false)
     mockHermesStatus.gateway_ok = false
     mockHermesStatus.auth_error = true
     try {

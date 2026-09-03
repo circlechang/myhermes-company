@@ -7,6 +7,7 @@ import { setFetchImpl } from '../../api/client'
 import { mockFetch } from '../../mock/fetch'
 import { renderApp, setupMocks } from '../../test/utils'
 import { DocDetailPage } from './DocDetailPage'
+import { DocModePage } from './DocModePage'
 import { DocPanel } from './DocPanel'
 import { DocsListPage } from './DocsListPage'
 import { LineageGraph, layout } from './LineageGraph'
@@ -32,6 +33,7 @@ const doc = (): Doc => ({
 let docOverride: Doc | null = null
 
 const other: Doc = { ...doc(), id: 'doc_2', title: '出貨規格', status: 'final', stage: 'final', origin: 'workflow', latest_version: 5, drift: false }
+const archivedDoc: Doc = { ...doc(), id: 'doc_3', title: '舊版報價', status: 'archived', stage: '', origin: 'upload', latest_version: 1, drift: false }
 
 const lineage: Lineage = {
   root: 'doc_1',
@@ -54,12 +56,14 @@ function fakeFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Re
   calls.push({ method, path: full, body: typeof init.body === 'string' ? JSON.parse(init.body) : undefined })
   if (p === '/docs' && method === 'GET') {
     const q = new URLSearchParams(query)
-    let rows = [doc(), other]
+    let rows = [doc(), other, archivedDoc]
     if (q.get('status')) rows = rows.filter((d) => d.status === q.get('status'))
     if (q.get('origin')) rows = rows.filter((d) => d.origin === q.get('origin'))
     return Promise.resolve(ok(rows))
   }
   if (p === '/docs' && method === 'POST') return Promise.resolve(ok({ ...doc(), id: 'doc_new', title: '新規格' }, 201))
+  if (p === '/docs/doc_1' && method === 'PATCH') return Promise.resolve(ok({ ...doc(), ...(typeof init.body === 'string' ? JSON.parse(init.body) : {}) }))
+  if (p === '/docs/doc_1' && method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }))
   if (p === '/docs/doc_1') return Promise.resolve(ok(docOverride ?? doc()))
   if (p === '/docs/doc_1/versions' && method === 'GET') return Promise.resolve(ok(versions))
   if (p === '/docs/doc_1/versions/1') return Promise.resolve(ok({ ...versions[1], content: V1 }))
@@ -111,6 +115,51 @@ describe('DocsListPage', () => {
     await userEvent.type(screen.getByTestId('new-doc-title'), '出貨規格')
     await userEvent.click(screen.getByTestId('new-doc'))
     await waitFor(() => expect(calls.find((c) => c.path === '/docs' && c.method === 'POST')?.body).toEqual({ title: '出貨規格' }))
+  })
+
+  it('封存＝把狀態改成 archived；封存的那份顯示「取消封存」', async () => {
+    renderApp(<DocsListPage />)
+    await screen.findByTestId('doc-doc_1')
+    await userEvent.click(screen.getByTestId('doc-archive-doc_1'))
+    await waitFor(() => expect(calls.find((c) => c.path === '/docs/doc_1' && c.method === 'PATCH')?.body).toEqual({ status: 'archived' }))
+    expect(screen.getByTestId('doc-archive-doc_3')).toHaveTextContent('取消封存')
+    await userEvent.click(screen.getByTestId('doc-archive-doc_3'))
+    await waitFor(() => expect(calls.find((c) => c.path === '/docs/doc_3' && c.method === 'PATCH')?.body).toEqual({ status: 'draft' }))
+  })
+
+  it('刪除要先確認；取消就不打 API，確認才 DELETE', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    renderApp(<DocsListPage />)
+    await userEvent.click(await screen.findByTestId('doc-delete-doc_1'))
+    expect(calls.find((c) => c.method === 'DELETE')).toBeUndefined()
+    await userEvent.click(screen.getByTestId('doc-delete-doc_1'))
+    await waitFor(() => expect(calls.find((c) => c.path === '/docs/doc_1' && c.method === 'DELETE')).toBeTruthy())
+    expect(confirmSpy).toHaveBeenLastCalledWith(expect.stringContaining('登入規格'))
+    confirmSpy.mockRestore()
+  })
+})
+
+describe('DocModePage', () => {
+  it('封存的文件預設不在左欄，按「顯示封存」才出現；每列都有封存／刪除', async () => {
+    renderApp(<DocModePage />)
+    await screen.findByTestId('doc-pick-doc_1')
+    expect(screen.queryByTestId('doc-pick-doc_3')).not.toBeInTheDocument()
+    expect(screen.getByTestId('doc-actions-doc_1')).toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('doc-mode-toggle-archived'))
+    expect(screen.getByTestId('doc-pick-doc_3')).toBeInTheDocument()
+    expect(screen.getByTestId('doc-archive-doc_3')).toHaveTextContent('取消封存')
+    await userEvent.click(screen.getByTestId('doc-mode-toggle-archived'))
+    await waitFor(() => expect(screen.queryByTestId('doc-pick-doc_3')).not.toBeInTheDocument())
+  })
+
+  it('刪掉正在看的文件後，中央面板回到「先選一份文件」', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderApp(<DocModePage />, { route: '/doc-mode?doc=doc_1' })
+    await screen.findByTestId('doc-panel')
+    await userEvent.click(await screen.findByTestId('doc-delete-doc_1'))
+    await waitFor(() => expect(calls.find((c) => c.path === '/docs/doc_1' && c.method === 'DELETE')).toBeTruthy())
+    await waitFor(() => expect(screen.queryByTestId('doc-panel')).not.toBeInTheDocument())
+    expect(screen.getAllByText('先選一份文件').length).toBeGreaterThan(0)
   })
 })
 

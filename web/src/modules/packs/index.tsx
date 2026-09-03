@@ -11,7 +11,7 @@ const mod: StudioModule = {
     { path: '/packs', element: <PacksPage /> },
     { path: '/packs/:name', element: <StageBoard /> },
   ],
-  nav: [{ to: '/packs', key: 'packs', order: 18, group: 'work', icon: 'Puzzle' }],
+  nav: [{ to: '/packs', key: 'packs', order: 24, group: 'work', icon: 'Puzzle' }],
   i18n: { 'zh-TW': { nav: { packs: zhTW.packs.nav }, ...zhTW }, en: { nav: { packs: en.packs.nav }, ...en } },
 }
 export default mod

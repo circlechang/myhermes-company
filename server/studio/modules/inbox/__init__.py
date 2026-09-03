@@ -132,11 +132,12 @@ def mark_decided(*, run_id: str, approval_id: str = "", decision: str, member_id
     return out
 
 
-async def _notify_chat(run_id: str, approval_id: str, decision: str) -> None:
-    """收件匣決定後，把 approval.responded 推回還開著的對話 WS（chat_ws 提供 registry）。"""
+async def _notify_chat(run_id: str, approval_id: str, decision: str, *, session_id: str = "", member_id: str = "") -> None:
+    """收件匣決定後，把 approval.responded 推回還開著的對話 WS（chat_ws 提供 registry）。
+    run 已經結束時用 session／成員退而求其次，對話頁才不會停在「等你決定」。"""
     try:
         from ...api.chat_ws import notify_approval_decided
-        await notify_approval_decided(run_id, approval_id, decision)
+        await notify_approval_decided(run_id, approval_id, decision, session_id=session_id, member_id=member_id)
     except Exception as e:
         log.debug("notify chat skipped: %s", e)
 
@@ -347,6 +348,15 @@ async def resolve_approval(pa_id: str, body: ResolveBody, request: Request, p: P
         raise bad_request("decision 需為 once|session|always|deny", "bad_decision")
     if a.status != "pending":
         raise ApiError(409, "already_decided", f"已於 {a.resolved_at} 決定：{a.decision}")
+    # 先落決定、先通知對話，最後才轉發 gateway：轉發後 run 可能瞬間跑完，對話 WS 就放掉這個 run，
+    # 那時再通知會找不到人送（曾讓 test_ws_chat 的收件匣測試偶發卡死）。
+    a.status = "resolved"
+    a.decision = body.decision
+    a.decided_by = p.member.id
+    a.resolved_at = now()
+    db.add(a)
+    db.commit()
+    await _notify_chat(a.run_id, a.approval_id or a.run_id, body.decision, session_id=a.session_id, member_id=a.member_id)
     forwarded = False
     if body.forward:
         gw = getattr(request.app.state, "gateway", None)
@@ -355,17 +365,10 @@ async def resolve_approval(pa_id: str, body: ResolveBody, request: Request, p: P
                 await gw.approve(a.agent or None, a.run_id, body.decision)
                 forwarded = True
             except Exception as e:
-                # run 可能已結束（對話頁先答了、或逾時）；仍記錄決定，讓收件匣清掉
+                # run 可能已結束（對話頁先答了、或逾時）；決定已記錄，收件匣照樣清掉
                 log.info("gateway approval forward failed for %s: %s", a.run_id, e)
-    a.status = "resolved"
-    a.decision = body.decision
-    a.decided_by = p.member.id
-    a.resolved_at = now()
-    db.add(a)
-    db.commit()
     _event("approval.decided", "chat", f"run:{a.run_id}", {"command": a.command, "forwarded": forwarded, "pending_id": a.id, "via": "inbox"},
            member_id=p.member.id, agent=a.agent, company_id=p.company_id, decision=body.decision)
-    await _notify_chat(a.run_id, a.approval_id or a.run_id, body.decision)
     return {"ok": True, "id": a.id, "decision": body.decision, "forwarded": forwarded}
 
 

@@ -194,7 +194,7 @@ const en = {
 const mod: StudioModule = {
   name: 'limits',
   routes: [{ path: '/limits', element: <LimitsPage /> }],
-  nav: [{ to: '/limits', key: 'limits', order: 45, group: 'system', icon: 'Activity' }],
+  nav: [{ to: '/limits', key: 'limits', order: 94, group: 'settings', icon: 'Activity', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

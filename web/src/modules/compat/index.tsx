@@ -363,7 +363,7 @@ HELP_PAGES.en.push({
 const mod: StudioModule = {
   name: 'compat',
   routes: [{ path: '/compat', element: <CompatPage /> }],
-  nav: [{ to: '/compat', key: 'compat', order: 62, group: 'system', icon: 'Puzzle' }],
+  nav: [{ to: '/compat', key: 'compat', order: 97.5, group: 'settings', icon: 'Puzzle', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

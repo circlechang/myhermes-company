@@ -19,6 +19,7 @@ import {
   addUserMessage, applyEvent, emptyChat, fromMessages, markApprovalDecided,
   type ChatItem, type ChatState,
 } from '../../ws/chatState'
+import { DocActions } from './DocActions'
 import { DocPanel, type PendingUpdate } from './DocPanel'
 import { docsApi, stripDocFence, useDocs, useDocSessions, type Doc } from './api'
 
@@ -36,6 +37,7 @@ export function DocModePage() {
   const [agentId, setAgentId] = useState<string | undefined>()
   const [pending, setPending] = useState<Record<string, PendingUpdate>>({})
   const [newTitle, setNewTitle] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
   const messagesQ = useChatMessages(sessionId)
 
   useEffect(() => {
@@ -99,6 +101,11 @@ export function DocModePage() {
     setParams(id ? { doc: id } : {}, { replace: true })
   }
 
+  // 封存的預設不進清單（正在看的那份例外，免得一按封存就從眼前消失）
+  const allDocs = docsQ.data ?? []
+  const archivedCount = allDocs.filter((d) => d.status === 'archived').length
+  const visibleDocs = showArchived ? allDocs : allDocs.filter((d) => d.status !== 'archived' || d.id === docId)
+
   const startChat = async () => {
     if (!agentId || !docId) return
     const s = await createSession.mutateAsync({ agent_id: agentId, doc_id: docId, title: docsQ.data?.find((d) => d.id === docId)?.title })
@@ -151,11 +158,11 @@ export function DocModePage() {
         {docsQ.error && <ErrorBox error={docsQ.error} onRetry={() => docsQ.refetch()} />}
         {docsQ.data?.length === 0 && <Empty text={t('docs.empty')} />}
         <ul className="space-y-0.5 px-2 pb-2">
-          {(docsQ.data ?? []).map((d) => (
-            <li key={d.id}>
+          {visibleDocs.map((d) => (
+            <li key={d.id} className={`group flex items-center gap-1 rounded-md ${d.id === docId ? 'bg-zinc-200 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/60'}`}>
               <button
                 type="button"
-                className={`w-full rounded-md px-2 py-1.5 text-left text-sm ${d.id === docId ? 'bg-zinc-200 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/60'}`}
+                className={`min-w-0 flex-1 px-2 py-1.5 text-left text-sm ${d.status === 'archived' ? 'opacity-60' : ''}`}
                 onClick={() => pickDoc(d.id)}
                 data-testid={`doc-pick-${d.id}`}
               >
@@ -164,9 +171,17 @@ export function DocModePage() {
                   v{d.latest_version ?? 0} · {t(`docs.status.${d.status}`)}
                 </span>
               </button>
+              <span className="pr-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                <DocActions doc={d} compact onDeleted={(id) => id === docId && pickDoc('')} />
+              </span>
             </li>
           ))}
         </ul>
+        {archivedCount > 0 && (
+          <button type="button" className="btn-ghost mx-2 mb-2 text-xs text-zinc-500" onClick={() => setShowArchived((v) => !v)} data-testid="doc-mode-toggle-archived">
+            {showArchived ? t('docs.hideArchived') : t('docs.showArchived', { n: archivedCount })}
+          </button>
+        )}
       </aside>
 
       {/* 中：文件（主角） */}

@@ -79,6 +79,27 @@ export const SOURCE_ICON: Record<string, string> = {
   workbench: '🖥', cli: '⌨️', telegram: '✈️', discord: '🎮', line: '💬', slack: '💼', whatsapp: '📱', workflow: '🔀', group: '👥', cron: '⏰', api_server: '🔌', tui: '⌨️',
 }
 
+/** 副標要顯示什麼：進行中 > 結果（失敗／文件／一般）> 開場白。一列只講一件事，老闆掃一眼就知道結局。 */
+export function subtitleOf(s: ChatSession): { kind: 'running' | 'ok' | 'failed' | 'doc' | 'preview'; text: string } | null {
+  if (s.running) return { kind: 'running', text: '' }
+  if (s.result) {
+    const k = s.result_kind || (s.run_status === 'failed' ? 'failed' : 'ok')
+    return { kind: k === 'failed' || k === 'doc' ? k : 'ok', text: s.result }
+  }
+  if (s.preview) return { kind: 'preview', text: s.preview }
+  return null
+}
+
+const RESULT_ICON: Record<'ok' | 'failed' | 'doc', string> = { ok: '✓', failed: '⚠', doc: '📄' }
+
+/** 一列的狀態：進行中／完成／失敗；沒跑過的不標 */
+export function statusOf(s: ChatSession): 'running' | 'done' | 'failed' | null {
+  if (s.running) return 'running'
+  if (s.run_status === 'failed' || s.result_kind === 'failed') return 'failed'
+  if (s.run_status === 'completed' || s.result_kind === 'ok' || s.result_kind === 'doc' || !!s.result) return 'done'
+  return null
+}
+
 export interface SidebarProps {
   sessions: ChatSession[]
   categories: Category[]
@@ -110,9 +131,11 @@ export function SessionSidebar(p: SidebarProps) {
   // 使用者點開才載入視野。undefined 代表「還沒動過」，才套預設值。
   const isCollapsed = (k: string) => collapsed[k] ?? k !== 'workbench'
   const [catFilter, setCatFilter] = useState<string>('')
+  const [onlyRunning, setOnlyRunning] = useState(false)
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const catById = useMemo(() => new Map(p.categories.map((c) => [c.id, c])), [p.categories])
-  const filtered = catFilter ? p.sessions.filter((s) => s.category_id === catFilter) : p.sessions
+  const runningCount = useMemo(() => p.sessions.filter((s) => s.running).length, [p.sessions])
+  const filtered = p.sessions.filter((s) => (!catFilter || s.category_id === catFilter) && (!onlyRunning || s.running))
   const groups = useMemo(() => groupSessions(filtered, (k) => t(`chat.source.${k}`, { defaultValue: k })), [filtered, t])
   // 一定要從 isCollapsed 取現值再反轉：直接 !c[k] 會把「還沒動過」的 undefined 反成 true，
   // 讓預設收合的群組第一次點擊沒反應。
@@ -122,6 +145,19 @@ export function SessionSidebar(p: SidebarProps) {
     <div className="flex min-h-0 flex-1 flex-col" data-testid="session-sidebar">
       <div className="flex items-center gap-1 px-2 pt-1">
         <div className="panel-title px-1">{t('workbench.sessions')}</div>
+        {runningCount > 0 && (
+          <button
+            type="button"
+            className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-medium ${onlyRunning ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-200'}`}
+            aria-pressed={onlyRunning}
+            title={t('workbench.onlyRunning')}
+            onClick={() => setOnlyRunning((v) => !v)}
+            data-testid="running-count"
+          >
+            <span className="chat-status-dot" data-status="running" aria-hidden />
+            {t('workbench.runningCount', { n: runningCount })}
+          </button>
+        )}
         <button type="button" className="btn-ghost ml-auto text-xs" onClick={p.onOpenSearch} title="Ctrl+K" aria-label={t('chat.search.open')}>🔍</button>
         <button type="button" className="btn-ghost text-xs" onClick={p.onNew} disabled={p.newDisabled}>+ {t('workbench.newSession')}</button>
       </div>
@@ -143,7 +179,8 @@ export function SessionSidebar(p: SidebarProps) {
               <span className="w-3 shrink-0 text-center">{isCollapsed(g.key) ? '▸' : '▾'}</span>
               <span className="shrink-0" aria-hidden>{SOURCE_ICON[g.key] ?? '•'}</span>
               <span className="min-w-0 truncate">{g.label}</span>
-              <span className="badge ml-auto bg-zinc-200 px-1 text-2xs font-normal dark:bg-zinc-700">{g.items.length}</span>
+              {g.items.some((s) => s.running) && <span className="badge ml-auto bg-indigo-100 px-1 text-2xs font-normal text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200">{t('workbench.runningCount', { n: g.items.filter((s) => s.running).length })}</span>}
+              <span className={`badge ${g.items.some((s) => s.running) ? '' : 'ml-auto'} bg-zinc-200 px-1 text-2xs font-normal dark:bg-zinc-700`}>{g.items.length}</span>
             </button>
             {!isCollapsed(g.key) && sectionsOf(g.items).map((sec) => (
               <div key={sec.key} data-testid={`time-${sec.key}`}>
@@ -154,13 +191,20 @@ export function SessionSidebar(p: SidebarProps) {
               return (
                 <div
                   key={s.id}
-                  className={`group relative flex cursor-pointer flex-col gap-0.5 rounded-md px-2 py-1.5 ${s.id === p.activeId ? 'bg-zinc-200 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/60'} ${s.archived ? 'opacity-60' : ''}`}
+                  className={`group relative flex cursor-pointer flex-col gap-0.5 rounded-md px-2 py-1.5 ${s.id === p.activeId ? 'bg-zinc-200 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/60'} ${s.archived ? 'opacity-60' : ''} ${s.running ? 'border-l-2 border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/30' : ''}`}
                   onClick={() => p.onSelect(s.id)}
                   data-testid="session-row"
                   data-running={s.running ? 'true' : undefined}
+                  data-status={statusOf(s) ?? undefined}
                 >
                   <div className="flex w-full items-center gap-1 text-sm">
-                  {s.running && <span className="chat-spinner shrink-0 text-indigo-500" aria-label={t('workbench.running')} data-testid="running-spinner" />}
+                  {(() => {
+                    const st = statusOf(s)
+                    if (st === 'running') return <span className="chat-spinner shrink-0 text-indigo-500" aria-label={t('workbench.statusRunning')} data-testid="running-spinner" />
+                    if (st === 'done') return <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400" title={t('workbench.statusDone')} data-testid="status-done">✓</span>
+                    if (st === 'failed') return <span className="shrink-0 text-xs text-rose-600 dark:text-rose-400" title={t('workbench.statusFailed')} data-testid="status-failed">⚠</span>
+                    return null
+                  })()}
                   <span className="min-w-0 flex-1 truncate" title={s.title || undefined}>{s.title || t('workbench.untitled')}</span>
                   {cat && <span className="badge px-1 text-2xs" style={{ background: cat.color || '#e4e4e7', color: '#111' }}>{cat.name}</span>}
                   {s.archived && <span className="shrink-0 whitespace-nowrap text-2xs text-zinc-600 dark:text-zinc-400">{t('chat.archived')}</span>}
@@ -172,7 +216,20 @@ export function SessionSidebar(p: SidebarProps) {
                     onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === s.id ? null : s.id) }}
                   >⋯</button>
                   </div>
-                  {s.preview && <div className="truncate text-2xs text-zinc-500 dark:text-zinc-500" data-testid="session-preview">{s.preview}</div>}
+                  {(() => {
+                    const sub = subtitleOf(s)
+                    if (!sub) return null
+                    const failed = sub.kind === 'failed'
+                    return (
+                      <div className={`flex min-w-0 items-center gap-1 text-2xs ${failed ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-500 dark:text-zinc-500'}`} data-testid="session-preview" data-result-kind={sub.kind}>
+                        {sub.kind === 'running' && <span className="chat-spinner shrink-0 text-indigo-500" aria-hidden />}
+                        {sub.kind !== 'running' && sub.kind !== 'preview' && (
+                          <span className="shrink-0" title={t(`workbench.result${sub.kind === 'ok' ? 'Ok' : sub.kind === 'doc' ? 'Doc' : 'Failed'}`)} aria-hidden>{RESULT_ICON[sub.kind]}</span>
+                        )}
+                        <span className="min-w-0 truncate">{sub.kind === 'running' ? t('workbench.running') : sub.text}</span>
+                      </div>
+                    )
+                  })()}
                   {menuFor === s.id && (
                     <div className="card absolute right-1 top-7 z-20 min-w-[10rem] py-1 text-xs shadow-lg" role="menu" onClick={(e) => e.stopPropagation()}>
                       <MenuItem onClick={() => { setMenuFor(null); p.onRename(s) }}>{t('chat.menu.rename')}</MenuItem>

@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
-from .api import agents, auth_api, chat_ws, companies, hermes_status, kanban, sessions, workflows
+from .api import agent_dossier, agents, auth_api, chat_ws, companies, hermes_status, kanban, sessions, workflows
 from . import modules as _modules
 from .config import Settings
 from .db import init_db, make_engine
@@ -65,7 +65,7 @@ def create_app(settings: Optional[Settings] = None, *, gateway: Optional[Gateway
     app.state.cli = cli
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
     install_error_handlers(app)
-    for r in (hermes_status.router, auth_api.router, companies.router, agents.router, sessions.router,
+    for r in (hermes_status.router, auth_api.router, companies.router, agents.router, agent_dossier.router, sessions.router,
               chat_ws.router, kanban.router, workflows.router):
         app.include_router(r)
     for m in loaded:

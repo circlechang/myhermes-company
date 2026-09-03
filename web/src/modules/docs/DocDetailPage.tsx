@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { PageHeader } from '../../components/PageHeader'
 import { Empty, ErrorBox, Loading } from '../../components/QueryState'
 import { DiffStatBadge, DiffView } from './DiffView'
+import { DocActions } from './DocActions'
 import { DocPanel } from './DocPanel'
 import { LineageGraph } from './LineageGraph'
 import { STATUS_ORDER, useDoc, useDocDiff, useDocMutations, useDocVersions, useLineage } from './api'
@@ -57,6 +58,7 @@ export function DocDetailPage() {
         >
           {t('docs.fork')}
         </button>
+        <DocActions doc={doc.data} onDeleted={() => nav('/docs')} />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_300px]">

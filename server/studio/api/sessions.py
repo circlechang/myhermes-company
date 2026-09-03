@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 from typing import Optional
 
+import re
+
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlmodel import Session, or_, select
 
 from ..auth import Principal, current_principal, get_db
@@ -16,6 +19,12 @@ router = APIRouter(tags=["sessions"])
 
 
 PREVIEW_CHARS = 80
+TITLE_CHARS = 30
+RESULT_CHARS = 60
+# 預設標題「與 {agent} 的對話」；只有這種標題才允許被自動改名，人改過的一律不動
+DEFAULT_TITLE_RE = re.compile(r"^與 .+ 的對話$")
+_MD_LEAD_RE = re.compile(r"^[\s#*\-+>`~|]+")
+_MD_INLINE_RE = re.compile(r"[`*_~]+")
 
 
 def _snippet(text: Optional[str], limit: int = PREVIEW_CHARS) -> str:
@@ -24,29 +33,118 @@ def _snippet(text: Optional[str], limit: int = PREVIEW_CHARS) -> str:
     return t if len(t) <= limit else t[: limit - 1] + "\u2026"
 
 
-def previews_for(db: Session, session_ids: list[str]) -> dict[str, str]:
-    """每個對話取「最早的一則使用者訊息」當預覽。
+def _first_line(text: Optional[str]) -> str:
+    """第一個非空白行（去掉行首 markdown 記號）。CJK 沒有詞界，全部以字元計。"""
+    for raw in (text or "").splitlines():
+        line = _MD_LEAD_RE.sub("", raw).strip()
+        if line:
+            return line
+    return ""
 
-    用最早而不是最新：標題重複時要回答的是「這個對話在講什麼」，開場白最能識別，
-    而且不會隨著對話變長而跳動。一次 IN 查詢取完，不要每列打一次 DB。
+
+def auto_title(text: str) -> str:
+    """把第一則使用者訊息變成側欄標題：第一行、去 markdown／斜線指令、收空白、30 字截斷。
+
+    純函式，方便單測；回空字串代表「沒東西可當標題」，呼叫端應保留原標題。
+    """
+    line = _first_line(text)
+    if line.startswith("/"):
+        # 「/model gpt-5 幫我看」→「gpt-5 幫我看」；整行只有指令就留指令名
+        m = re.match(r"^/\S*\s*(.*)$", line)
+        rest = (m.group(1) if m else "").strip()
+        line = rest or line.lstrip("/")
+    line = " ".join(_MD_INLINE_RE.sub("", line).split())
+    return _snippet(line, TITLE_CHARS)
+
+
+def is_default_title(title: Optional[str], agent_name: str = "") -> bool:
+    t = (title or "").strip()
+    return not t or t == f"與 {agent_name} 的對話" or bool(DEFAULT_TITLE_RE.match(t))
+
+
+def apply_auto_title(s: ChatSession, agent_name: str, text: str) -> bool:
+    """標題還是預設值時，用第一則使用者訊息改名（只會成功一次；工作流對話不動）。回 True 表示改了。"""
+    if (s.source or "") == "workflow" or not is_default_title(s.title, agent_name):
+        return False
+    t = auto_title(text)
+    if not t:
+        return False
+    s.title = t
+    return True
+
+
+def _result_line(text: Optional[str]) -> str:
+    """回覆的第一個非空行，去掉 markdown 記號，60 字。"""
+    return _snippet(_MD_INLINE_RE.sub("", _first_line(text)), RESULT_CHARS)
+
+
+def result_of(s: ChatSession, last_assistant: Optional[tuple[str, Optional[str]]], doc_version: Optional[int]) -> tuple[str, str]:
+    """側欄「一行結果」→ (kind, text)。kind ∈ failed | doc | ok | ""。優先序：失敗 > 文件更新 > 最後一則回覆 > 空。
+
+    失敗時只引用「這一次 run」留下的片段（partial output），不拿上一輪成功的回覆冒充錯誤訊息。
+    kind 由後端給，前端不用靠字串前綴猜圖示。
+    """
+    content, run_id = last_assistant or ("", None)
+    if (s.run_status or "") == "failed":
+        frag = _result_line(content) if (run_id and run_id == (s.last_run_id or "")) else ""
+        return "failed", (f"失敗：{frag}" if frag else "失敗")
+    if (getattr(s, "doc_id", "") or "") and doc_version:
+        return "doc", f"文件已更新到 v{doc_version}"
+    text = _result_line(content) if content else ""
+    return ("ok" if text else ""), text
+
+
+def result_for(s: ChatSession, last_assistant: Optional[tuple[str, Optional[str]]], doc_version: Optional[int]) -> str:
+    return result_of(s, last_assistant, doc_version)[1]
+
+
+def summaries_for(db: Session, session_ids: list[str]) -> dict[str, dict]:
+    """每個對話一次取齊：最早的 user 訊息（preview）、最新的 assistant 訊息（result）、這個對話寫出的最高文件版本。
+
+    用最早的 user 訊息而不是最新：標題重複時要回答的是「這個對話在講什麼」，開場白最能識別，
+    而且不會隨著對話變長而跳動。三個聚合查詢各打一次 DB，不管幾百列都不會 N+1，也不把整批訊息撈進記憶體。
     """
     if not session_ids:
         return {}
-    rows = db.exec(
-        select(Message.session_id, Message.content)
-        .where(Message.session_id.in_(session_ids), Message.role == "user")
-        .order_by(Message.session_id, Message.created_at)
-    ).all()
-    out: dict[str, str] = {}
-    for sid, content in rows:
-        if sid not in out:
-            out[sid] = _snippet(content)
+    out: dict[str, dict] = {sid: {"preview": "", "last_assistant": None, "doc_version": None} for sid in session_ids}
+
+    def _edge(role: str, agg):
+        sub = (select(Message.session_id.label("sid"), agg(Message.created_at).label("t"))
+               .where(Message.session_id.in_(session_ids), Message.role == role)
+               .group_by(Message.session_id).subquery())
+        return db.exec(
+            select(Message.session_id, Message.content, Message.run_id)
+            .join(sub, (Message.session_id == sub.c.sid) & (Message.created_at == sub.c.t))
+            .where(Message.role == role)
+            .order_by(Message.session_id, Message.id)
+        ).all()
+
+    seen: set[str] = set()
+    for sid, content, _ in _edge("user", func.min):
+        if sid not in seen:  # 同一毫秒兩則就取 id 最小的那則
+            seen.add(sid)
+            out[sid]["preview"] = _snippet(content)
+    for sid, content, run_id in _edge("assistant", func.max):
+        out[sid]["last_assistant"] = (content or "", run_id)
+    from ..modules.docs.models import DocVersion
+    for sid, ver in db.exec(
+        select(DocVersion.session_id, func.max(DocVersion.version))
+        .where(DocVersion.session_id.in_(session_ids)).group_by(DocVersion.session_id)
+    ).all():
+        out[sid]["doc_version"] = int(ver or 0) or None
     return out
 
 
-def session_public(s: ChatSession, preview: str = "") -> dict:
+def previews_for(db: Session, session_ids: list[str]) -> dict[str, str]:
+    """舊介面：只要 preview。"""
+    return {sid: v["preview"] for sid, v in summaries_for(db, session_ids).items()}
+
+
+def session_public(s: ChatSession, preview: str = "", result: str = "", result_kind: str = "") -> dict:
     return {
         "preview": preview,
+        "result": result,
+        "result_kind": result_kind,
         "id": s.id, "agent_id": s.agent_id, "member_id": s.member_id, "title": s.title, "source": s.source,
         "created_at": s.created_at, "updated_at": s.updated_at, "last_message_at": s.last_message_at,
         "archived": bool(s.archived), "category_id": s.category_id, "model": s.model or "", "provider": s.provider or "",
@@ -105,8 +203,13 @@ def list_sessions(agent_id: Optional[str] = None, include_archived: bool = False
         q = q.where(ChatSession.category_id == category_id)
     rows = db.exec(q).all()
     rows.sort(key=_sort_key)
-    prev = previews_for(db, [s.id for s in rows])
-    return [session_public(s, prev.get(s.id, "")) for s in rows]
+    summ = summaries_for(db, [s.id for s in rows])
+    out = []
+    for s in rows:
+        v = summ.get(s.id) or {"preview": "", "last_assistant": None, "doc_version": None}
+        kind, text = result_of(s, v["last_assistant"], v["doc_version"])
+        out.append(session_public(s, v["preview"], text, kind))
+    return out
 
 
 class SessionCreate(BaseModel):
@@ -262,4 +365,4 @@ def session_or_none(db: Session, p: Principal, session_id: str) -> Optional[Chat
         return None
 
 
-__all__ = ["router", "session_public", "previews_for", "message_public", "get_owned_session", "session_or_none", "or_"]
+__all__ = ["router", "session_public", "previews_for", "summaries_for", "result_for", "result_of", "auto_title", "apply_auto_title", "message_public", "get_owned_session", "session_or_none", "or_"]

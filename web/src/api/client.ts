@@ -1,4 +1,5 @@
 import type {
+  AgentDossier,
   Agent, AgentSkill, ApiError, Company, HermesStatus, KanbanTask, LoginResponse, Member, Message, RuntimeCatalog, Session, Workflow,
 } from './types'
 
@@ -95,6 +96,7 @@ export const api = {
     saveSoul: (id: string, content: string) =>
       request<{ content: string }>(`/agents/${id}/soul`, { method: 'PUT', body: json({ content }) }),
     skills: (id: string) => request<AgentSkill[]>(`/agents/${id}/skills`),
+    dossier: (id: string, days = 7) => request<AgentDossier>(`/agents/${id}/dossier?days=${days}`),
   },
   sessions: {
     list: (agentId?: string) => request<Session[]>(`/sessions${agentId ? `?agent_id=${encodeURIComponent(agentId)}` : ''}`),

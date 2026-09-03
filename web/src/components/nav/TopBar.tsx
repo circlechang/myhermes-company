@@ -155,7 +155,7 @@ export function TopBar({ title, username, onLogout, onOpenMenu, mobile }: Props)
           <MenuIcon className="h-5 w-5" aria-hidden />
         </button>
       )}
-      <Link to="/" className="flex items-center gap-2 font-semibold" aria-label={t('app.name')}>
+      <Link to="/today" className="flex items-center gap-2 font-semibold" aria-label={t('app.name')}>
         <img src="/logo.svg" alt="" className="h-6 w-6 rounded-md" aria-hidden />
         <span className={mobile ? 'sr-only' : ''}>{t('app.name')}</span>
       </Link>

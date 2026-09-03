@@ -53,3 +53,8 @@
 /* 進行中 spinner */
 @keyframes chat-spin { to { transform: rotate(360deg); } }
 .chat-spinner { display: inline-block; width: 10px; height: 10px; border-radius: 9999px; border: 2px solid currentColor; border-right-color: transparent; animation: chat-spin 0.8s linear infinite; }
+
+/* 對話列的狀態點：進行中會呼吸，完成／失敗是靜態記號 */
+@keyframes chat-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
+.chat-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; }
+.chat-status-dot[data-status="running"] { background: #6366f1; animation: chat-pulse 1.2s ease-in-out infinite; }
