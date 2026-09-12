@@ -331,8 +331,11 @@ class Orchestrator:
                 if m.kind == "ai" and not (m.system_prompt or "").strip() and m.agent_id:
                     a = db.get(Agent, m.agent_id)
                     if a is not None:
-                        persona = "\n".join(x for x in (f"職稱：{a.title}" if a.title else "", a.description or "") if x)
-                        m.system_prompt = persona
+                        parts = [f"職稱：{a.title}" if a.title else "", a.description or ""]
+                        if getattr(a, "gh_dir", ""):
+                            from .github_link import persona_line
+                            parts.append(persona_line(a.gh_dir, getattr(a, "gh_account", "")))
+                        m.system_prompt = "\n".join(x for x in parts if x)
             if room:
                 db.expunge(room)
             return room, list(members)

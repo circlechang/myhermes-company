@@ -55,6 +55,9 @@ class Agent(SQLModel, table=True):
     # Bots 介面建 Bot：設定檔在背景 clone（要幾十秒），這段期間 Bot 已經可以聊（走 default 通道）
     setup_state: str = ""  # "" 好了｜preparing 準備中｜failed 失敗（訊息在 setup_error）
     setup_error: str = ""
+    # 這個 Bot 專屬的 GitHub 身分：gh 設定目錄與登入到的帳號（空＝跟系統共用同一個 gh 登入）
+    gh_dir: str = ""
+    gh_account: str = ""
 
 
 class ChatSession(SQLModel, table=True):

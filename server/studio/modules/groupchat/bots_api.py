@@ -25,6 +25,7 @@ from ...hermes import allowlist as AL
 from ...hermes.cli import CliError, HermesCli
 from ...hermes.gateway import GatewayError
 from ...models import Agent
+from . import github_link as GH
 from .api import _add_ai, _room_view
 from .models import Room, RoomDoc, RoomMember, RoomMessage, RoomPref, RoomReaction, RoomSummary
 
@@ -156,6 +157,7 @@ def bot_public(a: Agent, dm_room_id: str = "", served: Optional[bool] = None) ->
     return {"id": a.id, "name": a.name, "title": a.title, "description": a.description, "avatar": a.avatar,
             "profile": a.profile, "model": a.model, "enabled": a.enabled, "runtime": a.runtime,
             "setup_state": a.setup_state, "setup_error": a.setup_error,
+            "gh_dir": a.gh_dir, "gh_account": a.gh_account,
             "dm_room_id": dm_room_id, "created_at": a.created_at,
             # served=False：Hermes 還沒服務這個設定檔（要重啟），技能與例行會打不到，聊天走 default
             "served": True if served is None else served}
@@ -432,3 +434,73 @@ def delete_bot(agent_id: str, p: Principal = Depends(current_principal), db: Ses
     db.delete(a)
     db.commit()
     return None
+
+
+# ---------------------------------------------------------------------------
+# GitHub 帳號：一個 Bot 一個 gh 設定目錄（Hermes 會剝除 GH_TOKEN，只能這樣分帳號）
+# ---------------------------------------------------------------------------
+def _bot(db: Session, p: Principal, agent_id: str) -> Agent:
+    a = db.get(Agent, agent_id)
+    if a is None or a.company_id != p.company_id:
+        raise not_found("bot")
+    return a
+
+
+@router.get("/bots/{agent_id}/github")
+async def github_status(agent_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """這個 Bot 現在用哪個 GitHub 帳號：own（專屬目錄）或 shared（跟系統共用）。"""
+    a = _bot(db, p, agent_id)
+    shared = await GH.status(None)
+    if not a.gh_dir:
+        return {"mode": "shared", "dir": "", "account": "", "ready": False, "shared_account": shared.get("account", ""),
+                "message": "現在跟系統共用同一個 GitHub 登入。"}
+    own = await GH.status(a.gh_dir)
+    if own.get("account") and own["account"] != a.gh_account:  # 使用者換了帳號 → 跟著更新
+        a.gh_account = own["account"]
+        db.add(a)
+        db.commit()
+    return {"mode": "own", "dir": a.gh_dir, "bin": str(Path(a.gh_dir) / "bin"), "account": own.get("account", ""),
+            "ready": bool(own.get("ready")), "shared_account": shared.get("account", ""),
+            "login_cmd": f'GH_CONFIG_DIR="{a.gh_dir}" gh auth login', "message": own.get("message", "")}
+
+
+@router.post("/bots/{agent_id}/github")
+async def github_setup(agent_id: str, request: Request, p: Principal = Depends(current_principal),
+                       db: Session = Depends(get_db)):
+    """幫這個 Bot 開專屬的 gh 設定目錄與包裝指令，回一行要使用者自己貼去終端機的登入指令。"""
+    p.require_admin()
+    a = _bot(db, p, agent_id)
+    info = GH.ensure_dir(GH.slug_of(a.profile, a.id))
+    a.gh_dir = info["dir"]
+    db.add(a)
+    db.commit()
+    st = await GH.status(a.gh_dir)
+    return {"mode": "own", **info, "account": st.get("account", ""), "ready": bool(st.get("ready")),
+            "message": st.get("message", "")}
+
+
+@router.post("/bots/{agent_id}/github/check")
+async def github_check(agent_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """使用者跑完 gh auth login 後按的「檢查」：把帳號名記下來。"""
+    a = _bot(db, p, agent_id)
+    if not a.gh_dir:
+        raise bad_request("這個 Bot 還沒有專屬的 GitHub 目錄")
+    st = await GH.status(a.gh_dir)
+    if st.get("ready"):
+        a.gh_account = st.get("account", "")
+        db.add(a)
+        db.commit()
+    return {"ready": bool(st.get("ready")), "account": st.get("account", ""), "message": st.get("message", ""),
+            "login_cmd": f'GH_CONFIG_DIR="{a.gh_dir}" gh auth login'}
+
+
+@router.delete("/bots/{agent_id}/github", status_code=200)
+def github_unlink(agent_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """改回跟系統共用。**不刪目錄**（裡面是你的登入狀態），之後再按一次就會接回來。"""
+    p.require_admin()
+    a = _bot(db, p, agent_id)
+    kept = a.gh_dir
+    a.gh_dir, a.gh_account = "", ""
+    db.add(a)
+    db.commit()
+    return {"mode": "shared", "kept_dir": kept}

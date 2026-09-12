@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import time
+from pathlib import Path
 
 from studio.modules.groupchat.models import RoomMember
 from studio.modules.groupchat.service import heuristic_route, parse_route
@@ -444,3 +445,50 @@ def test_create_bot_registers_profile_in_gateway_allowlist(client, auth, hermes_
     gw_state.unserved.add(slug)
     bots = {b["profile"]: b for b in client.get("/groupchat/bots", headers=auth).json()}
     assert bots["researcher"]["served"] is True and bots[slug]["served"] is False
+
+
+def test_github_account_per_bot(client, auth, tmp_path, monkeypatch):
+    """一個 Bot 一個 gh 設定目錄：建目錄與包裝指令、回登入指令、檢查後記住帳號、角色設定帶上用哪個 gh。"""
+    from studio.modules.groupchat import github_link as GH
+    from studio.modules.groupchat.service import Orchestrator
+    monkeypatch.setattr(GH, "ROOT", tmp_path / "gh-accounts")
+    monkeypatch.setattr(GH, "_which", lambda name: f"/usr/bin/{name}")
+    states = {"logged_in": False}
+
+    async def fake_status(dir_path):
+        if dir_path and states["logged_in"]:
+            return {"ready": True, "host": "github.com", "account": "second-account", "message": ""}
+        if dir_path:
+            return {"ready": False, "account": "", "host": "", "message": "還沒登入。"}
+        return {"ready": True, "host": "github.com", "account": "main-account", "message": ""}
+    monkeypatch.setattr(GH, "status", fake_status)
+
+    ags = _agents(client, auth)
+    aid = ags["researcher"]
+    r = client.get(f"/groupchat/bots/{aid}/github", headers=auth).json()
+    assert r["mode"] == "shared" and r["shared_account"] == "main-account"
+
+    r = client.post(f"/groupchat/bots/{aid}/github", headers=auth).json()
+    d = Path(r["dir"])
+    assert d.is_dir() and (d / "bin" / "gh").exists() and (d / "bin" / "git").exists()
+    assert (d / "bin" / "gh").read_text().count("GH_CONFIG_DIR") == 1
+    assert r["login_cmd"].startswith('GH_CONFIG_DIR=') and r["ready"] is False
+
+    assert client.post(f"/groupchat/bots/{aid}/github/check", headers=auth).json()["ready"] is False
+    states["logged_in"] = True
+    chk = client.post(f"/groupchat/bots/{aid}/github/check", headers=auth).json()
+    assert chk["ready"] is True and chk["account"] == "second-account"
+    bots = {b["id"]: b for b in client.get("/groupchat/bots", headers=auth).json()}
+    assert bots[aid]["gh_account"] == "second-account" and bots[aid]["gh_dir"] == str(d)
+
+    # 角色設定要告訴 Bot 用哪個 gh
+    orch: Orchestrator = client.app.state.groupchat
+    room = _group(client, auth, policy="none")
+    _, members = orch._load(room["id"])
+    prompt = next(m.system_prompt for m in members if m.display_name == "researcher")
+    assert str(d / "bin") in prompt and "second-account" in prompt
+
+    # 改回共用：目錄留著
+    back = client.delete(f"/groupchat/bots/{aid}/github", headers=auth).json()
+    assert back["mode"] == "shared" and Path(back["kept_dir"]).is_dir()
+    assert client.get(f"/groupchat/bots/{aid}/github", headers=auth).json()["mode"] == "shared"

@@ -19,6 +19,21 @@ export interface Bot {
   /** ""＝好了｜preparing＝設定檔還在背景複製｜failed＝沒建成功（setup_error 有原因） */
   setup_state: string
   setup_error: string
+  /** 這個 Bot 專屬的 GitHub 身分（空＝跟系統共用同一個 gh 登入） */
+  gh_dir: string
+  gh_account: string
+}
+
+export interface GithubLink {
+  mode: 'shared' | 'own'
+  dir?: string
+  bin?: string
+  account?: string
+  ready?: boolean
+  shared_account?: string
+  login_cmd?: string
+  message?: string
+  kept_dir?: string
 }
 
 export interface GatewayNote {
@@ -191,6 +206,10 @@ export const botsApi = {
   duplicateBot: (id: string) => request<{ bot: Bot; room: Room; gateway?: GatewayNote }>(`${G}/bots/${id}/duplicate`, { method: 'POST' }),
   deleteBot: (id: string) => request<void>(`${G}/bots/${id}`, { method: 'DELETE' }),
   retrySetup: (id: string) => request<Bot>(`${G}/bots/${id}/retry-setup`, { method: 'POST' }),
+  github: (id: string) => request<GithubLink>(`${G}/bots/${id}/github`),
+  githubSetup: (id: string) => request<GithubLink>(`${G}/bots/${id}/github`, { method: 'POST' }),
+  githubCheck: (id: string) => request<GithubLink>(`${G}/bots/${id}/github/check`, { method: 'POST' }),
+  githubUnlink: (id: string) => request<GithubLink>(`${G}/bots/${id}/github`, { method: 'DELETE' }),
   skills: (agentId: string) => request<Skill[]>(`/agents/${agentId}/skills`),
   jobs: (profile: string) => request<{ jobs: CronJob[] }>(`/cron/jobs?profile=${encodeURIComponent(profile)}`),
   pauseJob: (profile: string, id: string, paused: boolean) =>
@@ -223,6 +242,9 @@ export const useMessages = (id?: string) =>
 export const useThread = (id?: string, root?: string) =>
   useQuery({ queryKey: bk.thread(id ?? '', root ?? ''), queryFn: () => botsApi.thread(id!, root!), enabled: !!id && !!root })
 export const useRoomDocs = (id?: string) => useQuery({ queryKey: bk.docs(id ?? ''), queryFn: () => botsApi.roomDocs(id!), enabled: !!id })
+export const useGithubLink = (agentId?: string) =>
+  useQuery({ queryKey: ['bots', 'github', agentId ?? ''], queryFn: () => botsApi.github(agentId!), enabled: !!agentId, retry: false })
+
 export const useSkills = (agentId?: string) =>
   useQuery({ queryKey: bk.skills(agentId ?? ''), queryFn: () => botsApi.skills(agentId!), enabled: !!agentId, staleTime: 60_000, retry: false })
 export const useJobs = (profile?: string) =>

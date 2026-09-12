@@ -1,10 +1,10 @@
 // 右側面板：Bot 設定、群組資訊、文件（閱讀／編輯／版本）、討論串、群組文件清單、例行。
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Copy, EyeOff, FileText, Pause, Play, Plus, Trash2, UserPlus, X } from 'lucide-react'
+import { Check, ChevronLeft, Copy, EyeOff, FileText, Github, Pause, Play, Plus, RefreshCw, Trash2, UserPlus, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DiffView } from '../docs/DiffView'
 import { docsApi, useDoc, useDocDiff, useDocVersions } from '../docs/api'
-import { bk, botsApi, useJobs, useRoomDocs, useThread, type Bot, type Msg, type Room, type Skill } from './api'
+import { bk, botsApi, useGithubLink, useJobs, useRoomDocs, useThread, type Bot, type Msg, type Room, type Skill } from './api'
 import { BlobAvatar } from './Avatar'
 import { Composer } from './Composer'
 import { AvatarPicker } from './Dialogs'
@@ -172,6 +172,85 @@ function Routines({ bot }: { bot: Bot }) {
   )
 }
 
+/** GitHub 帳號：一個 Bot 一個 gh 設定目錄。使用者只要做一件事——把那行指令貼到終端機登入。 */
+function GithubAccount({ bot }: { bot: Bot }) {
+  const qc = useQueryClient()
+  const q = useGithubLink(bot.id)
+  const [busy, setBusy] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [err, setErr] = useState('')
+  const link = q.data
+  const refresh = () => qc.invalidateQueries({ queryKey: ['bots', 'github', bot.id] })
+  const run = async (what: string, fn: () => Promise<unknown>) => {
+    setBusy(what)
+    setErr('')
+    try {
+      await fn()
+      refresh()
+      qc.invalidateQueries({ queryKey: bk.bots })
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+  const copy = (text: string) => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    }).catch(() => undefined)
+  }
+  return (
+    <Section title="GitHub 帳號">
+      {!link && <p className="text-xs text-[var(--gb-mute)]">讀取中…</p>}
+      {link?.mode === 'shared' && (
+        <div className="rounded-2xl bg-[var(--gb-elev)] p-3" data-testid="gh-shared">
+          <div className="flex items-center gap-2 text-sm"><Github size={15} /> 跟系統共用{link.shared_account ? `（${link.shared_account}）` : ''}</div>
+          <p className="mt-1 text-xs text-[var(--gb-sub)]">要讓這個 Bot 用另一個 GitHub 帳號，按下面這顆，會有一行指令要你貼到終端機登入一次。</p>
+          <button type="button" className={`${btn.soft} mt-2`} disabled={!!busy} data-testid="gh-setup"
+            onClick={() => run('setup', () => botsApi.githubSetup(bot.id))}>
+            {busy === 'setup' ? '建立中…' : '給它專屬帳號'}
+          </button>
+        </div>
+      )}
+      {link?.mode === 'own' && (
+        <div className="rounded-2xl bg-[var(--gb-elev)] p-3" data-testid="gh-own">
+          {link.ready ? (
+            <div className="flex items-center gap-2 text-sm text-[var(--gb-green)]" data-testid="gh-ready">
+              <Check size={15} /> 已連結 {link.account}
+            </div>
+          ) : (
+            <>
+              <div className="text-sm">還差一步：在終端機登入</div>
+              <p className="mt-1 text-xs text-[var(--gb-sub)]">貼這行進終端機、照畫面授權（會開瀏覽器），完成後回來按「檢查」。</p>
+              <div className="mt-2 flex items-center gap-2 rounded-xl bg-black/50 px-3 py-2">
+                <code className="min-w-0 flex-1 overflow-x-auto whitespace-pre text-xs text-[var(--gb-text)]" data-testid="gh-cmd">{link.login_cmd}</code>
+                <button type="button" className={btn.icon} aria-label="複製指令" onClick={() => copy(link.login_cmd ?? '')}>
+                  {copied ? <Check size={15} /> : <Copy size={15} />}
+                </button>
+              </div>
+            </>
+          )}
+          <p className="mt-2 text-xs text-[var(--gb-mute)]">
+            它之後會固定用 <code className="rounded bg-black/40 px-1">{link.bin}/gh</code> 與 <code className="rounded bg-black/40 px-1">{link.bin}/git</code>，
+            不會動到你自己的 GitHub 登入。
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className={btn.soft} disabled={!!busy} data-testid="gh-check"
+              onClick={() => run('check', () => botsApi.githubCheck(bot.id))}>
+              <RefreshCw size={13} className="mr-1 inline" />{busy === 'check' ? '檢查中…' : link.ready ? '重新檢查' : '我登入好了，檢查'}
+            </button>
+            <button type="button" className={btn.ghost} disabled={!!busy} data-testid="gh-unlink"
+              onClick={() => run('unlink', () => botsApi.githubUnlink(bot.id))}>改回跟系統共用</button>
+          </div>
+          {link.message && !link.ready && <p className="mt-2 text-xs text-[var(--gb-sub)]">{link.message}</p>}
+        </div>
+      )}
+      {err && <p className="mt-2 text-xs text-[var(--gb-red)]" role="alert">{err}</p>}
+    </Section>
+  )
+}
+
 function DocsList({ roomId, onOpen, botName }: { roomId: string; onOpen: (id: string) => void; botName: (authorId: string, kind: string) => string }) {
   const docs = useRoomDocs(roomId)
   const list = docs.data ?? []
@@ -233,6 +312,7 @@ export function BotSettingsPanel({ bot, room, onClose, onOpenDoc, onDuplicate, o
         </div>
         <Toggle checked={notify} onChange={setNotify} label="通知" />
       </div>
+      <GithubAccount bot={bot} />
       <Routines bot={bot} />
       <Section title="文件"><DocsList roomId={room.id} onOpen={onOpenDoc} botName={botName} /></Section>
       <Section title="管理">
