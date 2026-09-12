@@ -95,6 +95,8 @@ export interface Reaction {
   count: number
   mine: boolean
   names: string[]
+  /** 按的人是哪些房間成員（顯示名稱可能被改過，用 id 判斷才準） */
+  rm_ids?: string[]
 }
 
 export interface Msg {
@@ -112,6 +114,9 @@ export interface Msg {
   reply_to_id: string
   thread_root_id: string
   doc_id: string
+  /** studio＝在這個介面發的；telegram／cli／desktop… ＝從 Hermes 同步進來的 */
+  source?: string
+  ext_id?: string
   attachments: Attachment[]
   reply_to?: { id: string; sender_name: string; content: string; has_doc: boolean } | null
   reply_count?: number

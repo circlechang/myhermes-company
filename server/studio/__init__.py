@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 ENV_PREFIX_NEW = "MHC_"
 ENV_PREFIX_OLD = "STUDIO_"

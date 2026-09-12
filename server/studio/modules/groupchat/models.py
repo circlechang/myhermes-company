@@ -87,6 +87,9 @@ class RoomMessage(SQLModel, table=True):
     reply_to_id: str = ""  # 引用回覆的那則
     thread_root_id: str = Field(default="", index=True)  # 討論串：根訊息 id；空＝主對話
     doc_id: str = ""  # 這則訊息在談哪份文件（Bot 接手時帶著文件全文）
+    # 來源：studio＝在這個介面發的；telegram／cli／desktop… ＝從 Hermes 同步進來的（見 hermes_sync）
+    source: str = "studio"
+    ext_id: str = Field(default="", index=True)  # Hermes 那邊的 <session_id>:<message_id>，用來去重
     # 附件：[{type:"doc",...}|{type:"approval",...}|{type:"tools",items:[...]}]
     attachments_json: str = "[]"
     created_at: datetime = Field(default_factory=now)
@@ -107,6 +110,7 @@ class RoomMessage(SQLModel, table=True):
             "sender_name": self.sender_name, "sender_kind": self.sender_kind, "content": self.content,
             "depth": self.depth, "run_id": self.run_id, "status": self.status, "created_at": self.created_at,
             "reply_to_id": self.reply_to_id, "thread_root_id": self.thread_root_id, "doc_id": self.doc_id,
+            "source": self.source or "studio", "ext_id": self.ext_id,
             "attachments": self.attachments(),
         }
 
@@ -146,6 +150,18 @@ class RoomPref(SQLModel, table=True):
     last_read_seq: int = 0
     pinned: bool = False
     hidden: bool = False
+    updated_at: datetime = Field(default_factory=now)
+
+
+class RoomSync(SQLModel, table=True):
+    """私訊房從 Hermes 同步到哪裡了（watermark）。"""
+    __tablename__ = "room_sync"
+    id: str = Field(default_factory=lambda: new_id("rsy"), primary_key=True)
+    room_id: str = Field(index=True)
+    profile: str = ""
+    last_id: int = 0      # Hermes messages.id（主鍵，有索引：進度用這個，不要用 timestamp）
+    last_ts: float = 0.0  # 只用來過濾第一次回補的時間範圍
+    last_mtime: float = 0.0  # state.db 的 mtime；沒變就整個跳過
     updated_at: datetime = Field(default_factory=now)
 
 

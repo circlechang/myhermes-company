@@ -226,7 +226,9 @@ def test_reaction_toggle(client, auth):
     m = _say(client, auth, room["id"], "按讚測試")
     url = f"/groupchat/rooms/{room['id']}/messages/{m['id']}/reactions"
     r = client.post(url, json={"emoji": "👍"}, headers=auth).json()
-    assert r["reactions"] == [{"emoji": "👍", "count": 1, "mine": True, "names": ["admin"]}]
+    got = r["reactions"][0]
+    assert (got["emoji"], got["count"], got["mine"], got["names"]) == ("👍", 1, True, ["admin"])
+    assert len(got["rm_ids"]) == 1  # 前端用 id 判斷是不是自己按的（顯示名稱可能被改過）
     assert _msgs(client, auth, room["id"])[0]["reactions"][0]["count"] == 1
     r = client.post(url, json={"emoji": "👍"}, headers=auth).json()
     assert r["reactions"] == []
@@ -492,3 +494,215 @@ def test_github_account_per_bot(client, auth, tmp_path, monkeypatch):
     back = client.delete(f"/groupchat/bots/{aid}/github", headers=auth).json()
     assert back["mode"] == "shared" and Path(back["kept_dir"]).is_dir()
     assert client.get(f"/groupchat/bots/{aid}/github", headers=auth).json()["mode"] == "shared"
+
+
+def test_new_profile_env_drops_shared_platform_credentials():
+    """clone 來的 .env：平台憑證要拿掉，模型金鑰與 API_SERVER_KEY 要留。"""
+    from studio.modules.groupchat import profile_env as PE
+    text = ("# 註解保留\n"
+            "OPENROUTER_API_KEY=sk-keep\n"
+            "API_SERVER_KEY=keep-me\n"
+            "TELEGRAM_BOT_TOKEN=123:abc\n"
+            "TELEGRAM_ALLOWED_USERS=1,2\n"
+            "export WHATSAPP_MODE=personal\n"
+            "LINEAR_API_KEY=lin_keep\n"
+            "EMAIL_PASSWORD=secret\n")
+    body, dropped = PE.scrub_text(text)
+    assert sorted(dropped) == ["EMAIL_PASSWORD", "TELEGRAM_ALLOWED_USERS", "TELEGRAM_BOT_TOKEN", "WHATSAPP_MODE"]
+    assert "OPENROUTER_API_KEY=sk-keep" in body and "API_SERVER_KEY=keep-me" in body and "LINEAR_API_KEY=lin_keep" in body
+    assert "TELEGRAM" not in body and "WHATSAPP" not in body and "EMAIL_PASSWORD" not in body
+    assert "# 註解保留" in body and body.startswith("# MyHermesCompany")
+    assert PE.scrub_text(body)[1] == []  # 再跑一次不會再動
+
+
+def test_scrub_file_backs_up_and_is_idempotent(tmp_path):
+    from studio.modules.groupchat import profile_env as PE
+    env = tmp_path / ".env"
+    env.write_text("TELEGRAM_BOT_TOKEN=x\nOPENROUTER_API_KEY=y\n", encoding="utf-8")
+    assert PE.scrub_file(env) == ["TELEGRAM_BOT_TOKEN"]
+    baks = list(tmp_path.glob(".env.bak-*"))
+    assert len(baks) == 1 and "TELEGRAM_BOT_TOKEN=x" in baks[0].read_text(encoding="utf-8")
+    assert "OPENROUTER_API_KEY=y" in env.read_text(encoding="utf-8")
+    assert PE.scrub_file(env) == [] and len(list(tmp_path.glob(".env.bak-*"))) == 1
+
+
+def test_new_bot_actually_uses_its_own_profile(client, auth, hermes_home, gw_state, monkeypatch):
+    """建 Bot 時房間成員的 profile 還是空的；背景準備好要回填，否則這個 Bot 會一直跑 default。"""
+    from studio.modules.groupchat import bots_api
+
+    async def _run(*args, timeout=30.0):
+        d = hermes_home / "profiles" / args[2]
+        d.mkdir(parents=True)
+        (d / "config.yaml").write_text("model:\n  default: gpt-new\n")
+    client.app.state.cli._run = _run
+    monkeypatch.setattr(bots_api, "_socket_safe_create", lambda *a, **k: None)
+
+    r = client.post("/groupchat/bots", json={"name": "新同事", "description": "回答開頭說『收到』。"}, headers=auth)
+    room_id = r.json()["room"]["id"]
+    bot = _wait_setup(client, auth, r.json()["bot"]["id"])
+    slug = bot["profile"]
+    members = client.get(f"/groupchat/rooms/{room_id}/members", headers=auth).json()
+    ai = next(m for m in members if m["kind"] == "ai")
+    assert ai["profile"] == slug, "房間成員沒回填 → Bot 會跑 default"
+
+    _say(client, auth, room_id, "你好")
+    _wait_idle(client)
+    used = [r for r in gw_state.runs.values() if r["profile"] == slug]
+    assert used, f"送出的 run 沒有用 {slug}：{[x['profile'] for x in gw_state.runs.values()]}"
+    assert "回答開頭說「收到」" in used[-1]["body"]["instructions"] or "收到" in used[-1]["body"]["instructions"]
+
+
+def test_admin_cannot_open_someone_elses_dm(client, auth, app):
+    """私訊是一對一：管理者也不能自動加入別人的私訊房。"""
+    from sqlmodel import Session, select
+
+    from studio.modules.groupchat.models import Room, RoomMember
+    ags = _agents(client, auth)
+    dm = client.post("/groupchat/dm", json={"agent_id": ags["researcher"]}, headers=auth).json()
+    with Session(app.state.engine) as db:  # 假裝這間私訊是別人的
+        target = db.get(Room, dm["id"])
+        target.created_by = "m_someone_else"
+        db.add(target)
+        for m in db.exec(select(RoomMember).where(RoomMember.room_id == target.id, RoomMember.kind == "human")).all():
+            db.delete(m)
+        db.commit()
+    assert client.get(f"/groupchat/rooms/{dm['id']}", headers=auth).status_code == 403
+    assert client.get(f"/groupchat/rooms/{dm['id']}/messages", headers=auth).status_code == 403
+
+
+def test_compress_does_not_block_sending(client, auth, gw_state, monkeypatch):
+    """摘要要在背景跑：Hermes 卡住時，送訊息不能跟著卡住。"""
+    import asyncio as _a
+    import time as _t
+    from studio.modules.groupchat.service import Orchestrator
+    room = _group(client, auth, policy="none")
+    orch: Orchestrator = client.app.state.groupchat
+
+    async def _slow(*a, **k):
+        await _a.sleep(3)
+        return None
+    monkeypatch.setattr(orch, "_compress", _slow)
+    t0 = _t.time()
+    _say(client, auth, room["id"], "隨便講一句")
+    assert _t.time() - t0 < 1.5, "送訊息被摘要卡住了"
+    _wait_idle(client, timeout=8)
+
+
+def _fake_hermes_state(home, profile, rows):
+    """做一個假的 Hermes state.db：rows = [(session_id, source, role, content, ts)]"""
+    import sqlite3
+    from studio.modules.groupchat.hermes_sync import state_db
+    p = state_db(home, profile)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(p)
+    conn.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, source TEXT, title TEXT)")
+    conn.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, session_id TEXT, role TEXT, content TEXT, timestamp REAL)")
+    base = conn.execute("SELECT COALESCE(MAX(id), 0) FROM messages").fetchone()[0]
+    for i, (sid, source, role, content, ts) in enumerate(rows, start=base + 1):
+        conn.execute("INSERT OR IGNORE INTO sessions VALUES (?,?,?)", (sid, source, ""))
+        conn.execute("INSERT INTO messages (id, session_id, role, content, timestamp) VALUES (?,?,?,?,?)",
+                     (i, sid, role, content, ts))
+    conn.commit()
+    conn.close()
+
+
+def test_hermes_conversations_merge_into_dm(client, auth, hermes_home, app):
+    """Telegram／終端機的對話要出現在同一條時間軸；我們自己的 session 不重複進來；
+    排程（cron）不進來；同步的訊息不觸發 Bot；再同步一次不會重複。"""
+    import time as _t
+    ags = _agents(client, auth)
+    dm = client.post("/groupchat/dm", json={"agent_id": ags["researcher"]}, headers=auth).json()
+    now = _t.time()
+    _fake_hermes_state(hermes_home, "researcher", [
+        ("tg_1", "telegram", "user", "在 Telegram 交代的事", now - 600),
+        ("tg_1", "telegram", "assistant", "好，我記下來了", now - 590),
+        ("cron_1", "cron", "assistant", "每日排程的產出", now - 500),
+        ("studio_room_room_x_rm_y", "api_server", "user", "這是我們自己的，不該重複", now - 400),
+        ("wf-wr_1-node-1", "api_server", "user", "工作流節點跑的", now - 380),
+        ("run_abc123", "api_server", "user", "臨時 API 呼叫", now - 370),
+        ("studio_9f1c2d", "api_server", "user", "在工作臺跟它講的話", now - 360),
+        ("cli_1", "cli", "user", "在終端機問的", now - 300),
+    ])
+    _say(client, auth, dm["id"], "在介面裡發的")
+    _wait_idle(client)
+    ms = _msgs(client, auth, dm["id"])
+    texts = [m["content"] for m in ms]
+    assert "在 Telegram 交代的事" in texts and "好，我記下來了" in texts and "在終端機問的" in texts
+    assert "每日排程的產出" not in texts, "cron 不該灌進對話"
+    assert "工作流節點跑的" not in texts and "臨時 API 呼叫" not in texts, "機器跑的不進時間軸"
+    assert "在工作臺跟它講的話" in texts, "工作臺是使用者跟同一個 Bot 的對話，要合併進來"
+    assert "這是我們自己的，不該重複" not in texts, "studio 自己的 session 不該再進來一次"
+    # 依時間排序：外面的（10 分鐘前）排在介面這則（剛剛）前面
+    assert texts.index("在 Telegram 交代的事") < texts.index("在介面裡發的")
+    tg = next(m for m in ms if m["content"] == "在 Telegram 交代的事")
+    assert tg["source"] == "telegram" and tg["sender_kind"] == "human"
+    bot_side = next(m for m in ms if m["content"] == "好，我記下來了")
+    assert bot_side["source"] == "telegram" and bot_side["sender_kind"] == "ai"
+    n_runs_before = len(app.state.__dict__.get("_ignored", []))  # 佔位：下面用 gw runs 確認
+    # 再同步一次不會重複
+    before = len(ms)
+    ms2 = _msgs(client, auth, dm["id"])
+    assert len(ms2) == before
+    assert n_runs_before == 0
+
+
+def test_synced_messages_do_not_trigger_bot(client, auth, hermes_home, gw_state):
+    import time as _t
+    ags = _agents(client, auth)
+    dm = client.post("/groupchat/dm", json={"agent_id": ags["writer"]}, headers=auth).json()
+    runs_before = len(gw_state.runs)
+    _fake_hermes_state(hermes_home, "writer", [("tg_9", "telegram", "user", "外面問的問題", _t.time() - 100)])
+    _msgs(client, auth, dm["id"])
+    _wait_idle(client)
+    assert len(gw_state.runs) == runs_before, "同步進來的歷史訊息不應該叫 Bot 回覆"
+
+
+def test_internal_prompts_never_show_in_timeline(client, auth, hermes_home):
+    """我們自己的分派員／摘要員 run 在 Hermes 也是對話，但那是機器內部指令，不能出現在時間軸。"""
+    import time as _t
+    ags = _agents(client, auth)
+    dm = client.post("/groupchat/dm", json={"agent_id": ags["researcher"]}, headers=auth).json()
+    now = _t.time()
+    _fake_hermes_state(hermes_home, "researcher", [
+        ("sys_old", "api_server", "user", "請把下面這段群聊對話濃縮成摘要，保留：已決定的事…", now - 300),
+        ("sys_old", "api_server", "assistant", "• 已決定：回覆 OK", now - 290),
+        ("studio_sys_room_x_route", "api_server", "user", "你是群組的分派員…", now - 280),
+        ("doc_1", "api_server", "user", "[目前文件]\n整份文件內容…", now - 250),
+        ("doc_1", "api_server", "user", "幫我把第二段改短一點", now - 240),
+        ("real_1", "telegram", "user", "這句是真的使用者訊息", now - 200),
+    ])
+    texts = [m["content"] for m in _msgs(client, auth, dm["id"])]
+    assert "這句是真的使用者訊息" in texts
+    assert "幫我把第二段改短一點" in texts, "同一段對話裡真正的發言要留著"
+    assert not any(t.startswith("[目前文件]") for t in texts), "塞在訊息裡的整份文件不要顯示"
+    assert not any("濃縮成摘要" in t or "分派員" in t or "已決定：回覆 OK" in t for t in texts), texts
+
+
+def test_sync_uses_indexed_id_and_skips_when_unchanged(client, auth, hermes_home, monkeypatch):
+    """進度標記要用有索引的 messages.id（timestamp 沒索引，真機 4GB 要掃 11 秒）；
+    state.db 沒變動就整個跳過，不要每分鐘重掃。"""
+    import time as _t
+
+    from studio.modules.groupchat import hermes_sync as HS
+    ags = _agents(client, auth)
+    dm = client.post("/groupchat/dm", json={"agent_id": ags["researcher"]}, headers=auth).json()
+    now = _t.time()
+    _fake_hermes_state(hermes_home, "researcher", [("tg_1", "telegram", "user", "第一則", now - 100)])
+    seen: list[tuple[int, float]] = []
+    real = HS.read_new
+
+    def spy(home, profile, since_id, since_ts, limit=HS.MAX_PER_SYNC):
+        seen.append((since_id, since_ts))
+        return real(home, profile, since_id, since_ts, limit)
+    monkeypatch.setattr(HS, "read_new", spy)
+
+    assert "第一則" in [m["content"] for m in _msgs(client, auth, dm["id"])]
+    assert seen and seen[0][0] == 0, "第一次沒有標記"
+    n = len(seen)
+    _msgs(client, auth, dm["id"])  # 檔案沒動 → 連讀都不用讀
+    assert len(seen) == n, "state.db 沒變動時不該再查一次"
+
+    _fake_hermes_state(hermes_home, "researcher", [("tg_1", "telegram", "assistant", "第二則", now - 50)])
+    texts = [m["content"] for m in _msgs(client, auth, dm["id"])]
+    assert "第二則" in texts and texts.count("第一則") == 1, "有變動要續抓，且不重複"
+    assert seen[-1][0] > 0, "第二次要從上次的 id 往後抓"

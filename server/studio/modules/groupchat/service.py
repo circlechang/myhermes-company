@@ -266,15 +266,18 @@ class Orchestrator:
 
     def save_message(self, room_id: str, sender: Optional[RoomMember], content: str, *, kind: Optional[str] = None,
                      depth: int = 0, run_id: Optional[str] = None, status: str = "done", reply_to_id: str = "",
-                     thread_root_id: str = "", doc_id: str = "",
+                     thread_root_id: str = "", doc_id: str = "", source: str = "studio", ext_id: str = "",
+                     created_at=None,
                      attachments: Optional[list[dict[str, Any]]] = None) -> RoomMessage:
         with Session(self.engine) as db:
             msg = RoomMessage(
                 room_id=room_id, seq=self._next_seq(db, room_id), sender_id=sender.id if sender else None,
                 sender_name=sender.display_name if sender else "系統", sender_kind=kind or (sender.kind if sender else "system"),
                 content=content, depth=depth, run_id=run_id, status=status, reply_to_id=reply_to_id or "",
-                thread_root_id=thread_root_id or "", doc_id=doc_id or "",
+                thread_root_id=thread_root_id or "", doc_id=doc_id or "", source=source or "studio", ext_id=ext_id or "",
             )
+            if created_at is not None:  # 從 Hermes 同步進來的用它原本的時間，時間軸才對得起來
+                msg.created_at = created_at
             msg.set_attachments(attachments or [])
             db.add(msg)
             room = db.get(Room, room_id)
@@ -331,6 +334,8 @@ class Orchestrator:
                 if m.kind == "ai" and not (m.system_prompt or "").strip() and m.agent_id:
                     a = db.get(Agent, m.agent_id)
                     if a is not None:
+                        if not (m.profile or "").strip() and (a.profile or "").strip():
+                            m.profile = a.profile  # 背景剛補好、房間成員還沒回填時的防呆
                         parts = [f"職稱：{a.title}" if a.title else "", a.description or ""]
                         if getattr(a, "gh_dir", ""):
                             from .github_link import persona_line
@@ -391,8 +396,8 @@ class Orchestrator:
             if upd is not None:
                 msg = upd
                 await self.broadcast(room_id, {"type": "message.updated", "message": self.public(msg)})
-        # 壓縮檢查在觸發 AI 之前做，讓這次回覆就能用到摘要
-        await self.maybe_compress(room, members)
+        # 壓縮丟背景：摘要要打一次 LLM，放在送訊息這條路上會把 POST／WS 迴圈整個卡住（下一輪就會用到新摘要）
+        self._spawn(self.maybe_compress(room, members))
         auto = (not targets and sender is not None and sender.kind == "human" and room.no_mention_policy == "auto"
                 and not parse_mentions(content, members) and any(m.kind == "ai" for m in members))
         if auto:
@@ -418,6 +423,7 @@ class Orchestrator:
         try:
             async def _ask() -> str:
                 run_id, rp = await self.start_run_for(router.profile or None, route_input(members, text),
+                                                      session_id=f"studio_sys_{room.id}_route",
                                                       instructions=ROUTE_PROMPT, model=model_or_none(router.model))
                 parts: list[str] = []
                 async for ev in self.gateway.run_events(rp, run_id):
@@ -468,6 +474,8 @@ class Orchestrator:
         """停掉這個房間正在跑的所有 Bot（已經做完的動作不會復原）。"""
         runs = dict(self.active.get(room_id, {}))
         for run_id, (profile, _rm) in runs.items():
+            if len(self.stopped_runs) > 2000:
+                self.stopped_runs.clear()
             self.stopped_runs.add(run_id)
             try:
                 await self.gateway.stop(profile or None, run_id)
@@ -775,7 +783,16 @@ class Orchestrator:
                         thread_root_id=trigger.thread_root_id)
 
     # -- compression --------------------------------------------------------------
-    async def maybe_compress(self, room: Room, members: list[RoomMember], *, force: bool = False) -> Optional[RoomSummary]:
+    async def maybe_compress(self, room: Room, members: list[RoomMember], *, force: bool = False,
+                             timeout: float = 120.0) -> Optional[RoomSummary]:
+        try:
+            return await asyncio.wait_for(self._compress(room, members, force=force), timeout=timeout)
+        except asyncio.TimeoutError:
+            log.warning("groupchat compress 逾時（%s 秒），這輪跳過", timeout)
+            await self.broadcast(room.id, {"type": "summary.failed", "error": "timeout"})
+            return None
+
+    async def _compress(self, room: Room, members: list[RoomMember], *, force: bool = False) -> Optional[RoomSummary]:
         ais = [m for m in members if m.kind == "ai"]
         if not ais:
             return None
@@ -800,6 +817,7 @@ class Orchestrator:
             await self.broadcast(room.id, {"type": "summary.started", "member_id": summarizer.id})
             try:
                 run_id, sp = await self.start_run_for(summarizer.profile or None, prompt,
+                                                      session_id=f"studio_sys_{room.id}_summary",
                                                       instructions="你是會議記錄員，只輸出摘要。", model=model_or_none(summarizer.model))
                 out_parts: list[str] = []
                 final = ""

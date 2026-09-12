@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
@@ -15,8 +16,10 @@ from sqlmodel import Session, select
 
 from ...auth import Principal, current_principal, get_db, principal_from_ws
 from ...errors import ApiError, bad_request, not_found
+from pathlib import Path
+
 from ...models import Agent, Member, now
-from .models import Room, RoomDoc, RoomMember, RoomMessage, RoomPref, RoomReaction, RoomSummary
+from .models import Room, RoomDoc, RoomMember, RoomMessage, RoomPref, RoomReaction, RoomSummary, RoomSync
 from .service import Orchestrator, estimate_tokens
 
 log = logging.getLogger("studio.groupchat")
@@ -61,13 +64,60 @@ def _orch(request: Request) -> Orchestrator:
     return request.app.state.groupchat
 
 
+async def sync_dm_from_hermes(app, room: Room) -> int:
+    """把這個 Bot 在 Hermes（Telegram／終端機…）的新對話補進私訊房並廣播。回補了幾則。"""
+    from . import hermes_sync as HS
+    if room.kind != "dm":
+        return 0
+    orch: Orchestrator = app.state.groupchat
+    with Session(app.state.engine) as db:
+        ai = db.exec(select(RoomMember).where(RoomMember.room_id == room.id, RoomMember.kind == "ai")).first()
+        profile = (ai.profile if ai else "") or ""
+        if not profile and ai is not None and ai.agent_id:
+            a = db.get(Agent, ai.agent_id)
+            profile = (a.profile if a else "") or ""
+    if not profile:
+        return 0
+    home = Path(app.state.settings.hermes_home)
+    try:
+        added = await asyncio.to_thread(HS.sync_room, orch, home, room, profile)
+    except Exception as e:  # 同步壞掉不能影響聊天
+        log.info("Hermes 同步失敗（%s）：%s", room.id, e)
+        return 0
+    for m in added:
+        await app.state.groupchat_hub.broadcast(room.id, {"type": "message.new", "message": m})
+    return len(added)
+
+
+async def _sync_loop(app, interval: float = 60.0) -> None:
+    """背景每分鐘掃一次私訊房：外面（Telegram 等）有新對話就補進來。"""
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            with Session(app.state.engine) as db:
+                rooms = list(db.exec(select(Room).where(Room.kind == "dm")).all())
+                for r in rooms:
+                    db.expunge(r)
+            for r in rooms:
+                await sync_dm_from_hermes(app, r)
+        except asyncio.CancelledError:
+            return
+        except Exception as e:  # noqa: BLE001 — 迴圈不能死
+            log.info("Hermes 同步迴圈：%s", e)
+
+
 async def on_startup(app) -> None:
     hub = Hub()
     app.state.groupchat_hub = hub
     app.state.groupchat = Orchestrator(app.state.engine, app.state.gateway, hub.broadcast, app=app)
+    if not os.environ.get("PYTEST_CURRENT_TEST"):  # 測試不要跑背景迴圈（會去讀真的 Hermes 資料庫）
+        app.state.groupchat_sync = asyncio.create_task(_sync_loop(app))
 
 
 async def on_shutdown(app) -> None:
+    task = getattr(app.state, "groupchat_sync", None)
+    if task:
+        task.cancel()
     orch = getattr(app.state, "groupchat", None)
     if orch:
         await orch.shutdown()
@@ -90,8 +140,11 @@ def _members(db: Session, room_id: str) -> list[RoomMember]:
 def _my_membership(db: Session, p: Principal, room: Room) -> RoomMember:
     m = db.exec(select(RoomMember).where(RoomMember.room_id == room.id, RoomMember.member_id == p.member.id)).first()
     if m is None:
+        if room.kind == "dm":
+            # 私訊是一對一的：不是自己的就不給進（管理者也一樣）
+            raise ApiError(403, "forbidden", "這是別人的私訊")
         if p.role in ("owner", "admin"):
-            # 管理者可直接進任何房間：自動加入
+            # 管理者可直接進任何群組：自動加入
             m = RoomMember(room_id=room.id, kind="human", member_id=p.member.id, display_name=p.member.username)
             db.add(m)
             db.commit()
@@ -232,7 +285,7 @@ def delete_room(room_id: str, p: Principal = Depends(current_principal), db: Ses
     room = _get_room(db, p, room_id)
     if room.created_by != p.member.id and p.role not in ("owner", "admin"):
         raise ApiError(403, "forbidden", "只有建立者或管理者可以刪除房間")
-    for model in (RoomMessage, RoomSummary, RoomMember, RoomReaction, RoomPref, RoomDoc):
+    for model in (RoomMessage, RoomSummary, RoomMember, RoomReaction, RoomPref, RoomDoc, RoomSync):
         for row in db.exec(select(model).where(model.room_id == room.id)).all():
             db.delete(row)
     db.delete(room)
@@ -404,20 +457,26 @@ def _enrich(db: Session, room_id: str, rows: list[RoomMessage], my_rm_ids: set[s
 def _reaction_summary(rows: list[RoomReaction], my_rm_ids: set[str]) -> list[dict[str, Any]]:
     by: dict[str, dict[str, Any]] = {}
     for x in rows:
-        e = by.setdefault(x.emoji, {"emoji": x.emoji, "count": 0, "mine": False, "names": []})
+        e = by.setdefault(x.emoji, {"emoji": x.emoji, "count": 0, "mine": False, "names": [], "rm_ids": []})
         e["count"] += 1
         e["names"].append(x.name)
+        e["rm_ids"].append(x.rm_id)  # 前端用這個判斷是不是自己按的（顯示名稱可能被改過）
         if x.rm_id in my_rm_ids:
             e["mine"] = True
     return list(by.values())
 
 
 @router.get("/rooms/{room_id}/messages")
-def list_messages(room_id: str, before_seq: Optional[int] = None, limit: int = 100, scope: str = "all", thread: str = "",
-                  p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+async def list_messages(room_id: str, request: Request, before_seq: Optional[int] = None, limit: int = 100,
+                        scope: str = "all", thread: str = "",
+                        p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
     """scope=all（舊頁預設，全部）｜main（只有主對話）｜thread（`thread`＝根訊息 id：根＋回覆）。"""
     room = _get_room(db, p, room_id)
     me = _my_membership(db, p, room)
+    if room.kind == "dm" and before_seq is None:  # 打開對話時順手把外面的新訊息補進來
+        db.expunge(room)
+        await sync_dm_from_hermes(request.app, room)
+        room = _get_room(db, p, room_id)
     q = select(RoomMessage).where(RoomMessage.room_id == room.id)
     if scope == "main":
         q = q.where(RoomMessage.thread_root_id == "")
@@ -428,6 +487,7 @@ def list_messages(room_id: str, before_seq: Optional[int] = None, limit: int = 1
     if before_seq is not None:
         q = q.where(RoomMessage.seq < before_seq)
     rows = list(reversed(db.exec(q.order_by(RoomMessage.seq.desc()).limit(max(1, min(limit, 500)))).all()))
+    rows.sort(key=lambda m: (m.created_at, m.seq))  # 從 Hermes 補進來的用它原本的時間插在正確位置
     return _enrich(db, room.id, rows, {me.id})
 
 

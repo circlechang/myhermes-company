@@ -73,7 +73,7 @@ function upsert(list: Msg[] | undefined, m: Msg): Msg[] {
   const i = arr.findIndex((x) => x.id === m.id)
   if (i >= 0) arr[i] = { ...arr[i], ...m }
   else arr.push(m)
-  return arr.sort((a, b) => a.seq - b.seq)
+  return arr.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.seq - b.seq))
 }
 
 // 已經算進「N 則回覆」的討論串訊息（REST 回應和 WS 廣播會各來一次，只算一次）
@@ -82,6 +82,7 @@ const countedThread = new Set<string>()
 export function applyMessage(qc: QueryClient, m: Msg) {
   if (m.thread_root_id) {
     const fresh = !countedThread.has(m.id)
+    if (countedThread.size > 5000) countedThread.clear()
     countedThread.add(m.id)
     qc.setQueryData<Msg[]>(bk.thread(m.room_id, m.thread_root_id), (old) => (old ? upsert(old, m) : old))
     qc.setQueryData<Msg[]>(bk.messages(m.room_id), (old) =>
@@ -103,8 +104,9 @@ export function applyMessage(qc: QueryClient, m: Msg) {
   qc.setQueriesData<Msg[]>({ queryKey: ['bots', 'thread', m.room_id] }, (old) => (old?.some((x) => x.id === m.id) ? upsert(old, m) : old))
 }
 
-function applyReactions(qc: QueryClient, roomId: string, messageId: string, reactions: Reaction[], myName: string) {
-  const fix = (rs: Reaction[]) => rs.map((r) => ({ ...r, mine: r.names.includes(myName) }))
+function applyReactions(qc: QueryClient, roomId: string, messageId: string, reactions: Reaction[], mine: { names: string; ids: Set<string> }) {
+  const fix = (rs: Reaction[]) =>
+    rs.map((r) => ({ ...r, mine: (r.rm_ids ?? []).some((id) => mine.ids.has(id)) || (!r.rm_ids && r.names.includes(mine.names)) }))
   const f = (old: Msg[] | undefined) => old?.map((x) => (x.id === messageId ? { ...x, reactions: fix(reactions) } : x))
   qc.setQueryData<Msg[]>(bk.messages(roomId), f)
   qc.setQueriesData<Msg[]>({ queryKey: ['bots', 'thread', roomId] }, f)
@@ -116,7 +118,7 @@ function applyReactions(qc: QueryClient, roomId: string, messageId: string, reac
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Ev = Record<string, any>
 
-export function useMessengerSocket(roomIds: string[], opts: { activeRoomId?: string; myName: string; onRead?: (roomId: string, seq: number) => void; onBotMessage?: (m: Msg) => void }) {
+export function useMessengerSocket(roomIds: string[], opts: { activeRoomId?: string; myName: string; myRmIds?: Set<string>; onRead?: (roomId: string, seq: number) => void; onBotMessage?: (m: Msg) => void }) {
   const qc = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
   const joined = useRef<Set<string>>(new Set())
@@ -132,11 +134,18 @@ export function useMessengerSocket(roomIds: string[], opts: { activeRoomId?: str
       const ws = new WebSocketImpl(groupchatWsUrl())
       wsRef.current = ws
       ws.onopen = () => {
+        const reconnected = retry > 0 || joined.current.size > 0
         retry = 0
         joined.current = new Set()
         for (const id of key ? key.split(',') : []) {
           ws.send(JSON.stringify({ type: 'join', room_id: id }))
           joined.current.add(id)
+        }
+        // 斷線期間漏掉的訊息不會補推：重連後重抓一次（不然訊息列表會有洞）
+        if (reconnected) {
+          qc.invalidateQueries({ queryKey: bk.rooms })
+          qc.invalidateQueries({ queryKey: ['bots', 'msgs'] })
+          qc.invalidateQueries({ queryKey: ['bots', 'thread'] })
         }
       }
       ws.onmessage = (e) => {
@@ -198,7 +207,7 @@ export function useMessengerSocket(roomIds: string[], opts: { activeRoomId?: str
           applyMessage(qc, ev.message as Msg)
           break
         case 'reaction.updated':
-          applyReactions(qc, rid, ev.message_id, ev.reactions as Reaction[], optsRef.current.myName)
+          applyReactions(qc, rid, ev.message_id, ev.reactions as Reaction[], { names: optsRef.current.myName, ids: optsRef.current.myRmIds ?? new Set<string>() })
           break
         case 'ai.typing': {
           const k = runKey(ev)

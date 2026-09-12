@@ -26,6 +26,7 @@ from ...hermes.cli import CliError, HermesCli
 from ...hermes.gateway import GatewayError
 from ...models import Agent
 from . import github_link as GH
+from . import profile_env as PE
 from .api import _add_ai, _room_view
 from .models import Room, RoomDoc, RoomMember, RoomMessage, RoomPref, RoomReaction, RoomSummary
 
@@ -99,10 +100,11 @@ async def _served(request: Request, profile: str) -> bool:
         return hit[0]
     ok = True
     try:
-        await request.app.state.gateway.models(profile)
+        # 短逾時：Hermes 慢或不通時，Bots 頁面不能整頁卡住
+        await asyncio.wait_for(request.app.state.gateway.models(profile), timeout=4.0)
     except GatewayError as e:
         ok = not (e.status == 404 and "unconfigured profile" in (e.message or "").lower())
-    except Exception:  # gateway 沒開：不要因此說 Bot 壞了
+    except Exception:  # gateway 沒開或太慢：不要因此說 Bot 壞了
         ok = True
     cache[profile] = (ok, time.monotonic())
     return ok
@@ -189,12 +191,16 @@ def ensure_dm(db: Session, p: Principal, agent: Agent) -> Room:
 
 @router.get("/bots")
 async def list_bots(request: Request, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
-    agents = db.exec(select(Agent).where(Agent.company_id == p.company_id).order_by(Agent.created_at)).all()
+    agents = list(db.exec(select(Agent).where(Agent.company_id == p.company_id).order_by(Agent.created_at)).all())
+    need = [a for a in agents if a.runtime == "hermes" and a.profile and a.setup_state != "preparing"]
+    probes = await asyncio.gather(*(_served(request, a.profile) for a in need), return_exceptions=True)
+    served_map = {a.id: (v is True) for a, v in zip(need, probes)}
     out = []
     for a in agents:
         r = _dm_room(db, p.company_id, p.member.id, a.id)
-        served = False if a.setup_state == "preparing" or not a.profile else (
-            True if a.runtime != "hermes" else await _served(request, a.profile))
+        served = served_map.get(a.id, a.runtime != "hermes" and bool(a.profile))
+        if a.setup_state == "preparing" or not a.profile:
+            served = False
         out.append(bot_public(a, r.id if r else "", served))
     return out
 
@@ -206,6 +212,7 @@ class DmIn(BaseModel):
 @router.post("/dm")
 def open_dm(body: DmIn, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
     """跟某個 Bot 的私訊房：有就回，沒有就建（Bot 也會順便啟用）。"""
+    p.require_admin()
     a = db.get(Agent, body.agent_id)
     if a is None or a.company_id != p.company_id:
         raise not_found("bot")
@@ -240,9 +247,10 @@ async def _make_profile_for(app, name: str, clone_from: str, title: str) -> str:
     if title.strip():
         args += ["--description", title.strip()[:200]]
     pdir = cli.profile_dir(slug)
+    existed_before = pdir.exists()  # 同名競爭時不要刪到別人的目錄（裡面有 .env 金鑰）
 
     def _cleanup() -> None:
-        if pdir.is_dir() and pdir.parent.name == "profiles":
+        if not existed_before and pdir.is_dir() and pdir.parent.name == "profiles":
             shutil.rmtree(pdir, ignore_errors=True)
 
     # 這台機器的 skills 有 socket 檔時，官方指令每次都會失敗；第一次踩到就記住，之後直接走退路（省掉一次白做的複製）
@@ -267,6 +275,9 @@ async def _make_profile_for(app, name: str, clone_from: str, title: str) -> str:
     if slug not in set(cli.list_profiles_fs()):
         _cleanup()
         raise ApiError(502, "hermes_cli_error", "Hermes 回報成功但設定檔不存在")
+    # clone 會整份複製 .env：把 Telegram／WhatsApp 這種「一組憑證只能一個 profile 用」的拿掉，
+    # 否則 gateway 啟動時會拒絕這個 profile 的 adapter，金鑰也被多複製了好幾份
+    PE.scrub_file(pdir / ".env")
     return slug
 
 
@@ -306,6 +317,12 @@ async def _prepare_profile(app, agent_id: str, name: str, clone_from: str, title
                 return
             a.profile, a.model, a.setup_state, a.setup_error = slug, model or a.model, "", ""
             db.add(a)
+            # 房間成員是在 profile 還空著的時候建的，這裡要一起回填，否則這個 Bot 會一直跑 default
+            for m in db.exec(select(RoomMember).where(RoomMember.agent_id == agent_id)).all():
+                m.profile = slug
+                if not m.model:
+                    m.model = model or ""
+                db.add(m)
             db.commit()
         log.info("Bot %s 的設定檔 %s 準備好了（名單：%s）", name, slug, status)
     except Exception as e:
@@ -454,11 +471,7 @@ async def github_status(agent_id: str, p: Principal = Depends(current_principal)
     if not a.gh_dir:
         return {"mode": "shared", "dir": "", "account": "", "ready": False, "shared_account": shared.get("account", ""),
                 "message": "現在跟系統共用同一個 GitHub 登入。"}
-    own = await GH.status(a.gh_dir)
-    if own.get("account") and own["account"] != a.gh_account:  # 使用者換了帳號 → 跟著更新
-        a.gh_account = own["account"]
-        db.add(a)
-        db.commit()
+    own = await GH.status(a.gh_dir)  # 唯讀：要更新帳號名請按「檢查」（POST）
     return {"mode": "own", "dir": a.gh_dir, "bin": str(Path(a.gh_dir) / "bin"), "account": own.get("account", ""),
             "ready": bool(own.get("ready")), "shared_account": shared.get("account", ""),
             "login_cmd": f'GH_CONFIG_DIR="{a.gh_dir}" gh auth login', "message": own.get("message", "")}
@@ -482,6 +495,7 @@ async def github_setup(agent_id: str, request: Request, p: Principal = Depends(c
 @router.post("/bots/{agent_id}/github/check")
 async def github_check(agent_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
     """使用者跑完 gh auth login 後按的「檢查」：把帳號名記下來。"""
+    p.require_admin()
     a = _bot(db, p, agent_id)
     if not a.gh_dir:
         raise bad_request("這個 Bot 還沒有專屬的 GitHub 目錄")

@@ -1,6 +1,6 @@
 [project]
 name = "myhermescompany"
-version = "0.9.0"
+version = "0.10.0"
 description = "MyHermesCompany — 每個人都有一間 AI 公司。Hermes Agent 生態的第三方工作臺伺服器"
 requires-python = ">=3.11"
 dependencies = [

@@ -10,6 +10,16 @@ import { MenuList } from './ui'
 
 export const QUICK_EMOJI = ['👍', '❤️', '😂', '🎉', '👀', '✅']
 
+// 從 Hermes 同步進來的訊息標來源；studio（在這個介面發的）不標
+const SOURCE_LABEL: Record<string, string> = {
+  telegram: 'Telegram', whatsapp: 'WhatsApp', line: 'LINE', discord: 'Discord', slack: 'Slack', signal: 'Signal',
+  cli: '終端機', desktop: '桌面版', acp: '編輯器', api_server: '工作臺', email: 'Email', webhook: 'Webhook',
+}
+export function sourceLabel(source?: string): string {
+  if (!source || source === 'studio') return ''
+  return SOURCE_LABEL[source] ?? source
+}
+
 const MENTION_RE = /(^|[\s（(，,])@([\w一-鿿぀-ヿ.-]+)/g
 function linkMentions(md: string): string {
   const parts = md.split(/(```[\s\S]*?```|`[^`\n]*`)/g)
@@ -207,8 +217,14 @@ export function MessageItem({ m, ctx, showHeader }: { m: Msg; ctx: MsgCtx; showH
   const humanOther = !mine && m.sender_kind === 'human'
   return (
     <div className={`gb-arrive group ${showHeader ? 'mt-3' : 'mt-0.5'}`} data-testid="msg" data-sender={m.sender_name} data-kind={m.sender_kind} data-msg-id={m.id}>
-      {showHeader && ctx.isGroup && !mine && (
-        <div className="mb-0.5 ml-[42px] text-xs text-[var(--gb-sub)]">{m.sender_name}</div>
+      {showHeader && (ctx.isGroup || sourceLabel(m.source)) && !mine && (
+        <div className="mb-0.5 ml-[42px] flex items-center gap-1.5 text-xs text-[var(--gb-sub)]">
+          {ctx.isGroup && <span>{m.sender_name}</span>}
+          {sourceLabel(m.source) && <span className="rounded-md bg-[var(--gb-elev2)] px-1.5 text-[11px]" data-testid="msg-source">來自 {sourceLabel(m.source)}</span>}
+        </div>
+      )}
+      {showHeader && mine && sourceLabel(m.source) && (
+        <div className="mb-0.5 flex justify-end text-xs"><span className="rounded-md bg-[var(--gb-elev2)] px-1.5 text-[11px] text-[var(--gb-sub)]" data-testid="msg-source">來自 {sourceLabel(m.source)}</span></div>
       )}
       <div className={`flex items-start gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
         {avatar && (humanOther ? (showHeader ? <LetterAvatar name={m.sender_name} size={30} /> : <span className="w-[30px] shrink-0" />) : avatar)}

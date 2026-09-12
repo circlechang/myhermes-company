@@ -68,6 +68,7 @@ export function BotsApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id])
 
+  const myRmIds = useMemo(() => new Set(rooms.flatMap((r) => r.members.filter((m) => m.member_id === member?.id).map((m) => m.id))), [rooms, member?.id])
   const roomIds = useMemo(() => rooms.map((r) => r.id), [rooms])
   // 桌面通知：Bot 做完或需要你（核准卡）時；看得到那個對話就不吵。每個 Bot 的開關在設定面板（localStorage gb.notify.<botId>）
   const notify = useCallback((m: Msg) => {
@@ -85,9 +86,8 @@ export function BotsApp() {
     })
     n.onclick = () => { window.focus(); nav(`/bots/${m.room_id}`) }
   }, [room?.id, rooms, nav])
-  useMessengerSocket(roomIds, { activeRoomId: room?.id, myName, onRead: markRead, onBotMessage: notify })
+  useMessengerSocket(roomIds, { activeRoomId: room?.id, myName, myRmIds, onRead: markRead, onBotMessage: notify })
 
-  const myRmIds = useMemo(() => new Set(rooms.flatMap((r) => r.members.filter((m) => m.member_id === member?.id).map((m) => m.id))), [rooms, member?.id])
   const dmBot = room?.kind === 'dm' ? bots.find((b) => b.id === room.dm_agent_id) : undefined
   // 群組取第一個「Hermes 認得的」成員的技能（不然第一位是新 Bot 時整個群組都沒技能選單）
   const skillBotId = dmBot?.id
