@@ -52,6 +52,9 @@ class Agent(SQLModel, table=True):
     runtime: str = "hermes"  # hermes | claude-code | codex | pi
     workspace: str = ""  # coding 員工的預設工作目錄（必須在檔案模組的根白名單內）
     coding_config_json: str = "{}"  # {model, api_mode, hermes_profile, extra:{...}}（沿用 coding_agents 設定形狀）
+    # Bots 介面建 Bot：設定檔在背景 clone（要幾十秒），這段期間 Bot 已經可以聊（走 default 通道）
+    setup_state: str = ""  # "" 好了｜preparing 準備中｜failed 失敗（訊息在 setup_error）
+    setup_error: str = ""
 
 
 class ChatSession(SQLModel, table=True):

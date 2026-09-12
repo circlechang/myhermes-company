@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import '../modules/registry' // 註冊模組 i18n
 import { setFetchImpl } from '../api/client'
 import { mockFetch } from '../mock/fetch'
+import { setEngineerMode } from '../prefs/engineerMode'
 import { renderApp, setupMocks } from './utils'
 import { FilesPage } from '../modules/files'
 import { SkillsPage } from '../modules/skills'
@@ -33,8 +34,8 @@ function fakeFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Re
   if (p === '/files/write') return Promise.resolve(ok({ name: 'hello.md', path: body.path, kind: 'file', size: 5, mtime: 2 }))
   if (p === '/files/attach') return Promise.resolve(ok({ uri: `workspace://${body.path}`, abs_path: '/x', name: 'hello.md' }))
   if (p === '/hermes/status') return Promise.resolve(ok({ gateway_ok: true, version: '0.20.5', profiles: [{ name: 'default' }, { name: 'researcher' }], api_server_url: '' }))
-  if (p === '/skills') return Promise.resolve(ok({ profile: 'default', items: [{ name: 'alpha', dir: 'alpha', path: '/s/alpha', source: 'local', category: 'research', description: 'Alpha skill', version: '1', tags: ['a'], mtime: 1, files: 2, enabled: true, profile: 'default' }, { name: 'beta', dir: 'beta', path: '/s/beta', source: 'builtin', category: 'x', description: 'Beta', version: '', tags: [], mtime: 1, files: 1, enabled: false, profile: 'default' }].filter((s) => !qs.get('q') || s.name.includes(qs.get('q')!)), categories: [{ name: 'research', count: 1 }, { name: 'x', count: 1 }] }))
-  if (p === '/skills/usage') return Promise.resolve(ok({ counts: { alpha: 3, beta: 0 }, top: [['alpha', 3]] }))
+  if (p === '/skills') return Promise.resolve(ok({ profile: 'default', items: [{ name: 'alpha', dir: 'alpha', path: '/s/alpha', source: 'local', category: 'research', description: 'Alpha skill', version: '1', tags: ['a'], mtime: 1, files: 2, enabled: true, profile: 'default', topic: '研究與情報' }, { name: 'beta', dir: 'beta', path: '/s/beta', source: 'builtin', category: 'x', description: 'Beta', version: '', tags: [], mtime: 1, files: 1, enabled: false, profile: 'default', topic: '其他' }].filter((s) => !qs.get('q') || s.name.includes(qs.get('q')!)), topics: [{ name: '研究與情報', hint: '查資料', count: 1 }, { name: '其他', hint: '', count: 1 }], categories: [{ name: 'research', count: 1 }, { name: 'x', count: 1 }] }))
+  if (p === '/skills/usage') return Promise.resolve(ok({ counts: { alpha: 3, beta: 0 }, last_used: { alpha: 1700000000 }, top: [['alpha', 3]], recent: [['alpha', 1700000000]] }))
   if (p === '/skills/alpha/toggle') return Promise.resolve(ok({ enabled: body.enabled }))
   if (p === '/skills/alpha') return Promise.resolve(ok({ name: 'alpha', dir: 'alpha', path: '/s/alpha', source: 'local', category: 'research', description: 'Alpha skill', version: '1', tags: ['a'], mtime: 1, files: 2, enabled: true, profile: 'default', content: '---\nname: alpha\n---\nbody', frontmatter: { name: 'alpha' }, body: 'body', attachments: [{ rel: 'SKILL.md', size: 20 }, { rel: 'ref.txt', size: 5 }] }))
   if (p === '/skills/alpha/note') return Promise.resolve(ok({ content: method === 'PUT' ? body.content : 'old note' }))
@@ -77,6 +78,7 @@ class FakeWS {
   }
 }
 
+afterEach(() => setEngineerMode(false))
 beforeEach(() => {
   setupMocks({ loggedIn: true })
   setFetchImpl(fakeFetch as typeof fetch)
@@ -115,7 +117,12 @@ describe('L Skills 與記憶', () => {
     const user = userEvent.setup()
     expect(await screen.findByText('alpha')).toBeInTheDocument()
     expect(screen.getByText('beta')).toBeInTheDocument()
-    expect(screen.getByText(/用量 3/)).toBeInTheDocument()
+    // 用量改成「最後一次用是多久以前」＋次數，找起來才有意義
+    expect(screen.getByText(/×3/)).toBeInTheDocument()
+    expect(screen.getByText(/用過 .*前/)).toBeInTheDocument()
+    expect(screen.getByText(/還沒用過/)).toBeInTheDocument()   // beta 沒紀錄
+    expect(screen.getByTestId('skill-sort')).toBeInTheDocument()
+    expect(screen.getByTestId('skill-topics')).toHaveTextContent('研究與情報')  // 用途維度 chip
     const tg = screen.getByRole('button', { name: '停用 alpha' })
     await waitFor(() => expect(tg).toBeEnabled())
     await user.click(tg)
@@ -133,8 +140,9 @@ describe('L Skills 與記憶', () => {
     await user.click(await screen.findByRole('tab', { name: '記憶' }))
     const ta = (await screen.findByLabelText('memory-editor')) as HTMLTextAreaElement
     await waitFor(() => expect(ta.value).toBe('- remember'))
+    setEngineerMode(true) // 這段看的是工程師資訊（PID／供應商／provider）
     expect(await screen.findByText(/Provider: builtin/)).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: 'Journey' }))
+    await user.click(screen.getByRole('tab', { name: /關係圖|Journey/ }))
     expect(await screen.findByTestId('journey-svg')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByTestId('node-skill:alpha')).toBeInTheDocument())
     expect(screen.getByTestId('node-memory:MEMORY.md')).toBeInTheDocument()

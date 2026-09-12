@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from './client'
+import { api, type NotifyPrefs } from './client'
 import type { Agent, Workflow } from './types'
 
 export const qk = {
@@ -110,3 +110,18 @@ export function useDeleteWorkflow() {
 /** 人事檔案：選到員工才抓；派工／對話後 30 秒內自動更新 */
 export const useAgentDossier = (id?: string, days = 7) =>
   useQuery({ queryKey: qk.dossier(id ?? '', days), queryFn: () => api.agents.dossier(id!, days), enabled: !!id, staleTime: 30_000 })
+
+/** 有事找我（LINE 通知）偏好：儲存成功直接把回傳塞進快取，不用再 GET 一次 */
+export const qkNotify = { prefs: ['notify', 'prefs'] as const, status: ['notify', 'status'] as const }
+export const useNotifyPrefs = () => useQuery({ queryKey: qkNotify.prefs, queryFn: api.notify.prefs })
+export const useNotifyStatus = () => useQuery({ queryKey: qkNotify.status, queryFn: api.notify.status, staleTime: 60_000 })
+export function useSaveNotifyPrefs() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: Partial<NotifyPrefs>) => api.notify.save(body),
+    onSuccess: (data) => qc.setQueryData(qkNotify.prefs, data),
+  })
+}
+export function useNotifyTest() {
+  return useMutation({ mutationFn: (line_to?: string) => api.notify.test(line_to) })
+}

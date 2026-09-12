@@ -7,10 +7,12 @@ import { useAuth } from '../../auth/AuthContext'
 import { EmptyState } from '../../components/EmptyState'
 import { PageHeader } from '../../components/PageHeader'
 import { ErrorBox, Loading } from '../../components/QueryState'
+import { useEngineerMode } from '../../prefs/engineerMode'
 import { packsApi, packsQk, type Pack } from './api'
 
 function PackCard({ p, isAdmin }: { p: Pack; isAdmin: boolean }) {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const qc = useQueryClient()
   const [err, setErr] = useState<string | null>(null)
   const invalidate = () => qc.invalidateQueries({ queryKey: packsQk.list })
@@ -23,7 +25,7 @@ function PackCard({ p, isAdmin }: { p: Pack; isAdmin: boolean }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="min-w-0 text-base font-semibold">{p.title}</h2>
-            <code className="id-text shrink text-xs text-zinc-600 dark:text-zinc-400" title={`${p.name}@${p.version}`}>{p.name}@{p.version}</code>
+            {engineer && <code className="id-text shrink text-xs text-zinc-600 dark:text-zinc-400" title={`${p.name}@${p.version}`}>{p.name}@{p.version}</code>}
             <span className={`badge px-1.5 py-0.5 text-xs font-medium ${p.installed ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'}`}>
               {p.installed ? t('packs.installed') : t('packs.notInstalled')}
             </span>
@@ -64,7 +66,7 @@ function PackCard({ p, isAdmin }: { p: Pack; isAdmin: boolean }) {
           <ul className="space-y-0.5">
             {p.agents.map((a) => (
               <li key={a.profile}>
-                <span className="font-medium">{a.name}</span> <code className="font-mono text-zinc-600 dark:text-zinc-400">{a.profile}</code>
+                <span className="font-medium">{a.name}</span> {engineer && <code className="font-mono text-zinc-600 dark:text-zinc-400">{a.profile}</code>}
               </li>
             ))}
           </ul>
@@ -73,6 +75,8 @@ function PackCard({ p, isAdmin }: { p: Pack; isAdmin: boolean }) {
           <div className="mb-1 font-medium text-zinc-600 dark:text-zinc-400">{t('packs.workflows')}</div>
           <div className="text-zinc-600 dark:text-zinc-300">{p.stages.length} · {p.has_hooks ? t('packs.hooks') : ''}</div>
           {p.installed && <div className="text-zinc-600 dark:text-zinc-400">{t('packs.installed')} {new Date(p.installed.installed_at + (p.installed.installed_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</div>}
+          {/* 裝好之後給一條回到流程頁的路 */}
+          {p.installed && <Link className="mt-1 inline-block text-indigo-600 hover:underline dark:text-indigo-400" to="/workflows" data-testid={`installed-go-${p.name}`}>{t('packs.installedGo')}</Link>}
         </div>
       </div>
       {err && <div className="text-xs text-rose-600 dark:text-rose-400">{err}</div>}
@@ -82,6 +86,7 @@ function PackCard({ p, isAdmin }: { p: Pack; isAdmin: boolean }) {
 
 export function PacksPage() {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const { member: me } = useAuth()
   const isAdmin = me?.role === 'owner' || me?.role === 'admin'
   const q = useQuery({ queryKey: packsQk.list, queryFn: packsApi.list })
@@ -105,7 +110,7 @@ export function PacksPage() {
           </ul>
         </div>
       )}
-      {q.data && (
+      {engineer && q.data && (
         <div className="mt-4 text-xs text-zinc-600 dark:text-zinc-400">
           {t('packs.roots')}：{q.data.roots.map((r) => <code key={r} className="mr-2 break-all font-mono">{r}</code>)}
         </div>

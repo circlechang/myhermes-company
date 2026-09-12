@@ -4,11 +4,14 @@ import { App } from '../../App'
 import { renderApp, setupMocks } from '../../test/utils'
 import { state } from '../../mock/fetch'
 import { COLUMNS, columnOf, resolveDrop, type Card } from './api'
+import { KanbanBoard } from './Board'
+import { setEngineerMode } from '../../prefs/engineerMode'
+import { bossCopyViolations } from '../../test/bossCopy'
 
 const mk = (status: Card['status']): Card => ({ id: 'x', title: 'x', status, priority_label: 'medium', tags: [], diagnostics: [] })
 
 describe('看板（modules/kanban）', () => {
-  beforeEach(() => setupMocks({ loggedIn: true }))
+  beforeEach(() => { setupMocks({ loggedIn: true }); setEngineerMode(false) })
 
   it('欄位對應與拖拉落點（純函式）', () => {
     expect(COLUMNS).toEqual(['todo', 'ready', 'running', 'review', 'blocked', 'done'])
@@ -24,15 +27,15 @@ describe('看板（modules/kanban）', () => {
     expect(resolveDrop(undefined, 'col-done')).toBeNull()
   })
 
-  it('板面：診斷橫幅、profile 篩選、建卡帶標籤', async () => {
+  it('板面：診斷橫幅、員工篩選、建卡帶標籤', async () => {
     renderApp(<App />, { route: '/kanban' })
     const user = userEvent.setup()
     expect(await screen.findByTestId('diagnostics-banner')).toHaveTextContent('1 張卡片需要處理')
     expect(within(screen.getByTestId('col-running')).getByText('競品價格表')).toBeInTheDocument()
-    await user.selectOptions(screen.getByLabelText('依 profile 篩選'), 'editor')
+    await user.selectOptions(screen.getByLabelText('依員工篩選'), 'editor')
     await waitFor(() => expect(screen.queryByText('競品價格表')).not.toBeInTheDocument())
     expect(await screen.findByText('寫 LINE 週報文案')).toBeInTheDocument()
-    await user.selectOptions(screen.getByLabelText('依 profile 篩選'), '')
+    await user.selectOptions(screen.getByLabelText('依員工篩選'), '')
 
     await user.click(screen.getByRole('button', { name: /新增卡片/ }))
     await user.type(screen.getByLabelText('標題'), '測試卡')
@@ -61,5 +64,26 @@ describe('看板（modules/kanban）', () => {
     await user.click(within(drawer).getByRole('button', { name: '封存' }))
     await waitFor(() => expect(screen.queryByTestId('card-drawer')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.queryByText('寫 LINE 週報文案')).not.toBeInTheDocument())
+  })
+
+  it('老闆模式：欄名與狀態全中文、指派人顯示員工名、沒有系統詞；工程師模式副標題才提 hermes kanban', async () => {
+    renderApp(<KanbanBoard />)
+    await screen.findByTestId('col-todo')
+    for (const [c, label] of [['todo', '待處理'], ['ready', '就緒'], ['running', '執行中'], ['review', '審核'], ['blocked', '卡住'], ['done', '完成']] as const) {
+      expect(within(screen.getByTestId(`col-${c}`)).getByText(label)).toBeInTheDocument()
+    }
+    expect(screen.getByText('派給員工的任務板；拖卡片換狀態')).toBeInTheDocument()
+    const statuses = (await screen.findAllByTestId('card-status')).map((el) => el.textContent)
+    expect(statuses.length).toBeGreaterThan(0)
+    for (const st of statuses) expect(['待分類', '待處理', '就緒', '執行中', '審核', '卡住', '排程', '完成', '封存']).toContain(st)
+    await waitFor(() => expect(screen.getAllByTestId('card-assignee').some((el) => ['研究員', '小編', '客服'].includes(el.textContent ?? ''))).toBe(true))
+    const assignees = screen.getAllByTestId('card-assignee').map((el) => el.textContent)
+    expect(assignees.some((a) => a === '研究員' || a === '小編' || a === '客服')).toBe(true)
+    expect(assignees.some((a) => a?.startsWith('@'))).toBe(false)
+    const filter = screen.getByLabelText('依員工篩選')
+    expect(await within(filter).findByRole('option', { name: '研究員' })).toBeInTheDocument()
+    expect(bossCopyViolations()).toEqual([])
+    setEngineerMode(true)
+    expect(await screen.findByText(/與 hermes kanban 同一份資料/)).toBeInTheDocument()
   })
 })

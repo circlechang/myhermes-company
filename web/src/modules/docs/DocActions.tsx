@@ -1,4 +1,5 @@
-// 文件的「封存／取消封存／刪除」按鈕組。文件模式左欄、/docs 清單、/docs/{id} 三處共用。
+// 文件的「改名字／封存／取消封存／刪除」按鈕組。文件模式左欄、/docs 清單、/docs/{id} 三處共用。
+// 改名字用 prompt：清單那一列沒有地方塞輸入框，而這顆按鈕的重點是「看得到」。
 // 封存＝status 改 archived（可逆）；刪除＝刪 DB 列、版本與血緣，工作區檔案保留（後端只有 admin 可刪）。
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../auth/AuthContext'
@@ -22,6 +23,19 @@ export function DocActions({
 
   return (
     <span className="flex shrink-0 items-center gap-0.5" data-testid={`doc-actions-${doc.id}`} onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className={`btn-ghost ${size}`}
+        disabled={m.rename.isPending}
+        title={t('docs.renameHint')}
+        onClick={() => {
+          const next = prompt(t('docs.rename'), doc.title)?.trim()
+          if (next && next !== doc.title) m.rename.mutate({ id: doc.id, title: next })
+        }}
+        data-testid={`doc-rename-${doc.id}`}
+      >
+        {t('docs.rename')}
+      </button>
       <button
         type="button"
         className={`btn-ghost ${size}`}

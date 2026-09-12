@@ -8,6 +8,8 @@ import { EmptyState } from '../../components/EmptyState'
 import '../../guide/i18n'
 import { ErrorBox, Loading } from '../../components/QueryState'
 import type { StudioModule } from '../registry'
+import { useEngineerMode } from '../../prefs/engineerMode'
+import { useStaffNames } from '../skills/staffNames'
 
 export interface ChannelField { name: string; label: string; required: boolean; secret: boolean; kind: string; set: boolean; hint: string; default: string; value?: string }
 export interface ChannelConfigKey { name: string; label: string; kind: string; default: unknown; hint: string }
@@ -30,6 +32,7 @@ export const channelsApi = {
 
 function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void }) {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const [env, setEnv] = useState<Record<string, string>>({})
   const [cfg, setCfg] = useState<Record<string, unknown>>(p.config)
   const [restart, setRestart] = useState(false)
@@ -52,7 +55,7 @@ function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void 
       for (const k of p.config_keys) if (cfg[k.name] !== p.config[k.name]) cfgPatch[k.name] = cfg[k.name]
       return channelsApi.save(p.id, { env: envPatch, config: p.config_section ? cfgPatch : undefined, restart })
     },
-    onSuccess: (r) => { setMsg(restart ? t('channels.savedRestarted') : t('channels.saved')); onSaved(); if (r.restart) setMsg((m) => `${m} · ${r.restart}`) },
+    onSuccess: (r) => { setMsg(restart ? t('channels.savedRestarted') : t('channels.saved')); onSaved(); if (r.restart && engineer) setMsg((m) => `${m} · ${r.restart}`) },
   })
   const clear = useMutation({ mutationFn: () => channelsApi.clear(p.id), onSuccess: onSaved })
   return (
@@ -67,6 +70,17 @@ function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void 
           <p className="text-xs text-zinc-600 dark:text-zinc-400">{p.description} {p.docs_url && <a className="underline" href={p.docs_url} target="_blank" rel="noreferrer">{t('channels.console')}</a>}</p>
         </div>
       </div>
+      {/* LINE 先給三步白話清單：老闆照著做就能接上；沒有對外網址的情況也先講清楚 */}
+      {p.id === 'line' && (
+        <div className="mb-3 rounded-md border border-zinc-200 p-3 text-sm dark:border-zinc-800" data-testid="line-checklist">
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>{t('channels.line.step1')}</li>
+            <li>{t('channels.line.step2')}</li>
+            <li>{t('channels.line.step3')}</li>
+          </ol>
+          <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">{t('channels.line.noPublicUrl')}</p>
+        </div>
+      )}
       {p.webhook_url && (
         <div className="mb-3 rounded-md bg-amber-50 p-2 text-xs dark:bg-amber-900/20">
           <div>{t('channels.webhookUrl')}：<code data-testid="line-webhook">{p.webhook_url}</code></div>
@@ -76,7 +90,7 @@ function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void 
       <div className="grid gap-2 md:grid-cols-2">
         {p.fields.map((f) => (
           <label key={f.name} className="text-xs">
-            <span className="text-zinc-600 dark:text-zinc-400">{f.label}{f.required && ' *'} <code className="text-2xs">{f.name}</code>
+            <span className="text-zinc-600 dark:text-zinc-400">{f.label}{f.required && ' *'} {engineer && <code className="text-2xs">{f.name}</code>}
               {f.secret && f.set && <span className="ml-1 text-emerald-600 dark:text-emerald-400">{t('channels.keySet')}</span>}</span>
             {f.kind === 'bool' ? (
               <select className="input" value={env[f.name] ?? ''} onChange={(e) => setEnv({ ...env, [f.name]: e.target.value })}>
@@ -92,7 +106,7 @@ function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void 
       </div>
       {p.config_keys.length > 0 && (
         <div className="mt-3">
-          <div className="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('channels.behaviour')} <code>config.yaml › {p.config_section}</code></div>
+          <div className="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('channels.behaviour')} {engineer && <code>config.yaml › {p.config_section}</code>}</div>
           <div className="grid gap-2 md:grid-cols-3">
             {p.config_keys.map((k) => (
               <label key={k.name} className="text-xs">
@@ -112,7 +126,7 @@ function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void 
       )}
       <div className="mt-3 flex items-center gap-3 text-xs">
         <button className="btn-primary" disabled={save.isPending} onClick={() => { setMsg(null); save.mutate() }}>{t('common.save')}</button>
-        <label className="flex items-center gap-1"><input type="checkbox" checked={restart} onChange={(e) => setRestart(e.target.checked)} />{t('channels.restartAfterSave')}</label>
+        <label className="flex items-center gap-1"><input type="checkbox" checked={restart} onChange={(e) => setRestart(e.target.checked)} />{engineer ? t('channels.restartAfterSaveEngineer') : t('channels.restartAfterSave')}</label>
         {p.configured && <button className="btn-ghost text-rose-600 dark:text-rose-400" onClick={() => { if (confirm(t('channels.confirmClear', { name: p.label }))) clear.mutate() }}>{t('channels.clear')}</button>}
         {msg && <span className="text-emerald-600 dark:text-emerald-400">{msg}</span>}
         {save.error && <span className="text-rose-600 dark:text-rose-400">{String((save.error as Error).message)}</span>}
@@ -123,6 +137,8 @@ function PlatformForm({ p, onSaved }: { p: ChannelPlatform; onSaved: () => void 
 
 function GatewayCard() {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
+  const staff = useStaffNames()
   const q = useQuery({ queryKey: ['channels', 'gateway'], queryFn: channelsApi.gatewayStatus, refetchInterval: 30_000 })
   const qc = useQueryClient()
   const restart = useMutation({ mutationFn: channelsApi.gatewayRestart, onSuccess: () => qc.invalidateQueries({ queryKey: ['channels', 'gateway'] }) })
@@ -130,10 +146,10 @@ function GatewayCard() {
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-medium">{t('channels.gateway')}</h2>
+        <h2 className="font-medium">{engineer ? t('channels.gatewayEngineer') : t('channels.gateway')}</h2>
         <div className="flex gap-2">
           <button className="btn-outline" onClick={() => q.refetch()} disabled={q.isFetching}>{t('common.retry')}</button>
-          <button className="btn-outline" onClick={() => restart.mutate()} disabled={restart.isPending}>{restart.isPending ? t('channels.restarting') : t('channels.restart')}</button>
+          <button className="btn-outline" onClick={() => restart.mutate()} disabled={restart.isPending}>{restart.isPending ? t('channels.restarting') : engineer ? t('channels.restartEngineer') : t('channels.restart')}</button>
         </div>
       </div>
       {q.isLoading && <Loading />}
@@ -141,15 +157,15 @@ function GatewayCard() {
         <div className="mt-2 text-sm">
           <div className="flex items-center gap-2">
             <span className={`inline-block h-2.5 w-2.5 rounded-full ${s.running ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-            {s.running ? t('channels.running', { pid: s.pid ?? '?' }) : t('channels.stopped')}
-            {s.stale_service && <span className="text-xs text-amber-700 dark:text-amber-400">{t('channels.stale')}</span>}
+            {s.running ? (engineer ? t('channels.runningEngineer', { pid: s.pid ?? '?' }) : t('channels.running')) : t('channels.stopped')}
+            {s.stale_service && <span className="text-xs text-amber-700 dark:text-amber-400">{engineer ? t('channels.staleEngineer') : t('channels.stale')}</span>}
           </div>
           {s.profiles.length > 0 && (
             <ul className="mt-1 flex flex-wrap gap-2 text-xs">
-              {s.profiles.map((p) => <li key={p.name} className="rounded border px-1.5 dark:border-zinc-700">{p.running ? '✓' : '✗'} {p.name}</li>)}
+              {s.profiles.map((p) => <li key={p.name} className="rounded border px-1.5 dark:border-zinc-700" title={staff.full(p.name)}>{p.running ? '✓' : '✗'} {staff.label(p.name)}</li>)}
             </ul>
           )}
-          {restart.data?.output && <pre className="mt-2 max-h-24 overflow-auto text-2xs text-zinc-600 dark:text-zinc-400">{restart.data.output}</pre>}
+          {engineer && restart.data?.output && <pre className="mt-2 max-h-24 overflow-auto text-2xs text-zinc-600 dark:text-zinc-400">{restart.data.output}</pre>}
         </div>
       )}
     </div>
@@ -158,12 +174,13 @@ function GatewayCard() {
 
 export function ChannelsPage() {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const q = useQuery({ queryKey: ['channels'], queryFn: () => channelsApi.list() })
   const qc = useQueryClient()
   const [open, setOpen] = useState<string>('line')
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
-      <PageHeader title={t('channels.title')} subtitle={t('channels.subtitle')} />
+      <PageHeader title={t('channels.title')} subtitle={engineer ? t('channels.subtitleEngineer') : t('channels.subtitle')} />
       <GatewayCard />
       {q.isLoading && <Loading />}
       {q.error && <ErrorBox error={q.error} onRetry={() => q.refetch()} />}
@@ -180,7 +197,7 @@ export function ChannelsPage() {
               </button>
             ))}
           </div>
-          <p className="text-xs text-zinc-600 dark:text-zinc-400">{t('channels.paths', { env: q.data.env_path, cfg: q.data.config_path })}</p>
+          {engineer && <p className="text-xs text-zinc-600 dark:text-zinc-400">{t('channels.paths', { env: q.data.env_path, cfg: q.data.config_path })}</p>}
           {q.data.platforms.filter((p) => p.id === open).map((p) => (
             <PlatformForm key={p.id} p={p} onSaved={() => qc.invalidateQueries({ queryKey: ['channels'] })} />
           ))}
@@ -193,21 +210,38 @@ export function ChannelsPage() {
 const zhTW = {
   nav: { channels: '頻道' },
   channels: {
-    title: '平台頻道', subtitle: '把 Hermes 接到 LINE、Telegram、Discord、Slack…（憑證只寫進 ~/.hermes/.env，不會回傳到瀏覽器）',
-    configured: '已設定', notConfigured: '未設定', console: '開發者主控台', webhookUrl: 'Webhook URL', keySet: '（已存）', secretKeep: '留空＝保留現有值', unset: '（未設）',
-    behaviour: '行為設定', restartAfterSave: '儲存後重啟 gateway', saved: '已儲存', savedRestarted: '已儲存並重啟 gateway', clear: '移除此平台憑證',
-    confirmClear: '移除 {{name}} 的所有 env 設定？', gateway: 'Gateway 狀態', restart: '重啟 gateway', restarting: '重啟中…', running: '執行中（PID {{pid}}）', stopped: '未執行',
-    stale: '服務定義過期，建議 hermes gateway start', paths: '寫入：{{env}} ／ {{cfg}}',
+    // 老闆看「連線」，工程師看「gateway」；欄位名與 API 都不變
+    title: '接 LINE 與其他平台', subtitle: '把 AI 員工接到 LINE、Telegram、Discord、Slack…；憑證只留在伺服器，不會回到瀏覽器',
+    subtitleEngineer: '把 Hermes 接到 LINE、Telegram、Discord、Slack…（憑證只寫進 ~/.hermes/.env，不會回傳到瀏覽器）',
+    configured: '已設定', notConfigured: '未設定', console: '開發者主控台', webhookUrl: '貼回 LINE 後台的網址', keySet: '（已存）', secretKeep: '留空＝保留現有值', unset: '（未設）',
+    behaviour: '行為設定', restartAfterSave: '儲存後重新連線', restartAfterSaveEngineer: '儲存後重啟 gateway', saved: '已儲存', savedRestarted: '已儲存並重新連線', clear: '移除此平台憑證',
+    confirmClear: '移除 {{name}} 的所有設定？', gateway: '連線狀態', gatewayEngineer: 'Gateway 狀態', restart: '重新連線', restartEngineer: '重啟 gateway', restarting: '重新連線中…',
+    running: '已連線', runningEngineer: '執行中（PID {{pid}}）', stopped: '未連線',
+    stale: '連線設定過期，請工程師重啟一次', staleEngineer: '服務定義過期，建議 hermes gateway start', paths: '寫入：{{env}} ／ {{cfg}}',
+    line: {
+      step1: '建一個 LINE 官方帳號（LINE Developers → Messaging API）',
+      step2: '把 token 與 secret 貼進下面的欄位，按儲存',
+      step3: '把這頁顯示的網址貼回 LINE 後台的 Webhook，並打開「使用 Webhook」',
+      noPublicUrl: '沒有對外網址？請工程師幫你開 Cloudflare Tunnel，或先用『送到 LINE』以外的投遞。',
+    },
   },
 }
 const en = {
   nav: { channels: 'Channels' },
   channels: {
-    title: 'Channels', subtitle: 'Connect Hermes to LINE, Telegram, Discord, Slack… (secrets are written to ~/.hermes/.env and never returned)',
-    configured: 'configured', notConfigured: 'not configured', console: 'developer console', webhookUrl: 'Webhook URL', keySet: '(stored)', secretKeep: 'leave blank to keep', unset: '(unset)',
-    behaviour: 'Behaviour', restartAfterSave: 'restart gateway after save', saved: 'Saved', savedRestarted: 'Saved and gateway restarted', clear: 'Remove credentials',
-    confirmClear: 'Remove all env settings of {{name}}?', gateway: 'Gateway', restart: 'Restart gateway', restarting: 'Restarting…', running: 'running (PID {{pid}})', stopped: 'stopped',
-    stale: 'service definition stale', paths: 'Writes: {{env}} / {{cfg}}',
+    title: 'Connect LINE and other platforms', subtitle: 'Connect AI staff to LINE, Telegram, Discord, Slack…; secrets stay on the server',
+    subtitleEngineer: 'Connect Hermes to LINE, Telegram, Discord, Slack… (secrets are written to ~/.hermes/.env and never returned)',
+    configured: 'configured', notConfigured: 'not configured', console: 'developer console', webhookUrl: 'URL to paste into LINE', keySet: '(stored)', secretKeep: 'leave blank to keep', unset: '(unset)',
+    behaviour: 'Behaviour', restartAfterSave: 'reconnect after save', restartAfterSaveEngineer: 'restart gateway after save', saved: 'Saved', savedRestarted: 'Saved and reconnected', clear: 'Remove credentials',
+    confirmClear: 'Remove all settings of {{name}}?', gateway: 'Connection', gatewayEngineer: 'Gateway', restart: 'Reconnect', restartEngineer: 'Restart gateway', restarting: 'Reconnecting…',
+    running: 'connected', runningEngineer: 'running (PID {{pid}})', stopped: 'not connected',
+    stale: 'connection setup is stale; ask an engineer to restart', staleEngineer: 'service definition stale', paths: 'Writes: {{env}} / {{cfg}}',
+    line: {
+      step1: 'Create a LINE Official Account (LINE Developers → Messaging API)',
+      step2: 'Paste the token and secret below and save',
+      step3: 'Paste the URL shown here into the LINE webhook setting and enable “Use webhook”',
+      noPublicUrl: 'No public URL? Ask an engineer for a Cloudflare Tunnel, or deliver somewhere other than LINE for now.',
+    },
   },
 }
 

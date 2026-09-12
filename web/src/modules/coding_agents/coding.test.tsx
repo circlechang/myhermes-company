@@ -135,11 +135,11 @@ describe('Coding Agents 頁', () => {
     await waitFor(() => expect(savedSetting).toMatchObject({ api_mode: 'hermes', workspace: '/home/me/proj' }))
   })
 
-  it('新開 session → 執行 → 串流輸出、工具卡、diff 分頁', async () => {
+  it('新開對話 → 執行 → 串流輸出、工具卡、diff 分頁', async () => {
     renderApp(<CodingPage />, { route: '/coding' })
     const user = userEvent.setup()
     await screen.findByTestId('agent-card-claude')
-    await user.click(screen.getByRole('button', { name: '新開 Session' }))
+    await user.click(screen.getByRole('button', { name: '新開對話' }))
     const ta = await screen.findByLabelText('任務')
     await user.type(ta, 'write hello.py{Enter}')
     await waitFor(() => expect(FakeCodingWs.instances[0].sent.some((m) => m.type === 'run' && m.input === 'write hello.py')).toBe(true))
@@ -159,5 +159,12 @@ describe('Coding Agents 頁', () => {
     await waitFor(() => expect(messageFetches).toBeGreaterThanOrEqual(2))
     expect(screen.getByText('Done: wrote hello.py')).toBeInTheDocument()
     expect(screen.getByText(/output_tokens=9/)).toBeInTheDocument()
+  })
+})
+
+describe('程式員工：側欄入口', () => {
+  it('nav 標為 hidden（老闆不在側欄看到），路由仍在', () => {
+    expect(mod.nav?.[0]).toMatchObject({ to: '/coding', hidden: true })
+    expect(mod.routes.some((r) => r.path === '/coding')).toBe(true)
   })
 })

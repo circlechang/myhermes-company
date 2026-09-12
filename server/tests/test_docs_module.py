@@ -175,6 +175,44 @@ def test_patch_path_moves_the_md_file(client, auth):
     assert Path(moved["abs_path"]).read_text() == "內容" and not old.exists()
 
 
+def test_rename_moves_the_file_with_the_title(client, auth):
+    """改標題＝改名字：工作區檔名跟著換，內容與 doc id 不變。"""
+    d = mk(client, auth, title="舊名字", content="內容")
+    old = Path(d["abs_path"])
+    assert "舊名字" in old.name and old.exists()
+    r = client.patch(f"/docs/{d['id']}", json={"title": "新名字"}, headers=auth).json()
+    assert r["title"] == "新名字" and r["id"] == d["id"]
+    new_file = Path(r["abs_path"])
+    assert "新名字" in new_file.name and new_file.read_text() == "內容"
+    assert not old.exists()                      # 舊檔不留下來變孤兒
+    assert client.patch(f"/docs/{d['id']}", json={"title": "   "}, headers=auth).status_code == 400
+
+
+def test_rename_leaves_custom_paths_alone(client, auth):
+    """自己指定過路徑的文件，改標題不要雞婆去搬檔案。"""
+    d = mk(client, auth, title="甲", content="內容")
+    moved = client.patch(f"/docs/{d['id']}", json={"path": "docs/我自己取的.md"}, headers=auth).json()
+    r = client.patch(f"/docs/{d['id']}", json={"title": "乙"}, headers=auth).json()
+    assert r["title"] == "乙" and r["path"] == moved["path"] == "docs/我自己取的.md"
+    assert Path(r["abs_path"]).read_text() == "內容"
+
+
+def test_rename_into_a_taken_filename_still_renames(client, auth):
+    """兩份文件撞到同一個檔名時，標題照改、檔案不動，不要整個 409 擋掉改名。"""
+    a = mk(client, auth, title="甲", content="A")
+    b = mk(client, auth, title="乙", content="B")
+    # 檔名帶 doc id，本來就不會撞；手動把 b 搬到「a 改名後會用到的」路徑上製造衝突
+    import studio.modules.docs.service as svc
+    target = svc.default_path(a["id"], "丙", "html")
+    client.patch(f"/docs/{b['id']}", json={"path": target}, headers=auth)
+    r = client.patch(f"/docs/{a['id']}", json={"title": "丙"}, headers=auth)
+    assert r.status_code == 200 and r.json()["title"] == "丙"
+    assert r.json()["path"] == a["path"]          # 檔案留在原地
+    assert Path(r.json()["abs_path"]).read_text() == "A"
+    # 明講的 path 撞名還是要擋
+    assert client.patch(f"/docs/{a['id']}", json={"path": target}, headers=auth).status_code == 409
+
+
 def test_permissions_company_isolation_and_admin_delete(client, auth, app):
     """別家公司的文件一律 404；刪除要 owner/admin。"""
     d = mk(client, auth, content="機密")

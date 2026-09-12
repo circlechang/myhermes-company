@@ -87,11 +87,11 @@ describe('「？」說明抽屜', () => {
     await user.click(within(screen.getByTestId('sidebar')).getByRole('link', { name: '看板' }))
     await user.click(screen.getByTestId('help-button'))
     expect(await screen.findByTestId('help-title')).toHaveTextContent('看板')
-    // 相關頁連結可導頁並關閉抽屜
+    // 相關頁連結可導頁並關閉抽屜；/inbox 已併進「今天」（路由直接轉過去），所以說明標題是「今天」
     await user.click(within(screen.getByTestId('help-drawer')).getByRole('link', { name: '收件匣' }))
     expect(screen.queryByTestId('help-drawer')).not.toBeInTheDocument()
     await user.click(screen.getByTestId('help-button'))
-    expect(await screen.findByTestId('help-title')).toHaveTextContent('收件匣')
+    expect(await screen.findByTestId('help-title')).toHaveTextContent('今天')
   })
 
   it('helpFor：側欄每一條路由都有說明；子路徑用最長前綴', () => {

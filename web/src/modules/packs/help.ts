@@ -4,13 +4,13 @@ import { HELP_PAGES, type HelpPage } from '../../help'
 const zh: HelpPage = {
   path: '/packs', title: '行業套件',
   what: ['一個套件＝一組 AI 員工＋工作流模板＋階段定義，例如行銷套件的六階段。', '安裝後在工作區用「資料夾當資料庫」推進：每個主題一個資料夾，產出都是裡面的 md 檔。'],
-  how: ['在清單按「安裝」：會建 AI 員工（既有 profile 直接綁定）與每階段一個工作流。', '按「開啟階段視圖」，左邊「新主題」建一個資料夾。', '中間階段卡由左到右按「執行這階段」；AI 員工把產出寫進資料夾。', '標 ✋ 的階段跑完會進「待核准」並出現在收件匣；核准才能跑下一階段，退回要附意見。', '點產出檔名可預覽／編輯；右欄看負責員工與最近一次執行的對話。'],
+  how: ['在清單按「安裝」：會建好員工（已有的直接沿用）與每階段一條流程。', '按「開啟階段視圖」，左邊「新主題」建一個資料夾。', '中間階段卡由左到右按「執行這階段」；員工把產出寫進資料夾。', '標 ✋ 的階段跑完會進「待核准」並出現在收件匣；按「可以」才能跑下一階段，退回要附意見。', '點產出檔名可預覽／編輯；右欄看負責員工與最近一次執行的對話。'],
   faq: [
     { q: '產出檔缺少？', a: 'AI 員工沒把檔案寫進資料夾（看右欄對話）。可退回重跑，或自己在預覽裡編輯補上。' },
-    { q: '重新安裝會覆蓋 SOUL.md 嗎？', a: '不會。profile 已存在就不動；只更新工作流模板。' },
-    { q: '自己寫套件？', a: '看 docs/PACKS.md：一個目錄含 pack.yaml、stages.yaml、workflows/*.json、profiles/*/SOUL.md。' },
+    { q: '重新安裝會覆蓋員工的人設嗎？', a: '不會。已存在的員工不動；只更新流程模板。' },
+    { q: '自己寫套件？', a: '請工程師照 docs/PACKS.md 做：一個目錄含 pack.yaml、stages.yaml、workflows/*.json 與每位員工的 SOUL.md。' },
   ],
-  related: [{ to: '/inbox', label: '收件匣' }, { to: '/workflows', label: '工作流' }, { to: '/agents', label: 'AI 員工' }],
+  related: [{ to: '/inbox', label: '收件匣' }, { to: '/workflows', label: '流程' }, { to: '/agents', label: 'AI 員工' }],
 }
 const en: HelpPage = {
   path: '/packs', title: 'Industry packs',

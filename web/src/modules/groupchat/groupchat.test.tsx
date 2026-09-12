@@ -6,6 +6,9 @@ import { mockFetch } from '../../mock/fetch'
 import { renderApp, setupMocks } from '../../test/utils'
 import type { Room, RoomMessage } from './api'
 import { setGroupchatWebSocketImpl } from './socket'
+import { setEngineerMode } from '../../prefs/engineerMode'
+import { bossCopyViolations } from '../../test/bossCopy'
+import { GroupChatPage } from './GroupChatPage'
 
 // ---- 假 /groupchat REST ----
 let rooms: Room[] = []
@@ -149,6 +152,8 @@ describe('群聊（modules/groupchat）', () => {
     rooms.push(r); msgs[r.id] = []
     renderApp(<App />, { route: '/groupchat' })
     const user = userEvent.setup()
+    // 邀請碼預設收起，先點「有邀請碼？」
+    await user.click(await screen.findByTestId('have-invite'))
     await user.type(await screen.findByLabelText('邀請碼'), 'abcd1234')
     await user.click(screen.getByRole('button', { name: '加入' }))
     expect(await screen.findByText('🤖 小編')).toBeInTheDocument()
@@ -169,5 +174,24 @@ describe('群聊（modules/groupchat）', () => {
     await user.type(list.getByLabelText('邀請碼'), 'NOPE')
     await user.click(list.getByRole('button', { name: '加入' }))
     expect(await screen.findByText(/invite code not found/)).toBeInTheDocument()
+  })
+
+  it('老闆模式：清單先是「＋ 新房間」、邀請碼收在「有邀請碼？」後面、空狀態一句話＋按鈕、沒有系統詞', async () => {
+    setEngineerMode(false)
+    renderApp(<GroupChatPage />, { route: '/groupchat' })
+    const user = userEvent.setup()
+    const list = within(await screen.findByTestId('room-list'))
+    const newRoom = list.getByRole('button', { name: '＋ 新房間' })
+    const haveInvite = list.getByTestId('have-invite')
+    // 「＋ 新房間」在邀請碼入口前面；邀請碼輸入框預設不出現
+    expect(newRoom.compareDocumentPosition(haveInvite) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(list.queryByLabelText('邀請碼')).not.toBeInTheDocument()
+    const empty = within(await screen.findByTestId('empty-rooms-main'))
+    expect(empty.getByText('開一個房間，把兩位以上員工拉進來一起討論。')).toBeInTheDocument()
+    expect(bossCopyViolations()).toEqual([])
+    await user.click(empty.getByRole('button', { name: /開一個房間/ }))
+    expect(await screen.findByTestId('create-room-form')).toBeInTheDocument()
+    await user.click(list.getByTestId('have-invite'))
+    expect(await list.findByLabelText('邀請碼')).toBeInTheDocument()
   })
 })

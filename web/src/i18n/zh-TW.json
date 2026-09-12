@@ -142,7 +142,7 @@
     }
   },
   "agents": {
-    "title": "AI 員工管理",
+    "title": "AI 員工",
     "subtitle": "每位 AI 員工是一個 Hermes profile，或直接就是 Claude Code／Codex／Pi",
     "name": "名稱",
     "profile": "Profile",
@@ -159,6 +159,7 @@
     "noSkills": "沒有技能資料",
     "saveSoul": "儲存 SOUL.md",
     "newAgent": "新增員工",
+    "openCoding": "開工程對話 →",
     "confirmDelete": "確定刪除這位員工？",
     "runtime": "執行環境",
     "runtimeHermes": "Hermes",
@@ -235,7 +236,7 @@
     "newTask": "新增卡片",
     "taskTitle": "標題",
     "taskBody": "內容",
-    "assignee": "指派給（profile）",
+    "assignee": "指派給",
     "priority": "優先度",
     "priorities": {
       "low": "低",
@@ -311,6 +312,28 @@
       "owner": "擁有者",
       "admin": "管理員",
       "member": "成員"
+    },
+    "notify": {
+      "title": "有事找我",
+      "hint": "閘門等你看、流程失敗、對話要跑危險指令——推一則 LINE 給你，不用一直開站台。",
+      "enabled": "啟用 LINE 通知",
+      "lineTo": "LINE 收件對象",
+      "lineToHint": "userId 或 groupId，用「送到 LINE」那一步一樣的對象",
+      "publicUrl": "站台網址",
+      "publicUrlHint": "LINE 裡的連結要能打開，通常是你的 Cloudflare Tunnel 或內網網址；留空就不附連結",
+      "onWaiting": "等你看（閘門）",
+      "onFailed": "流程失敗",
+      "onChat": "危險指令",
+      "quietHours": "安靜時段",
+      "quietHoursHint": "例如 23-07，這段時間不推",
+      "test": "傳一則測試",
+      "save": "儲存",
+      "saved": "已儲存",
+      "testSent": "已送出",
+      "testFailed": "沒送出：{{error}}",
+      "lineMissing": "Hermes 這邊還沒設 LINE token，先到「頻道」把 LINE 接上。",
+      "lineMissingLink": "前往頻道",
+      "readOnly": "只有擁有者／管理者能改這裡。"
     }
   },
   "preview": {
@@ -386,6 +409,9 @@
     "bundleForm": "建立 Bundle",
     "journeyDetail": "節點詳情",
     "adminSide": "系統資訊",
-    "kanbanFilters": "看板篩選"
+    "kanbanFilters": "看板篩選",
+    "closeSheet": "關閉{{title}}",
+    "backToSessions": "對話",
+    "backToAgents": "員工"
   }
 }

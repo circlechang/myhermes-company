@@ -7,6 +7,15 @@ import { usePanelState, useFocusMode } from './panelState'
 
 const ChevronLeft = iconFor('ChevronLeft')
 const ChevronRight = iconFor('ChevronRight')
+const CloseIcon = iconFor('X')
+
+/**
+ * 手機（<768px）怎麼擺這個面板：
+ * - sheet：主區不留位置，右下角一顆藥丸鈕，點開變全螢幕的頁（有自己的標題列＋✕）
+ * - inline：直接當主內容鋪滿（清單優先的頁面：沒選東西時清單就是整頁）
+ * - hidden：手機不畫（桌面才有意義的資訊欄）
+ */
+export type PanelMobileMode = 'sheet' | 'inline' | 'hidden'
 
 export interface CollapsiblePanelProps {
   /** localStorage 鍵：mhc.panel.<id>，每頁自己一組，別跨頁重用 */
@@ -33,6 +42,13 @@ export interface CollapsiblePanelProps {
    * 預設沿用改版前的斷點：左欄 768（md）、右欄 1024（lg）。
    */
   expandFrom?: number
+  /** 手機模式（預設 sheet）；桌面與平板不受影響 */
+  mobileMode?: PanelMobileMode
+  /** sheet 模式：一掛上來就先打開（例如有一步等你看） */
+  defaultOpenOnMobile?: boolean
+  /** sheet 模式受控開關：頁面自己記狀態（切分頁重掛時不會又彈出來） */
+  mobileOpen?: boolean
+  onMobileOpenChange?: (open: boolean) => void
   'data-testid'?: string
 }
 
@@ -50,16 +66,27 @@ export function CollapsiblePanel({
   defaultCollapsed = false,
   actions,
   expandFrom,
+  mobileMode = 'sheet',
+  defaultOpenOnMobile = false,
+  mobileOpen: mobileOpenProp,
+  onMobileOpenChange,
   'data-testid': testId,
 }: CollapsiblePanelProps) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const narrow = useNarrowerThan(expandFrom ?? (side === 'right' ? 1024 : 768))
-  // 手機或視窗太窄：面板不佔主區，改成窄把手＋抽屜
+  // 平板／窄視窗（不是手機）：面板不佔主區，改成窄把手＋抽屜
   const mobile = isMobile || narrow
   const focus = useFocusMode()
   const [state, patch] = usePanelState(id, defaultWidth, min, max, defaultCollapsed)
   const [mobileOpen, setMobileOpen] = useState(false)
+  // 手機 sheet 的開關：受控（mobileOpen 有傳）就聽頁面的，否則自己記
+  const [sheetOpenLocal, setSheetOpenLocal] = useState(defaultOpenOnMobile)
+  const sheetOpen = mobileOpenProp ?? sheetOpenLocal
+  const setSheetOpen = (v: boolean) => {
+    if (mobileOpenProp === undefined) setSheetOpenLocal(v)
+    onMobileOpenChange?.(v)
+  }
   const asideRef = useRef<HTMLElement | null>(null)
 
   // 專注模式開著時，手機抽屜也一起關掉；切回桌面同理
@@ -97,6 +124,71 @@ export function CollapsiblePanel({
     </div>
   )
 
+  // ---- 手機：絕不畫直排文字的窄條（390px 上那條看不懂也點不到）------------
+  if (isMobile) {
+    if (mobileMode === 'hidden') return null
+    if (mobileMode === 'inline') {
+      return (
+        <aside
+          data-testid={testId}
+          data-panel={id}
+          data-collapsed="false"
+          data-mobile="inline"
+          aria-label={title}
+          className={`flex min-h-0 min-w-0 flex-1 flex-col ${className}`}
+        >
+          {body}
+        </aside>
+      )
+    }
+    const closeLabel = t('panels.closeSheet', { title })
+    const open = sheetOpen && !focus
+    return (
+      <>
+        {/* 右下角藥丸：面板的入口，永遠在（sheet 蓋住時看不到，但關掉就回來） */}
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          aria-expanded={open}
+          aria-controls={`panel-body-${id}`}
+          data-testid={`panel-open-${id}`}
+          className="fixed right-4 z-30 flex items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 shadow-lg dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <Icon className="h-4 w-4" aria-hidden />
+          <span className="max-w-[40vw] truncate">{title}</span>
+        </button>
+        {open && (
+          <div
+            role="dialog"
+            aria-label={title}
+            data-testid={`panel-sheet-${id}`}
+            data-panel={id}
+            data-collapsed="false"
+            data-mobile="sheet"
+            className={`fixed inset-0 z-40 flex flex-col bg-white dark:bg-zinc-900 ${className}`}
+          >
+            <div className="flex h-11 shrink-0 items-center gap-2 border-b border-zinc-200 px-3 dark:border-zinc-800">
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={title}>{title}</span>
+              {actions}
+              <button
+                type="button"
+                onClick={() => setSheetOpen(false)}
+                aria-label={closeLabel}
+                title={closeLabel}
+                data-testid={`panel-close-${id}`}
+                className="shrink-0 rounded p-1 text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              >
+                <CloseIcon className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
+            {body}
+          </div>
+        )}
+      </>
+    )
+  }
+
   /** 收合後的把手：一條窄邊，圖示＋箭頭＋直排標題，看得到也點得到（不是藏起來找不到） */
   const rail = (
     <aside
@@ -125,7 +217,7 @@ export function CollapsiblePanel({
     </aside>
   )
 
-  // ---- 手機／窄螢幕：窄把手 ＋ 抽屜，沒有拖曳把手 --------------------------
+  // ---- 平板／窄螢幕：窄把手 ＋ 抽屜，沒有拖曳把手 ------------------------
   if (mobile) {
     return (
       <>

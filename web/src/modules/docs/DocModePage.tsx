@@ -12,8 +12,9 @@ import { useAgents } from '../../api/hooks'
 import { useChatMessages, useCreateChatSession, type Attachment, type ChatSession } from '../../api/sessions'
 import type { ApprovalDecision, WsServerEvent } from '../../api/types'
 import { Composer } from '../../components/chat/Composer'
+import { EmptyState } from '../../components/EmptyState'
 import { MessageList } from '../../components/chat/MessageList'
-import { Empty, ErrorBox, Loading } from '../../components/QueryState'
+import { ErrorBox, Loading } from '../../components/QueryState'
 import { useChatSocket } from '../../ws/chatSocket'
 import {
   addUserMessage, applyEvent, emptyChat, fromMessages, markApprovalDecided,
@@ -21,7 +22,8 @@ import {
 } from '../../ws/chatState'
 import { DocActions } from './DocActions'
 import { DocPanel, type PendingUpdate } from './DocPanel'
-import { docsApi, stripDocFence, useDocs, useDocSessions, type Doc } from './api'
+import { docsApi, stripDocFence, useDocMutations, useDocs, useDocSessions, type Doc } from './api'
+import { EditableTitle } from './EditableTitle'
 
 export function DocModePage() {
   const { t } = useTranslation()
@@ -33,12 +35,15 @@ export function DocModePage() {
   const createSession = useCreateChatSession()
 
   const [docId, setDocId] = useState(params.get('doc') ?? '')
+  const docMutations = useDocMutations(docId || undefined)
   const [sessionId, setSessionId] = useState<string | undefined>()
   const [agentId, setAgentId] = useState<string | undefined>()
   const [pending, setPending] = useState<Record<string, PendingUpdate>>({})
   const [newTitle, setNewTitle] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const messagesQ = useChatMessages(sessionId)
+  // 「建第一份文件」按鈕把焦點送到左欄的標題輸入框
+  const titleRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!agentId && agentsQ.data?.length) setAgentId(agentsQ.data.find((a) => a.enabled)?.id ?? agentsQ.data[0].id)
@@ -149,14 +154,13 @@ export function DocModePage() {
       <aside className="flex min-h-0 flex-col overflow-auto border-r border-zinc-200 dark:border-zinc-800">
         <div className="panel-title">{t('docs.mode.docs')}</div>
         <div className="flex items-center gap-1 px-2 pb-2">
-          <input className="input h-7 text-xs" placeholder={t('docs.newTitle')} aria-label={t('docs.newTitle')} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} data-testid="doc-mode-new-title" />
+          <input ref={titleRef} className="input h-7 text-xs" placeholder={t('docs.newTitle')} aria-label={t('docs.newTitle')} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && newTitle.trim()) void createDoc() }} data-testid="doc-mode-new-title" />
           <button type="button" className="btn-primary !px-2 !py-1 text-xs" disabled={!newTitle.trim()} onClick={() => void createDoc()} data-testid="doc-mode-new">
             {t('docs.new')}
           </button>
         </div>
         {docsQ.isLoading && <Loading />}
         {docsQ.error && <ErrorBox error={docsQ.error} onRetry={() => docsQ.refetch()} />}
-        {docsQ.data?.length === 0 && <Empty text={t('docs.empty')} />}
         <ul className="space-y-0.5 px-2 pb-2">
           {visibleDocs.map((d) => (
             <li key={d.id} className={`group flex items-center gap-1 rounded-md ${d.id === docId ? 'bg-zinc-200 dark:bg-zinc-800' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/60'}`}>
@@ -188,14 +192,25 @@ export function DocModePage() {
       <section className="flex min-h-0 flex-col overflow-hidden">
         {docId ? (
           <DocPanel docId={docId} pending={pending[docId]} onAccept={() => setPending((p) => ({ ...p, [docId]: undefined as unknown as PendingUpdate }))} />
+        ) : allDocs.length === 0 && !docsQ.isLoading && !docsQ.error ? (
+          /* 一份文件都沒有：整頁只留一句話＋一個主按鈕；右欄什麼都不顯示 */
+          <div className="flex flex-1 items-center justify-center">
+            <EmptyState testId="doc-mode-empty" title={t('docs.mode.emptyTitle')} action={{ label: t('docs.mode.createFirst'), onClick: () => titleRef.current?.focus() }} />
+          </div>
         ) : (
           <div className="p-6 text-center text-xs text-zinc-600 dark:text-zinc-400">{t('docs.mode.pickDoc')}</div>
         )}
       </section>
-      {/* 右：對話 */}
-      <section className="flex min-h-0 flex-col border-l border-zinc-200 dark:border-zinc-800">
+      {/* 右：對話（沒選文件前什麼都不放，避免第三句空狀態） */}
+      <section className="flex min-h-0 flex-col border-l border-zinc-200 dark:border-zinc-800" data-testid="doc-mode-chat">
+        {docId && (
         <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-800">
-          <span className="min-w-0 flex-1 truncate font-medium">{docsQ.data?.find((d) => d.id === docId)?.title ?? t('docs.mode.pickDoc')}</span>
+          <EditableTitle
+            title={docsQ.data?.find((d) => d.id === docId)?.title ?? ''}
+            className="flex-1 font-medium"
+            testId="doc-mode-title"
+            onSave={(next) => docMutations.patch.mutate({ title: next })}
+          />
           <select className="input h-6 w-36 py-0 text-xs" aria-label={t('workbench.agent')} value={agentId ?? ''} onChange={(e) => setAgentId(e.target.value)} data-testid="doc-mode-agent">
             {(agentsQ.data ?? []).map((a) => (
               <option key={a.id} value={a.id}>
@@ -205,11 +220,8 @@ export function DocModePage() {
           </select>
           <span className={`inline-block h-2 w-2 rounded-full ${status === 'open' ? 'bg-emerald-500' : status === 'connecting' ? 'bg-amber-500' : 'bg-zinc-400'}`} title={status} />
         </div>
-        {!docId ? (
-          <div className="flex h-full items-center justify-center p-6 text-center text-sm text-zinc-600 dark:text-zinc-400" data-testid="doc-mode-empty">
-            {t('docs.mode.hint')}
-          </div>
-        ) : !sessionId ? (
+        )}
+        {!docId ? null : !sessionId ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm">
             <p className="text-zinc-600 dark:text-zinc-400">{t('docs.mode.noSession')}</p>
             <button type="button" className="btn-primary" disabled={!agentId || createSession.isPending} onClick={() => void startChat()} data-testid="doc-mode-start">

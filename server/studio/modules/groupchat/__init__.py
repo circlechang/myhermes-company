@@ -3,9 +3,11 @@ from fastapi import APIRouter
 
 from . import models  # noqa: F401  (register tables)
 from .api import on_shutdown, on_startup, router as _rest, ws_router as _ws
+from .bots_api import router as _bots
 
 router = APIRouter()
 router.include_router(_rest)
+router.include_router(_bots)
 router.include_router(_ws)
 
 __all__ = ["router", "on_startup", "on_shutdown"]

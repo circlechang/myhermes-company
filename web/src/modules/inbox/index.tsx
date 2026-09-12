@@ -1,12 +1,18 @@
-// 待辦收件匣：聚合流程等你看／對話危險指令／看板 blocked／群聊 @ 我／上限超額，一頁處理。
+// 待辦收件匣：聚合流程等你看／對話危險指令／看板 blocked／群聊 @ 我／上限超額。
+// 2026-09 起併進「今天」頁的「等你決定」卡：這裡只留資料層、單筆列、篩選面板（InboxPanel）；
+// /inbox 路由保留但直接轉到 /today，頂欄 badge 連過來還是對的；側欄不再列它。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { request } from '../../api/client'
+import { useAgents } from '../../api/hooks'
 import { PageHeader } from '../../components/PageHeader'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorBox, Loading } from '../../components/QueryState'
+import { fmtWhen } from '../../lib/format'
+import { useEngineerMode } from '../../prefs/engineerMode'
 import '../../guide/i18n'
 import type { StudioModule } from '../registry'
 
@@ -17,6 +23,7 @@ export interface InboxItem {
   ref?: string
   title: string
   detail: string
+  /** Hermes profile id（例：researcher），不是員工名字；畫面上要換成員工名 */
   agent: string
   created_at: string | null
   link: string
@@ -36,8 +43,10 @@ export const inboxApi = {
 export const inboxQk = ['inbox'] as const
 /** 給導覽 badge 用：每 30 秒更新 */
 export const useInboxCount = () => useQuery({ queryKey: [...inboxQk, 'count'], queryFn: inboxApi.count, refetchInterval: 30_000 })
+/** 清單本體；今天頁與 /inbox 面板共用同一把 key，核准後兩邊一起更新 */
+export const useInboxList = () => useQuery({ queryKey: [...inboxQk, 'list'], queryFn: () => inboxApi.list(), refetchInterval: 30_000 })
 
-const KINDS = ['workflow_gate', 'chat_approval', 'kanban_blocked', 'groupchat_mention', 'limit_exceeded'] as const
+export const KINDS = ['workflow_gate', 'chat_approval', 'kanban_blocked', 'groupchat_mention', 'limit_exceeded'] as const
 const KIND_COLOR: Record<string, string> = {
   workflow_gate: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
   chat_approval: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200',
@@ -46,16 +55,29 @@ const KIND_COLOR: Record<string, string> = {
   limit_exceeded: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
 }
 
-function fmtTime(s: string | null) {
-  if (!s) return ''
-  const d = new Date(s.endsWith('Z') || s.includes('+') ? s : s + 'Z')
-  return isNaN(d.getTime()) ? s : d.toLocaleString()
+/**
+ * profile id → 員工名。找不到：工程師模式給原始 id，老闆模式給「AI 員工」（他不需要知道 profile 這個字）。
+ * 空字串回空，畫面不佔位。
+ */
+export function useStaffName(): (profile?: string | null) => string {
+  const { t } = useTranslation()
+  const agents = useAgents()
+  const engineer = useEngineerMode()
+  return (profile) => {
+    if (!profile) return ''
+    const hit = (agents.data ?? []).find((a) => a.profile === profile || a.id === profile)
+    if (hit?.name) return hit.name
+    // 員工清單還沒回來就先留白，免得先閃一下「AI 員工」再換成名字
+    if (!agents.data && agents.isPending) return ''
+    return engineer ? profile : t('inbox.staffFallback')
+  }
 }
 
 /** 單筆待辦列；/today 的「等你決定」也用這一個，避免兩套核准按鈕 */
 export function InboxRow({ it, onDone }: { it: InboxItem; onDone: () => void }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const nav = useNavigate()
+  const staffName = useStaffName()
   const [comment, setComment] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -66,14 +88,16 @@ export function InboxRow({ it, onDone }: { it: InboxItem; onDone: () => void }) 
   })
   const doneBody = it.api.done === '/inbox/done' ? { ref: it.ref ?? it.id } : undefined
   const kindLabel = t(`inbox.kind.${it.kind}`, { defaultValue: it.kind })
+  const who = staffName(it.agent)
   return (
     <li className="card p-3" data-testid={`inbox-${it.id}`}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
+      {/* 手機上下堆疊（文字先、按鈕後），桌機才左右分欄；避免 390px 時標題被擠成一字一行 */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${KIND_COLOR[it.kind] ?? 'bg-zinc-200 dark:bg-zinc-800'}`}>{kindLabel}</span>
-            {it.agent && <code className="text-xs text-zinc-600 dark:text-zinc-400">{it.agent}</code>}
-            <span className="text-xs text-zinc-600 dark:text-zinc-400">{fmtTime(it.created_at)}</span>
+            {who && <span className="text-xs text-zinc-700 dark:text-zinc-300" data-testid={`inbox-${it.id}-staff`}>{who}</span>}
+            <span className="text-xs text-zinc-600 dark:text-zinc-400" data-testid={`inbox-${it.id}-when`}>{fmtWhen(it.created_at, new Date(), i18n.language)}</span>
           </div>
           <div className="mt-1 font-medium">{it.title}</div>
           {it.detail && (
@@ -85,9 +109,9 @@ export function InboxRow({ it, onDone }: { it: InboxItem; onDone: () => void }) 
             </div>
           )}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
+        <div className="flex w-full shrink-0 flex-col gap-1 sm:w-auto sm:items-end">
           {(it.actions.includes('approve') || it.actions.includes('reject')) && (
-            <input className="input w-56" placeholder={t('inbox.commentPh')} aria-label={t('inbox.comment')} value={comment} onChange={(e) => setComment(e.target.value)} />
+            <input className="input w-full sm:w-56" placeholder={t('inbox.commentPh')} aria-label={t('inbox.comment')} value={comment} onChange={(e) => setComment(e.target.value)} />
           )}
           <div className="flex flex-wrap justify-end gap-1">
             {it.actions.includes('approve') && (
@@ -114,32 +138,66 @@ export function InboxRow({ it, onDone }: { it: InboxItem; onDone: () => void }) 
   )
 }
 
-export function InboxPage() {
+/** 「重新整理」圖示鈕：今天頁的卡片標題列與 /inbox 頁頭都用它 */
+export function InboxRefreshButton({ className = '' }: { className?: string }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const list = useInboxList()
+  return (
+    <button type="button" className={`btn-ghost p-1 ${className}`} title={t('inbox.refresh')} aria-label={t('inbox.refresh')} data-testid="inbox-refresh"
+      onClick={() => qc.invalidateQueries({ queryKey: inboxQk })}>
+      <RefreshCw className={`h-4 w-4 ${list.isFetching ? 'animate-spin' : ''}`} aria-hidden />
+    </button>
+  )
+}
+
+/**
+ * 收件匣面板：種類 chip（只列有數字的）＋清單＋動作。今天頁「等你決定」與 /inbox 都是它。
+ * `compact` 給今天頁：空清單只給一行字（emptyText），不畫大空狀態。
+ */
+export function InboxPanel({ compact = false, emptyText }: { compact?: boolean; emptyText?: string }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [kind, setKind] = useState<string>('')
-  const q = useQuery({ queryKey: [...inboxQk, 'list'], queryFn: () => inboxApi.list(), refetchInterval: 30_000 })
+  const q = useInboxList()
   const refresh = () => { qc.invalidateQueries({ queryKey: inboxQk }) }
+  const byKind = q.data?.by_kind ?? {}
+  const kinds = KINDS.filter((k) => (byKind[k] ?? 0) > 0)
   const items = (q.data?.items ?? []).filter((x) => !kind || x.kind === kind)
+  const chip = (active: boolean) => `btn-outline text-xs ${active ? 'bg-zinc-200 dark:bg-zinc-800' : ''}`
+  const pill = 'rounded-full bg-zinc-300 px-1.5 dark:bg-zinc-700'
   return (
-    <div className="p-4">
-      <PageHeader title={t('inbox.title')} subtitle={t('inbox.subtitle')}
-        actions={<button className="btn-outline" onClick={refresh}>{t('inbox.refresh')}</button>} />
-      <div className="mb-3 flex flex-wrap gap-1 text-xs">
-        <button className={`btn-outline ${!kind ? 'bg-zinc-200 dark:bg-zinc-800' : ''}`} onClick={() => setKind('')}>
-          {t('inbox.all')} <span className="rounded-full bg-zinc-300 px-1.5 dark:bg-zinc-700">{q.data?.count ?? 0}</span>
-        </button>
-        {KINDS.map((k) => (
-          <button key={k} className={`btn-outline ${kind === k ? 'bg-zinc-200 dark:bg-zinc-800' : ''}`} onClick={() => setKind(kind === k ? '' : k)} data-testid={`filter-${k}`}>
-            {t(`inbox.kind.${k}`)} <span className="rounded-full bg-zinc-300 px-1.5 dark:bg-zinc-700">{q.data?.by_kind?.[k] ?? 0}</span>
+    <div data-testid="inbox-panel">
+      {(q.data?.count ?? 0) > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1 text-xs" data-testid="inbox-chips">
+          <button className={chip(!kind)} onClick={() => setKind('')} data-testid="filter-all">
+            {t('inbox.all')} <span className={pill}>{q.data?.count ?? 0}</span>
           </button>
-        ))}
-      </div>
+          {kinds.map((k) => (
+            <button key={k} className={chip(kind === k)} onClick={() => setKind(kind === k ? '' : k)} data-testid={`filter-${k}`}>
+              {t(`inbox.kind.${k}`)} <span className={pill}>{byKind[k] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {q.data?.warnings?.length ? <div className="mb-2 text-xs text-amber-700 dark:text-amber-300">{q.data.warnings.join('；')}</div> : null}
       {q.isLoading && <Loading />}
       {q.error && <ErrorBox error={q.error} onRetry={() => q.refetch()} />}
-      {q.data && items.length === 0 && <EmptyState testId="empty-inbox" title={t('guide.empty.inbox.title')} body={t('guide.empty.inbox.body')} action={{ label: t('guide.empty.inbox.action'), to: '/workflows' }} />}
+      {q.data && items.length === 0 && (compact
+        ? <p className="text-sm text-zinc-600 dark:text-zinc-400" data-testid="today-decide-empty">{emptyText ?? t('inbox.empty')}</p>
+        : <EmptyState testId="empty-inbox" title={t('guide.empty.inbox.title')} body={t('guide.empty.inbox.body')} action={{ label: t('guide.empty.inbox.action'), to: '/workflows' }} />)}
       <ul className="space-y-2">{items.map((it) => <InboxRow key={it.id} it={it} onDone={refresh} />)}</ul>
+    </div>
+  )
+}
+
+/** 獨立頁面（給既有測試與直接 render 用）；路由上 /inbox 已轉到 /today */
+export function InboxPage() {
+  const { t } = useTranslation()
+  return (
+    <div className="p-4">
+      <PageHeader title={t('inbox.title')} subtitle={t('inbox.subtitle')} actions={<InboxRefreshButton />} />
+      <InboxPanel />
     </div>
   )
 }
@@ -149,7 +207,7 @@ const zhTW = {
   inbox: {
     title: '待辦收件匣', subtitle: '所有需要人決定的事：流程等你看、對話危險指令、看板卡住、群聊點名、用量超額', refresh: '重新整理',
     all: '全部', empty: '沒有待辦，太好了。', more: '展開', less: '收合', comment: '意見', commentPh: '核准／退回意見（選填）',
-    approve: '核准', reject: '退回', done: '已處理', goto: '前往',
+    approve: '可以', reject: '退回', done: '已處理', goto: '前往', staffFallback: 'AI 員工',
     kind: { workflow_gate: '流程等你看', chat_approval: '危險指令', kanban_blocked: '看板卡住', groupchat_mention: '群聊點名', limit_exceeded: '用量超額', notice: '通知' },
     decision: { once: '允許一次', session: '本次對話允許', always: '永遠允許', deny: '拒絕' },
   },
@@ -159,7 +217,7 @@ const en = {
   inbox: {
     title: 'Inbox', subtitle: 'Everything that needs a human decision', refresh: 'Refresh',
     all: 'All', empty: 'Nothing pending.', more: 'More', less: 'Less', comment: 'Comment', commentPh: 'Comment (optional)',
-    approve: 'Approve', reject: 'Reject', done: 'Done', goto: 'Open',
+    approve: 'Approve', reject: 'Reject', done: 'Done', goto: 'Open', staffFallback: 'AI staff',
     kind: { workflow_gate: 'Workflow gate', chat_approval: 'Dangerous command', kanban_blocked: 'Kanban blocked', groupchat_mention: 'Mention', limit_exceeded: 'Limit exceeded', notice: 'Notice' },
     decision: { once: 'Allow once', session: 'Allow this session', always: 'Always allow', deny: 'Deny' },
   },
@@ -167,8 +225,10 @@ const en = {
 
 const mod: StudioModule = {
   name: 'inbox',
-  routes: [{ path: '/inbox', element: <InboxPage /> }],
-  nav: [{ to: '/inbox', key: 'inbox', order: 20, group: 'work', icon: 'Inbox' }],
+  // 路由留著：頂欄 badge 與說明頁的舊連結都指 /inbox；內容已併進「今天」，所以直接轉過去
+  routes: [{ path: '/inbox', element: <Navigate to="/today" replace /> }],
+  // hidden：不進側欄（今天頁就是收件匣），但頁標題與設定總覽仍認得它
+  nav: [{ to: '/inbox', key: 'inbox', order: 20, group: 'work', icon: 'Inbox', hidden: true }],
   i18n: { 'zh-TW': zhTW, en },
 }
 export default mod

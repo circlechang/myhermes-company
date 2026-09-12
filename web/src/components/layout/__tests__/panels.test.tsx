@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CollapsiblePanel } from '../CollapsiblePanel'
 import { PanelGroup, WorkArea } from '../WorkArea'
@@ -190,35 +190,85 @@ describe('專注模式', () => {
   })
 })
 
-describe('手機（<768px）改抽屜', () => {
+describe('手機（<768px）：sheet／inline／hidden，絕不畫直排窄條', () => {
   beforeEach(() => setMobile(true))
   afterEach(() => setMobile(false))
 
-  it('平常只有窄把手、沒有拖曳把手；點開變抽屜，點遮罩關閉', async () => {
+  it('預設 sheet：主區沒有窄把手，右下角一顆藥丸；點開成全螢幕頁，✕ 關掉', async () => {
     const user = userEvent.setup()
     render(<Demo />)
-    expect(screen.getByTestId('p').dataset.collapsed).toBe('true')
+    expect(screen.queryByTestId('p')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('panel-expand-test.left')).not.toBeInTheDocument()
+    expect(document.querySelector('[class*="writing-mode"]')).toBeNull()
     expect(screen.queryByTestId('panel-resizer-test.left')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('panel-drawer-test.left')).not.toBeInTheDocument()
+    const pill = screen.getByTestId('panel-open-test.left')
+    expect(pill).toHaveTextContent('測試面板')
+    expect(pill).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('panel-sheet-test.left')).not.toBeInTheDocument()
 
-    await user.click(screen.getByTestId('panel-expand-test.left'))
-    const drawer = await screen.findByTestId('panel-drawer-test.left')
-    expect(drawer).toBeInTheDocument()
-    expect(screen.getByTestId('panel-content')).toBeInTheDocument()
-    // 抽屜裡一樣不給拖曳
+    await user.click(pill)
+    const sheet = await screen.findByTestId('panel-sheet-test.left')
+    expect(sheet.className).toContain('fixed')
+    expect(sheet.className).toContain('inset-0')
+    expect(within(sheet).getByText('測試面板')).toBeInTheDocument()
+    expect(within(sheet).getByTestId('panel-content')).toBeInTheDocument()
     expect(screen.queryByTestId('panel-resizer-test.left')).not.toBeInTheDocument()
 
-    await user.click(screen.getByTestId('panel-drawer-backdrop-test.left'))
-    expect(screen.queryByTestId('panel-drawer-test.left')).not.toBeInTheDocument()
+    await user.click(screen.getByTestId('panel-close-test.left'))
+    expect(screen.queryByTestId('panel-sheet-test.left')).not.toBeInTheDocument()
+    expect(screen.getByTestId('panel-open-test.left')).toBeInTheDocument()
   })
 
-  it('專注模式下抽屜不會冒出來', async () => {
-    const user = userEvent.setup()
-    render(<Demo />)
-    await user.click(screen.getByTestId('panel-expand-test.left'))
-    expect(await screen.findByTestId('panel-drawer-test.left')).toBeInTheDocument()
+  it('defaultOpenOnMobile：一掛上來 sheet 就開著；專注模式一開就收起', async () => {
+    render(
+      <PanelGroup>
+        <CollapsiblePanel id="test.left" side="left" title="測試面板" defaultOpenOnMobile data-testid="p">
+          <div data-testid="panel-content">內容</div>
+        </CollapsiblePanel>
+        <WorkArea data-testid="work">主區</WorkArea>
+      </PanelGroup>,
+    )
+    expect(await screen.findByTestId('panel-sheet-test.left')).toBeInTheDocument()
     act(() => setFocusMode(true))
-    expect(screen.queryByTestId('panel-drawer-test.left')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('panel-sheet-test.left')).not.toBeInTheDocument()
+    expect(screen.getByTestId('panel-open-test.left')).toBeInTheDocument()
+  })
+
+  it('受控 mobileOpen：頁面說開就開、說關就關，✕ 會回呼 onMobileOpenChange', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <CollapsiblePanel id="test.left" side="left" title="測試面板" mobileOpen={false} onMobileOpenChange={onChange}>x</CollapsiblePanel>,
+    )
+    expect(screen.queryByTestId('panel-sheet-test.left')).not.toBeInTheDocument()
+    await user.click(screen.getByTestId('panel-open-test.left'))
+    expect(onChange).toHaveBeenLastCalledWith(true)
+    rerender(<CollapsiblePanel id="test.left" side="left" title="測試面板" mobileOpen onMobileOpenChange={onChange}>x</CollapsiblePanel>)
+    expect(screen.getByTestId('panel-sheet-test.left')).toBeInTheDocument()
+    await user.click(screen.getByTestId('panel-close-test.left'))
+    expect(onChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('inline：內容直接鋪在主區，沒有藥丸也沒有標題列；hidden：什麼都不畫', () => {
+    const { unmount } = render(
+      <CollapsiblePanel id="test.left" side="left" title="測試面板" mobileMode="inline" data-testid="p">
+        <div data-testid="panel-content">內容</div>
+      </CollapsiblePanel>,
+    )
+    const p = screen.getByTestId('p')
+    expect(p.dataset.mobile).toBe('inline')
+    expect(p.className).toContain('flex-1')
+    expect(screen.getByTestId('panel-content')).toBeInTheDocument()
+    expect(screen.queryByTestId('panel-open-test.left')).not.toBeInTheDocument()
+    unmount()
+    render(
+      <CollapsiblePanel id="test.left" side="left" title="測試面板" mobileMode="hidden" data-testid="p">
+        <div data-testid="panel-content">內容</div>
+      </CollapsiblePanel>,
+    )
+    expect(screen.queryByTestId('p')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('panel-content')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('panel-open-test.left')).not.toBeInTheDocument()
   })
 })
 

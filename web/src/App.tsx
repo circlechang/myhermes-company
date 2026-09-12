@@ -9,6 +9,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { WorkbenchPage } from './pages/WorkbenchPage'
 import { WorkflowsPage } from './pages/WorkflowsPage'
 import { moduleRoutes } from './modules/registry'
+import { BotsApp } from './modules/bots/BotsApp'
 import { SetupGate, SetupPage } from './modules/setup'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -32,6 +33,20 @@ export function App() {
           </RequireAuth>
         }
       />
+      {/* Bots 訊息介面：自帶全螢幕殼，不套舊 Layout */}
+      {['/bots', '/bots/:roomId'].map((path) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            <RequireAuth>
+              <SetupGate>
+                <BotsApp />
+              </SetupGate>
+            </RequireAuth>
+          }
+        />
+      ))}
       <Route
         element={
           <RequireAuth>

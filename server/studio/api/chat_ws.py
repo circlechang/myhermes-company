@@ -498,6 +498,11 @@ class ChatBridge:
                                            command=str(out.get("command") or ""), context=out.get("context") or {}, engine=self.engine)
                     if pid:
                         out["pending_id"] = pid
+                    try:  # 有事找老闆：危險指令推 LINE（notify 模組不在或失敗都不影響對話）
+                        from ..modules.notify import emit as _notify_emit
+                        _notify_emit("chat", self.p.company_id, {"ref": str(out["approval_id"]), "profile": profile or "", "command": str(out.get("command") or "")})
+                    except Exception as e:
+                        log.debug("notify skipped: %s", e)
                 elif name in ("run.completed", "run.failed", "run.cancelled"):
                     terminal = True
                     final = ev.get("output") if name == "run.completed" else None

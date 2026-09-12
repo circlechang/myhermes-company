@@ -12,6 +12,8 @@ import { DocPanel } from './DocPanel'
 import { DocsListPage } from './DocsListPage'
 import { LineageGraph, layout } from './LineageGraph'
 import { stripDocFence, type Doc, type DocVersionMeta, type Lineage } from './api'
+import { setEngineerMode } from '../../prefs/engineerMode'
+import { bossCopyViolations } from '../../test/bossCopy'
 
 const ok = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } })
 const calls: { method: string; path: string; body?: unknown }[] = []
@@ -127,6 +129,19 @@ describe('DocsListPage', () => {
     await waitFor(() => expect(calls.find((c) => c.path === '/docs/doc_3' && c.method === 'PATCH')?.body).toEqual({ status: 'draft' }))
   })
 
+  it('每一列都有看得見的「改名字」：填了送 PATCH title，取消就不打 API', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('新名字')
+    renderApp(<DocsListPage />)
+    await userEvent.click(await screen.findByTestId('doc-rename-doc_1'))
+    await waitFor(() => expect(calls.find((c) => c.path === '/docs/doc_1' && c.method === 'PATCH')?.body).toEqual({ title: '新名字' }))
+
+    calls.length = 0
+    promptSpy.mockReturnValue(null)          // 按取消
+    await userEvent.click(screen.getByTestId('doc-rename-doc_1'))
+    expect(calls.find((c) => c.method === 'PATCH')).toBeUndefined()
+    promptSpy.mockRestore()
+  })
+
   it('刪除要先確認；取消就不打 API，確認才 DELETE', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
     renderApp(<DocsListPage />)
@@ -150,6 +165,36 @@ describe('DocModePage', () => {
     expect(screen.getByTestId('doc-archive-doc_3')).toHaveTextContent('取消封存')
     await userEvent.click(screen.getByTestId('doc-mode-toggle-archived'))
     await waitFor(() => expect(screen.queryByTestId('doc-pick-doc_3')).not.toBeInTheDocument())
+  })
+
+  it('一份文件都沒有：中央只有一句話＋「建第一份文件」，按了焦點到標題框；右欄空白、沒有系統詞', async () => {
+    setEngineerMode(false)
+    setFetchImpl(mockFetch as typeof fetch) // 共用 mock 的 docs 起始是空的
+    renderApp(<DocModePage />)
+    const empty = within(await screen.findByTestId('doc-mode-empty'))
+    expect(empty.getByText('還沒有文件：建一份，之後每次對話都是在把它寫完。')).toBeInTheDocument()
+    expect(screen.getAllByText(/還沒有文件/)).toHaveLength(1)
+    expect(screen.queryByText('先選一份文件')).not.toBeInTheDocument()
+    expect(screen.getByTestId('doc-mode-chat').textContent).toBe('')
+    await userEvent.click(empty.getByRole('button', { name: '建第一份文件' }))
+    expect(screen.getByTestId('doc-mode-new-title')).toHaveFocus()
+    expect(bossCopyViolations()).toEqual([])
+  })
+
+  it('點標題可以就地改名字：Enter 送出 PATCH title，Esc 取消不打 API', async () => {
+    renderApp(<DocModePage />, { route: '/doc-mode?doc=doc_1' })
+    await userEvent.click(await screen.findByTestId('doc-mode-title'))
+    const input = screen.getByTestId('doc-mode-title-input')
+    await userEvent.clear(input)
+    await userEvent.type(input, '改過的名字{Enter}')
+    await waitFor(() => expect(calls.find((c) => c.path === '/docs/doc_1' && c.method === 'PATCH')?.body).toEqual({ title: '改過的名字' }))
+
+    calls.length = 0
+    await userEvent.click(await screen.findByTestId('doc-mode-title'))
+    const again = screen.getByTestId('doc-mode-title-input')
+    await userEvent.clear(again)
+    await userEvent.type(again, '不要這個{Escape}')
+    expect(calls.find((c) => c.method === 'PATCH')).toBeUndefined()
   })
 
   it('刪掉正在看的文件後，中央面板回到「先選一份文件」', async () => {

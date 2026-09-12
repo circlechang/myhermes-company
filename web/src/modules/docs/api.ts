@@ -148,6 +148,8 @@ export function useDocMutations(id?: string) {
     patch: useMutation({ mutationFn: (b: Record<string, unknown>) => docsApi.patch(id!, b), onSuccess: done }),
     fork: useMutation({ mutationFn: (title: string) => docsApi.fork(id!, title), onSuccess: done }),
     create: useMutation({ mutationFn: (b: Partial<Doc> & { content?: string }) => docsApi.create(b), onSuccess: done }),
+    /** 改名字；帶 id 所以清單頁不用先選文件。後端會把工作區檔名一起換掉 */
+    rename: useMutation({ mutationFn: (v: { id: string; title: string }) => docsApi.patch(v.id, { title: v.title }), onSuccess: done }),
     /** 封存／取消封存等狀態切換；帶 id 所以清單頁不用先選文件 */
     setStatus: useMutation({ mutationFn: (v: { id: string; status: DocStatus }) => docsApi.patch(v.id, { status: v.status }), onSuccess: done }),
     /** 刪 DB 列、版本與血緣（工作區檔案保留）；後端限 admin */

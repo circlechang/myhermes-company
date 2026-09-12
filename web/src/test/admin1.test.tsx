@@ -12,6 +12,7 @@ import { AgentsPage } from '../pages/AgentsPage'
 import { mockFetch, MOCK_TOKEN } from '../mock/fetch'
 import { MockWebSocket } from '../mock/MockWebSocket'
 import { setWebSocketImpl } from '../ws/chatSocket'
+import { setEngineerMode } from '../prefs/engineerMode'
 import { renderApp } from './utils'
 
 type Handler = (method: string, path: string, body: unknown, url: URL) => unknown
@@ -86,6 +87,7 @@ const handler: Handler = (method, path, body, url) => {
   return null
 }
 
+afterEach(() => setEngineerMode(false))
 beforeEach(() => {
   jobs = []
   calls = []
@@ -142,6 +144,7 @@ describe('B. 頻道頁', () => {
   it('顯示 gateway 狀態、LINE webhook 提示，儲存只送有填的欄位', async () => {
     renderApp(<ChannelsPage />, { route: '/channels' })
     const user = userEvent.setup()
+    setEngineerMode(true) // 這段看的是工程師資訊（PID／供應商／provider）
     expect(await screen.findByText(/PID 4242/)).toBeInTheDocument()
     expect(await screen.findByTestId('line-webhook')).toHaveTextContent('/line/webhook')
     await user.type(screen.getByLabelText('Channel access token'), 'tok')
@@ -197,6 +200,7 @@ describe('C. 用量頁', () => {
 
 describe('G. 模型頁', () => {
   it('列供應商、展開模型清單、設預設、新增自訂供應商（偵測）', async () => {
+    setEngineerMode(true) // 新增自訂供應商只在工程師模式
     renderApp(<ModelsPage />, { route: '/models' })
     const user = userEvent.setup()
     expect(await screen.findByTestId('current-model')).toHaveTextContent('gpt-5.6-luna')

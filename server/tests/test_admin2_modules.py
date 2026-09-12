@@ -405,3 +405,51 @@ def test_journey_mention_scan_is_case_insensitive_and_word_bounded(tmp_path):
     mentions = {(e["source"], e["target"]) for e in g["edges"] if e["kind"] == "mention"}
     assert ("skill:caller-one", "skill:Mixed-Case") in mentions
     assert ("skill:caller-two", "skill:Mixed-Case") not in mentions
+
+
+# -- skills: 用途維度與最近使用 -------------------------------------------------
+
+def test_skill_topics_classification():
+    """分類是純函式：先看名字，名字看不出來才看描述。"""
+    from studio.modules.skills.topics import OTHER, classify
+
+    def c(name, category="uncategorized", description="", tags=()):
+        return classify({"name": name, "dir": name, "category": category, "description": description, "tags": list(tags)})
+
+    assert c("packaging-spec-radar") == "公司專用"
+    assert c("researcher-writes") == "寫作與內容"
+    assert c("patent-landscape-research") == "研究與情報"
+    assert c("minimax-image-to-video") == "設計與影音"
+    assert c("xlsx", category="productivity") == "文件與試算表"
+    assert c("email-inbox-triage", category="email") == "溝通與信件"
+    assert c("linear") == "專案與任務"          # 不可以被「line」規則搶走
+    assert c("test-driven-development", category="software-development") == "開發與除錯"  # 不是「drive」
+    assert c("claude-code", category="autonomous-ai-agents") == "AI 代理與自動化"
+    assert c("findmy", category="apple") == "生活與裝置"
+    # 名字看不出來 → 退回描述
+    assert c("zzz-thing", description="Monitor competitor news") == "研究與情報"
+    assert c("zzz-thing") == OTHER
+
+
+def test_skills_topic_filter_and_last_used(client, auth, seeded, app):
+    from sqlmodel import Session as SqlSession
+
+    from studio.models import Message
+
+    r = client.get("/skills", headers=auth)
+    items = {s["name"]: s for s in r.json()["items"]}
+    assert items["beta"]["topic"] == "研究與情報"          # category=research
+    topics = {t["name"]: t for t in r.json()["topics"]}
+    assert topics["研究與情報"]["count"] == 1 and topics["研究與情報"]["hint"]
+    assert [s["name"] for s in client.get("/skills", params={"topic": "研究與情報"}, headers=auth).json()["items"]] == ["beta"]
+    assert client.get("/skills", params={"topic": "沒有這個維度"}, headers=auth).json()["items"] == []
+
+    # 用過一次 alpha → usage 要同時給次數與最後使用時間
+    with SqlSession(app.state.engine) as db:
+        db.add(Message(session_id="s_test", role="tool", tool_name="skill", tool_args='{"name": "alpha"}'))
+        db.commit()
+    u = client.get("/skills/usage", headers=auth).json()
+    assert u["counts"]["alpha"] == 1
+    assert u["last_used"]["alpha"] > 0
+    assert u["recent"][0][0] == "alpha"
+    assert "beta" not in u["last_used"]

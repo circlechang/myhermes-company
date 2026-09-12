@@ -7,6 +7,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAgents } from '../../api/hooks'
 import { EmptyState } from '../../components/EmptyState'
 import { CollapsiblePanel } from '../../components/layout/index'
+import { useIsMobile } from '../../components/nav/useNavState'
 import { ErrorBox, Loading } from '../../components/QueryState'
 import { isEngineerMode, useEngineerMode } from '../../prefs/engineerMode'
 import { exampleWorkflow } from './template'
@@ -43,6 +44,9 @@ export function EditorPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const engineer = useEngineerMode()
+  const isMobile = useIsMobile()
+  // 手機的「等你看」是一張全螢幕 sheet：有一步等你看就自動開；狀態放這裡，切分頁重掛時不會又彈出來
+  const [reviewOpen, setReviewOpen] = useState(false)
   const wfQ = useQuery({ queryKey: ['workflows', id], queryFn: () => wfApi.get(id), enabled: !!id })
   const agents = useAgents()
   const env = useQuery({ queryKey: ['workflow-env'], queryFn: wfApi.env, staleTime: 60_000 })
@@ -217,10 +221,17 @@ export function EditorPage() {
   const profiles = useMemo(() => [...new Set((agents.data ?? []).map((a) => a.profile))], [agents.data])
   // 等你看的那一步（依步序取第一個）：頂端浮一條「第 N 步等你看 ↓」
   const waiting = useMemo(() => (live ? stations.find((s) => live.pendingApprovals[s.node.id]) : undefined), [live, stations])
+  const waitingApprovalId = waiting && live ? live.pendingApprovals[waiting.node.id]?.approval_id : undefined
+  // 換了一個等你看的步（新 approval）→ 手機 sheet 自動打開一次
+  useEffect(() => {
+    if (waitingApprovalId) setReviewOpen(true)
+  }, [waitingApprovalId])
   const scrollToWaiting = useCallback(() => {
     if (!waiting) return
+    // 手機：右欄是 sheet，捲過去也看不到全文；直接打開 sheet
+    if (isMobile) { setReviewOpen(true); return }
     document.querySelector(`[data-testid="station-${waiting.node.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [waiting])
+  }, [waiting, isMobile])
 
   const goAdvanced = useCallback(() => {
     setMenu(false)
@@ -279,7 +290,8 @@ export function EditorPage() {
     const prev = idx > 0 ? stations[idx - 1] : undefined
     return (
       <CollapsiblePanel id="wf.reviewRail" side="right" title={t('wf.station.reviewTitle')} icon="Eye" defaultWidth={520} min={320} max={960}
-                        bodyClassName="flex min-h-0 flex-col overflow-hidden">
+                        bodyClassName="flex min-h-0 flex-col overflow-hidden"
+                        mobileMode="sheet" defaultOpenOnMobile mobileOpen={reviewOpen} onMobileOpenChange={setReviewOpen}>
         <ReviewPane
           seq={waiting.seq}
           title={waiting.node.title && waiting.node.title !== t('wf.station.kinds.gate') ? waiting.node.title : ''}
@@ -441,7 +453,7 @@ export function EditorPage() {
             {view === 'stations' ? (
               reviewRail ?? (
               <CollapsiblePanel id="wf.outputRail" side="right" title={t('wf.station.railTitle')} icon="FileText" defaultWidth={340} min={260} max={560}
-                                bodyClassName="flex min-h-0 flex-col overflow-hidden">
+                                bodyClassName="flex min-h-0 flex-col overflow-hidden" mobileMode="sheet">
                 <OutputRail stations={stations} live={live} />
               </CollapsiblePanel>
               )

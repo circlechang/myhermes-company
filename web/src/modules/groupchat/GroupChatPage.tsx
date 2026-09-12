@@ -11,6 +11,7 @@ import { CollapsiblePanel, WorkArea } from '../../components/layout/index'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorBox, Loading } from '../../components/QueryState'
 import '../../guide/i18n'
+import { useEngineerMode } from '../../prefs/engineerMode'
 import { MicButton, SpeakButton } from '../voice/components'
 import { VOICE_INPUT_EVENT } from '../voice/speech'
 import { gk, useRoom, useRoomContext, useRoomMessages, useRoomMutations, useRooms, type Policy, type Room, type RoomMember, type RoomMessage } from './api'
@@ -38,10 +39,13 @@ export function GroupChatPage() {
   const roomId = params.get('room') ?? undefined
   const rooms = useRooms()
   const [showSettings, setShowSettings] = useState(false)
+  // 「新房間」表單的開關放這層：左欄按鈕與中央空狀態的按鈕都要能打開它
+  const [creating, setCreating] = useState(false)
 
   const select = (id?: string) => {
     setParams(id ? { room: id } : {})
   }
+  const noRooms = !rooms.isLoading && !rooms.error && (rooms.data ?? []).length === 0
 
   return (
     <div className="flex h-full min-h-0 flex-col p-2 sm:p-4">
@@ -57,10 +61,14 @@ export function GroupChatPage() {
       <div className="relative flex min-h-0 flex-1">
         <CollapsiblePanel id="groupchat.rooms" side="left" title={t('panels.rooms')} icon="MessageSquare" defaultWidth={256} min={200} max={420}
                           bodyClassName="flex min-h-0 flex-col overflow-hidden p-1" data-testid="room-list">
-          <RoomList rooms={rooms.data ?? []} loading={rooms.isLoading} error={rooms.error} retry={() => rooms.refetch()} active={roomId} onSelect={select} />
+          <RoomList rooms={rooms.data ?? []} loading={rooms.isLoading} error={rooms.error} retry={() => rooms.refetch()} active={roomId} onSelect={select} creating={creating} setCreating={setCreating} />
         </CollapsiblePanel>
         <WorkArea className="pl-3">
-          {roomId ? <RoomView key={roomId} roomId={roomId} onDeleted={() => select(undefined)} showSettings={showSettings} onCloseSettings={() => setShowSettings(false)} /> : (
+          {roomId ? <RoomView key={roomId} roomId={roomId} onDeleted={() => select(undefined)} showSettings={showSettings} onCloseSettings={() => setShowSettings(false)} /> : noRooms ? (
+            <div className="flex flex-1 items-center justify-center">
+              <EmptyState testId="empty-rooms-main" title={t('guide.empty.rooms.title')} body={t('guide.empty.rooms.body')} action={{ label: t('guide.empty.rooms.action'), onClick: () => setCreating(true) }} />
+            </div>
+          ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-zinc-600 dark:text-zinc-400">{t('groupchat.pickRoom')}</div>
           )}
         </WorkArea>
@@ -69,11 +77,13 @@ export function GroupChatPage() {
   )
 }
 
-function RoomList({ rooms, loading, error, retry, active, onSelect }: { rooms: Room[]; loading: boolean; error: unknown; retry: () => void; active?: string; onSelect: (id?: string) => void }) {
+function RoomList({ rooms, loading, error, retry, active, onSelect, creating, setCreating }: { rooms: Room[]; loading: boolean; error: unknown; retry: () => void; active?: string; onSelect: (id?: string) => void; creating: boolean; setCreating: (v: boolean) => void }) {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const agents = useAgents()
   const m = useRoomMutations()
-  const [creating, setCreating] = useState(false)
+  // 邀請碼是少數人才用的入口，預設收在「有邀請碼？」後面
+  const [showJoin, setShowJoin] = useState(false)
   const [name, setName] = useState('')
   const [policy, setPolicy] = useState<Policy>('none')
   const [picked, setPicked] = useState<string[]>([])
@@ -101,7 +111,7 @@ function RoomList({ rooms, loading, error, retry, active, onSelect }: { rooms: R
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex gap-1">
-        <button className="btn-primary flex-1" onClick={() => setCreating((v) => !v)}>+ {t('groupchat.newRoom')}</button>
+        <button className="btn-primary flex-1" onClick={() => setCreating(!creating)}>＋ {t('groupchat.newRoom')}</button>
       </div>
       {creating && (
         <form onSubmit={create} className="card space-y-2 p-2 text-sm" data-testid="create-room-form">
@@ -116,17 +126,21 @@ function RoomList({ rooms, loading, error, retry, active, onSelect }: { rooms: R
             {agents.data?.filter((a) => a.enabled).map((a) => (
               <label key={a.id} className="flex items-center gap-2 text-xs">
                 <input type="checkbox" checked={picked.includes(a.id)} onChange={(e) => setPicked((p) => (e.target.checked ? [...p, a.id] : p.filter((x) => x !== a.id)))} />
-                {a.name} <span className="text-zinc-600 dark:text-zinc-400">({a.profile})</span>
+                {a.name} {engineer && <span className="text-zinc-600 dark:text-zinc-400">({a.profile})</span>}
               </label>
             ))}
           </div>
           <button className="btn-primary w-full" type="submit" disabled={m.create.isPending}>{t('common.create')}</button>
         </form>
       )}
-      <form onSubmit={join} className="flex gap-1">
-        <input className="input" placeholder={t('groupchat.inviteCode')} value={code} onChange={(e) => setCode(e.target.value)} aria-label={t('groupchat.inviteCode')} />
-        <button className="btn-outline" type="submit" disabled={m.join.isPending}>{t('groupchat.join')}</button>
-      </form>
+      {showJoin ? (
+        <form onSubmit={join} className="flex gap-1" data-testid="join-form">
+          <input className="input" placeholder={t('groupchat.inviteCode')} value={code} onChange={(e) => setCode(e.target.value)} aria-label={t('groupchat.inviteCode')} />
+          <button className="btn-outline" type="submit" disabled={m.join.isPending}>{t('groupchat.join')}</button>
+        </form>
+      ) : (
+        <button type="button" className="self-start text-xs text-zinc-500 underline-offset-2 hover:underline" onClick={() => setShowJoin(true)} data-testid="have-invite">{t('groupchat.haveCode')}</button>
+      )}
       {m.join.error ? <div className="text-xs text-rose-600 dark:text-rose-400">{String((m.join.error as Error).message)}</div> : null}
       {loading && <Loading />}
       {error ? <ErrorBox error={error} onRetry={retry} /> : null}
@@ -145,9 +159,6 @@ function RoomList({ rooms, loading, error, retry, active, onSelect }: { rooms: R
             </button>
           </li>
         ))}
-        {!loading && rooms.length === 0 && !creating && (
-          <li><EmptyState compact testId="empty-rooms" title={t('guide.empty.rooms.title')} body={t('guide.empty.rooms.body')} action={{ label: t('guide.empty.rooms.action'), onClick: () => setCreating(true) }} /></li>
-        )}
       </ul>
     </div>
   )
@@ -357,6 +368,7 @@ function MessageRow({ m }: { m: RoomMessage }) {
 
 function RoomSettings({ room, onClose, onDeleted }: { room: Room; onClose: () => void; onDeleted: () => void }) {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const { member } = useAuth()
   const agents = useAgents()
   const m = useRoomMutations(room.id)
@@ -424,7 +436,7 @@ function RoomSettings({ room, onClose, onDeleted }: { room: Room; onClose: () =>
         <ul className="space-y-1" data-testid="member-list">
           {room.members.map((x) => (
             <li key={x.id} className="flex items-center gap-1 text-xs">
-              <span className="flex-1 truncate">{x.kind === 'ai' ? '🤖' : '👤'} {x.display_name} {x.kind === 'ai' && <span className="text-zinc-600 dark:text-zinc-400">{x.profile}{x.model ? ` · ${x.model}` : ''}</span>}</span>
+              <span className="flex-1 truncate">{x.kind === 'ai' ? '🤖' : '👤'} {x.display_name} {x.kind === 'ai' && engineer && <span className="text-zinc-600 dark:text-zinc-400">{x.profile}{x.model ? ` · ${x.model}` : ''}</span>}</span>
               {x.kind === 'ai' && <button className="btn-ghost px-1" onClick={() => setEditing(x)} aria-label={t('common.edit')}>✎</button>}
               <button className="btn-ghost px-1 text-rose-600 dark:text-rose-400" onClick={() => m.removeMember.mutate(x.id)} aria-label={t('groupchat.remove', { name: x.display_name })}>✕</button>
             </li>
@@ -433,7 +445,7 @@ function RoomSettings({ room, onClose, onDeleted }: { room: Room; onClose: () =>
         <div className="flex gap-1">
           <select className="input" value={addAgent} onChange={(e) => setAddAgent(e.target.value)} aria-label={t('groupchat.addAgent')}>
             <option value="">{t('groupchat.addAgent')}</option>
-            {agents.data?.filter((a) => !room.members.some((x) => x.agent_id === a.id)).map((a) => <option key={a.id} value={a.id}>{a.name} ({a.profile})</option>)}
+            {agents.data?.filter((a) => !room.members.some((x) => x.agent_id === a.id)).map((a) => <option key={a.id} value={a.id}>{engineer ? `${a.name} (${a.profile})` : a.name}</option>)}
           </select>
           <button className="btn-outline" disabled={!addAgent} onClick={() => { m.addMember.mutate({ agent_id: addAgent }); setAddAgent('') }}>{t('groupchat.add')}</button>
         </div>
@@ -450,13 +462,14 @@ function RoomSettings({ room, onClose, onDeleted }: { room: Room; onClose: () =>
 
 function MemberEditor({ member, agents, onSave, onCancel }: { member: RoomMember; agents: { id: string; name: string; profile: string }[]; onSave: (b: { display_name: string; model: string; system_prompt: string; agent_id?: string }) => void; onCancel: () => void }) {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const [f, setF] = useState({ display_name: member.display_name, model: member.model, system_prompt: member.system_prompt, agent_id: member.agent_id ?? '' })
   return (
     <form className="card space-y-2 p-2 text-xs" onSubmit={(e) => { e.preventDefault(); onSave({ ...f, agent_id: f.agent_id || undefined }) }} data-testid="member-editor">
       <label className="block">{t('groupchat.displayName')}<input className="input mt-1" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} /></label>
       <label className="block">{t('groupchat.profile')}
         <select className="input mt-1" value={f.agent_id} onChange={(e) => setF({ ...f, agent_id: e.target.value })}>
-          {agents.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.profile})</option>)}
+          {agents.map((a) => <option key={a.id} value={a.id}>{engineer ? `${a.name} (${a.profile})` : a.name}</option>)}
         </select>
       </label>
       <label className="block">{t('groupchat.model')}<input className="input mt-1" value={f.model} placeholder={t('groupchat.modelDefault')} onChange={(e) => setF({ ...f, model: e.target.value })} /></label>

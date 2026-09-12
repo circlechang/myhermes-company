@@ -5,6 +5,7 @@ import { useAgentDossier, useAgents, useDeleteAgent, useSaveSoul, useSkills, use
 import type { Agent, AgentDossier, DossierRecent } from '../api/types'
 import { PageHeader } from '../components/PageHeader'
 import { CollapsiblePanel, PanelGroup, WorkArea } from '../components/layout/index'
+import { useIsMobile } from '../components/nav/useNavState'
 import { Empty, ErrorBox, Loading } from '../components/QueryState'
 import { CreateAgentDialog } from '../components/agents/CreateAgentDialog'
 import { RuntimeBadge, isCoding } from '../components/agents/RuntimeBadge'
@@ -117,6 +118,8 @@ function DossierBody({ agent, d, engineer }: { agent: Agent; d: AgentDossier; en
 export function AgentsPage() {
   const { t } = useTranslation()
   const engineer = useEngineerMode()
+  // 手機：清單優先。沒選人就整頁是清單；點了才進人事檔案，左上角「‹ 員工」回清單
+  const isMobile = useIsMobile()
   const agentsQ = useAgents()
   const [selected, setSelected] = useState<string | undefined>()
   const [tab, setTab] = useState<Tab>('dossier')
@@ -142,9 +145,13 @@ export function AgentsPage() {
   // 左欄副標：老闆模式只看職稱；工程師模式才露模型 id。coding 員工的工作目錄就是他的身分（哪個 repo），照舊顯示
   const subtitleOf = (a: Agent) => (isCoding(a) ? (a.workspace || '—') : engineer ? `${a.title} · ${a.model ?? t('common.unknown')}` : (a.title || a.description || '—'))
 
+  const showList = !isMobile || !selected
+  const showDetail = !isMobile || !!selected
+
   return (
     <PanelGroup>
-      <CollapsiblePanel id="agents.list" side="left" title={t('panels.agentList')} icon="Bot" defaultWidth={320} min={220} max={480} bodyClassName="overflow-auto p-4">
+      {showList && (
+      <CollapsiblePanel id="agents.list" side="left" title={t('panels.agentList')} icon="Bot" defaultWidth={320} min={220} max={480} bodyClassName="overflow-auto p-4" mobileMode="inline">
         <PageHeader title={t('agents.title')} subtitle={engineer ? t('agents.subtitle') : t('agents.subtitleBoss')} />
         <button type="button" className="btn-primary mb-2 w-full text-xs" onClick={() => setCreating(true)} data-testid="new-agent">
           ＋ {t('agents.newAgent')}
@@ -175,12 +182,20 @@ export function AgentsPage() {
             </li>
           ))}
         </ul>
+        {/* PROFILE 管理：<details> 沒有 open，手機／桌面一律先收著 */}
         <details className="mt-4" data-testid="profiles-panel">
           <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">{t('profiles.title')}</summary>
           <div className="mt-2"><ProfilesPanel compact /></div>
         </details>
       </CollapsiblePanel>
+      )}
+      {showDetail && (
       <WorkArea className="overflow-auto p-4">
+        {isMobile && (
+          <button type="button" className="btn-ghost mb-2 self-start !px-1.5 text-xs" onClick={() => setSelected(undefined)} aria-label={t('panels.backToAgents')} data-testid="mobile-back">
+            ‹ {t('panels.backToAgents')}
+          </button>
+        )}
         {!agent ? (
           <Empty text={engineer ? t('agents.selectOne') : t('agents.dossier.selectOne')} />
         ) : (
@@ -220,6 +235,7 @@ export function AgentsPage() {
                     </button>
                   ))}
                 </div>
+                {coding && <Link to="/coding" className="btn-ghost text-xs" data-testid="agent-open-coding">{t('agents.openCoding')}</Link>}
                 <button
                   type="button"
                   className="btn-ghost text-xs text-rose-600 dark:text-rose-400"
@@ -320,6 +336,7 @@ export function AgentsPage() {
           </div>
         )}
       </WorkArea>
+      )}
       {creating && (
         <CreateAgentDialog
           profiles={(profilesQ.data?.profiles ?? []).map((p) => p.name)}

@@ -135,11 +135,18 @@ def patch_doc(doc_id: str, body: DocPatch, request: Request, p: Principal = Depe
               db: Session = Depends(get_db)):
     ws = workspace_of(request)
     doc = _doc(db, p, doc_id)
+    auto_rel = ""
     if body.title is not None:
         t = body.title.strip()
         if not t:
             raise ApiError(400, "bad_request", "title 不可為空")
+        # 檔名是照標題產的（doc_<id>_<slug>.ext）。改了標題卻留著舊檔名，工作區跟清單就對不起來，
+        # 所以自動跟著改——但只在「現在的路徑正好是舊標題自動產生的那個」時才動；
+        # 使用者或匯入流程自己指定過路徑的，不要雞婆。
+        old_auto = svc.default_path(doc.id, doc.title, doc.fmt())
         doc.title = t[:200]
+        if doc.path == old_auto:
+            auto_rel = svc.default_path(doc.id, doc.title, doc.fmt())
     if body.status is not None:
         if body.status not in DOC_STATUSES:
             raise ApiError(400, "bad_request", f"status 必須是 {'/'.join(DOC_STATUSES)}")
@@ -150,16 +157,23 @@ def patch_doc(doc_id: str, body: DocPatch, request: Request, p: Principal = Depe
         doc.owner_agent_id = body.owner_agent_id
     if body.meta is not None:
         doc.meta_json = json.dumps(body.meta, ensure_ascii=False)
-    if body.path is not None and body.path.strip():
+    want_path = body.path.strip() if (body.path is not None and body.path.strip()) else auto_rel
+    if want_path:
         try:
-            new_rel = svc.to_relative(ws, body.path.strip())
+            new_rel = svc.to_relative(ws, want_path)
             old = svc.resolve(ws, doc.path)
             dst = svc.resolve(ws, new_rel)
         except svc.DocError as e:
             raise _err(e)
         if new_rel != doc.path:
-            if svc.by_path(db, p.company_id, new_rel) is not None:
-                raise ApiError(409, "path_taken", f"{new_rel} 已經有別的文件")
+            taken = svc.by_path(db, p.company_id, new_rel)
+            if taken is not None and taken.id != doc.id:
+                # 明講的 path 撞名要報錯；改標題撞名就別動檔案，標題還是照改
+                if not auto_rel or body.path is not None:
+                    raise ApiError(409, "path_taken", f"{new_rel} 已經有別的文件")
+                new_rel = doc.path
+        if new_rel != doc.path:
+            dst = svc.resolve(ws, new_rel)
             dst.parent.mkdir(parents=True, exist_ok=True)
             last = svc.latest(db, doc.id)
             dst.write_text(last.content if last else "", encoding="utf-8")

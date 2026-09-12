@@ -43,7 +43,8 @@ export function ReviewPane({ seq, title, fromTitle, approvalId, payload, busy, o
           onChange={(e) => setComment(e.target.value)}
           data-testid="review-comment"
         />
-        <div className="flex items-center gap-2">
+        {/* 390px：提示句放不下就掉到下一行，按鈕不縮 */}
+        <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="btn-primary" disabled={busy} data-testid="review-approve" onClick={() => onApprove(approvalId, comment)}>
             {t('wf.station.approve')}
           </button>

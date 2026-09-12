@@ -106,6 +106,24 @@ describe('Markdown 與工具卡', () => {
   })
 })
 
+/** 手機判定用的 matchMedia stub（與 layout.test 同一套） */
+function setMobile(mobile: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (q: string) => ({
+      matches: q.includes('max-width') ? mobile : false,
+      media: q,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+
 async function openWorkbench(sessionTitle = '本週熱點選題') {
   renderApp(<WorkbenchPage />)
   const user = userEvent.setup()
@@ -288,13 +306,22 @@ describe('工作臺整合（mock fetch + 假 WebSocket）', () => {
     expect(await within(panel).findByText(/先給大綱/)).toBeInTheDocument()
   })
 
-  it('手機版：☰ 開抽屜側欄', async () => {
-    const { user } = await openWorkbench('LINE 貼文草稿')
-    expect(screen.queryByTestId('sidebar-drawer')).not.toBeInTheDocument()
-    await user.click(screen.getByLabelText('開啟對話清單'))
-    const drawer = await screen.findByTestId('sidebar-drawer')
-    expect(within(drawer).getByTestId('session-sidebar')).toBeInTheDocument()
-    await user.click(within(drawer).getByText('本週熱點選題'))
-    await waitFor(() => expect(screen.queryByTestId('sidebar-drawer')).not.toBeInTheDocument())
+  it('手機版：清單優先，點對話進聊天室，「‹ 對話」回清單', async () => {
+    setMobile(true)
+    try {
+      renderApp(<WorkbenchPage />)
+      const user = userEvent.setup()
+      expect(await screen.findByTestId('session-sidebar')).toBeInTheDocument()
+      expect(screen.queryByTestId('mobile-back')).not.toBeInTheDocument()
+      await user.click(await screen.findByText('本週熱點選題'))
+      await screen.findByTestId('message-list')
+      expect(screen.getByTestId('mobile-back')).toBeInTheDocument()
+      expect(screen.queryByTestId('session-sidebar')).not.toBeInTheDocument()
+      await user.click(screen.getByTestId('mobile-back'))
+      expect(await screen.findByTestId('session-sidebar')).toBeInTheDocument()
+      expect(screen.queryByTestId('message-list')).not.toBeInTheDocument()
+    } finally {
+      setMobile(false)
+    }
   })
 })

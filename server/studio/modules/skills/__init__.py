@@ -25,7 +25,7 @@ from ...auth import Principal, current_principal, get_db
 from ...errors import ApiError
 from ...hermes.cli import CliError, HermesCli
 from ...models import Message, new_id, now
-from . import hermes_config
+from . import hermes_config, topics
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 
@@ -125,6 +125,7 @@ def list_skills(cli: HermesCli, profile: str) -> list[dict[str, Any]]:
     for s in items:
         s["enabled"] = s["name"] not in disabled
         s["profile"] = profile
+        s["topic"] = topics.classify(s)
     return items
 
 
@@ -146,7 +147,7 @@ def _check_profile(cli: HermesCli, profile: str) -> str:
 
 @router.get("")
 def skills_index(request: Request, profile: str = "default", q: str = "", category: str = "", source: str = "",
-                 p: Principal = Depends(current_principal)):
+                 topic: str = "", p: Principal = Depends(current_principal)):
     cli = request.app.state.cli
     profile = _check_profile(cli, profile)
     items = list_skills(cli, profile)
@@ -158,10 +159,19 @@ def skills_index(request: Request, profile: str = "default", q: str = "", catego
         items = [s for s in items if s["category"] == category]
     if source:
         items = [s for s in items if s["source"] == source]
+    if topic:
+        items = [s for s in items if s["topic"] == topic]
+    all_items = list_skills(cli, profile)
     cats: dict[str, int] = {}
-    for s in list_skills(cli, profile):
+    tops: dict[str, int] = {}
+    for s in all_items:
         cats[s["category"]] = cats.get(s["category"], 0) + 1
-    return {"profile": profile, "items": items, "categories": [{"name": k, "count": v} for k, v in sorted(cats.items())]}
+        tops[s["topic"]] = tops.get(s["topic"], 0) + 1
+    # 維度依 TOPIC_RULES 的固定順序排，數量 0 的不出現，老闆看到的順序每次一樣
+    topic_list = [{"name": t["name"], "hint": t["hint"], "count": tops[t["name"]]}
+                  for t in topics.TOPICS if tops.get(t["name"])]
+    return {"profile": profile, "items": items, "topics": topic_list,
+            "categories": [{"name": k, "count": v} for k, v in sorted(cats.items())]}
 
 
 @router.get("/categories")
@@ -171,7 +181,10 @@ def categories(request: Request, profile: str = "default", p: Principal = Depend
 
 @router.get("/usage")
 def usage(request: Request, db: Session = Depends(get_db), p: Principal = Depends(current_principal)):
-    """Count skill mentions in Studio tool messages and (read-only) Hermes state.db."""
+    """Count skill mentions in Studio tool messages and (read-only) Hermes state.db.
+
+    除了次數，也記下每個技能「最後一次被用到」的時間（epoch 秒），給前端做最近使用排序。
+    """
     cli: HermesCli = request.app.state.cli
     names = {s["name"] for prof in cli.list_profiles_fs() for s in list_skills(cli, prof)}
     counts: dict[str, int] = {n: 0 for n in names}
@@ -179,26 +192,35 @@ def usage(request: Request, db: Session = Depends(get_db), p: Principal = Depend
     # 原本 names × rows 的 `in` 掃描在 20000 筆 tool_calls 上要跑 7 秒以上。
     name_re = re.compile("|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))) if names else None
 
-    def bump(text: str) -> None:
+    last_used: dict[str, float] = {}
+
+    def bump(text: str, ts: float = 0.0) -> None:
         if not text or name_re is None:
             return
         for n in set(name_re.findall(text)):
             counts[n] += 1
+            if ts and ts > last_used.get(n, 0.0):
+                last_used[n] = ts
 
     for m in db.exec(select(Message).where(Message.role == "tool")).all():
-        bump(f"{m.tool_name} {m.tool_args}")
+        bump(f"{m.tool_name} {m.tool_args}", m.created_at.timestamp() if m.created_at else 0.0)
     state_db = cli.home / "state.db"
     if state_db.exists():
         try:
             con = sqlite3.connect(f"file:{state_db}?mode=ro", uri=True, timeout=2)
             try:
-                for (tc,) in con.execute("SELECT tool_calls FROM messages WHERE tool_calls LIKE '%skill%' LIMIT 20000"):
-                    bump(tc or "")
+                # 由新到舊：last_used 要的是最近，20000 筆上限也該留給新的
+                for tc, ts in con.execute(
+                    "SELECT tool_calls, timestamp FROM messages WHERE tool_calls LIKE '%skill%' "
+                    "ORDER BY rowid DESC LIMIT 20000"):
+                    bump(tc or "", float(ts or 0))
             finally:
                 con.close()
         except sqlite3.Error:
             pass
-    return {"counts": counts, "top": sorted(((k, v) for k, v in counts.items() if v), key=lambda kv: -kv[1])[:30]}
+    return {"counts": counts, "last_used": last_used,
+            "top": sorted(((k, v) for k, v in counts.items() if v), key=lambda kv: -kv[1])[:30],
+            "recent": sorted(last_used.items(), key=lambda kv: -kv[1])[:30]}
 
 
 @router.get("/bundles")

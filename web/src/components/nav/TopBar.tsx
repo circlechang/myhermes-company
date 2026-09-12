@@ -96,7 +96,7 @@ function effectiveDark(): boolean {
 }
 
 /** 亮／暗切換：走 theme 模組的 applyTheme（data-theme + 快取），並盡力同步到伺服器 */
-function ThemeToggle() {
+function ThemeToggle({ asMenuItem = false }: { asMenuItem?: boolean }) {
   const { t } = useTranslation()
   const [dark, setDark] = useState(effectiveDark)
   const toggle = () => {
@@ -107,6 +107,14 @@ function ThemeToggle() {
     request('/theme', { method: 'PUT', body: JSON.stringify({ settings: { mode } }) }).catch(() => {})
   }
   const Icon = dark ? SunIcon : MoonIcon
+  if (asMenuItem) {
+    return (
+      <button type="button" role="menuitem" className="btn-ghost w-full justify-start" onClick={toggle} data-testid="theme-toggle">
+        <Icon className="h-4 w-4" aria-hidden />
+        {t('nav.toggleTheme')}
+      </button>
+    )
+  }
   return (
     <button type="button" className="btn-ghost px-2" onClick={toggle} aria-label={t('nav.toggleTheme')} title={t('nav.toggleTheme')} data-testid="theme-toggle">
       <Icon className="h-4 w-4" aria-hidden />
@@ -115,11 +123,19 @@ function ThemeToggle() {
 }
 
 /** 專注模式：一鍵收起所有側欄（含主導覽）讓主區最大化；快捷鍵 ⌘. ／ Ctrl+. */
-function FocusToggle() {
+function FocusToggle({ asMenuItem = false }: { asMenuItem?: boolean }) {
   const { t } = useTranslation()
   const focus = useFocusMode()
   const Icon = focus ? FocusOffIcon : FocusOnIcon
   const label = focus ? t('panel.focusOff') : t('panel.focusOn')
+  if (asMenuItem) {
+    return (
+      <button type="button" role="menuitem" className="btn-ghost w-full justify-start" onClick={() => toggleFocusMode()} aria-pressed={focus} data-testid="focus-toggle">
+        <Icon className="h-4 w-4" aria-hidden />
+        {label}
+      </button>
+    )
+  }
   return (
     <button
       type="button"
@@ -148,6 +164,8 @@ export function TopBar({ title, username, onLogout, onOpenMenu, mobile }: Props)
   const inbox = useInboxCount()
   const [menuOpen, setMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const closeMenu = () => setMenuOpen(false)
+  const menuItem = 'btn-ghost w-full justify-start'
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-zinc-200 bg-white px-3 dark:border-zinc-800 dark:bg-zinc-900">
       {mobile && (
@@ -162,18 +180,21 @@ export function TopBar({ title, username, onLogout, onOpenMenu, mobile }: Props)
       <span className="mx-1 hidden text-zinc-300 sm:inline dark:text-zinc-700" aria-hidden>
         /
       </span>
-      <h1 className="truncate text-sm font-medium text-zinc-700 dark:text-zinc-200" data-testid="page-title">
+      <h1 className="min-w-0 truncate text-sm font-medium text-zinc-700 dark:text-zinc-200" data-testid="page-title">
         {title}
       </h1>
-      <div className="ml-auto flex items-center gap-1 text-xs">
-        {IS_MOCK && <span className="mr-1 rounded bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('common.mockMode')}</span>}
-        <UpdateHint />
-        <button type="button" className="btn-ghost px-2" onClick={openGlobalSearch} aria-label={t('nav.search')} title={`${t('nav.search')} (Ctrl/⌘+K)`} data-testid="search-button">
-          <SearchIcon className="h-4 w-4" aria-hidden />
-          <span className="hidden text-zinc-600 dark:text-zinc-400 md:inline">⌘K</span>
-        </button>
+      <div className="ml-auto flex shrink-0 items-center gap-1 text-xs">
+        {/* 手機只留：☰／logo／標題／收件匣／頭像。其餘全收進頭像選單，Mock 徽章直接不顯示（390px 會逐字換行） */}
+        {IS_MOCK && !mobile && <span className="mr-1 whitespace-nowrap rounded bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{t('common.mockMode')}</span>}
+        {!mobile && <UpdateHint />}
+        {!mobile && (
+          <button type="button" className="btn-ghost px-2" onClick={openGlobalSearch} aria-label={t('nav.search')} title={`${t('nav.search')} (Ctrl/⌘+K)`} data-testid="search-button">
+            <SearchIcon className="h-4 w-4" aria-hidden />
+            <span className="hidden text-zinc-600 dark:text-zinc-400 md:inline">⌘K</span>
+          </button>
+        )}
         <Link
-          to={hasInboxRoute ? '/inbox' : '/workflows/approvals'}
+          to={hasInboxRoute ? '/today' : '/workflows/approvals'}
           className="btn-ghost relative px-2"
           aria-label={t('nav.inbox')}
           title={t('nav.inbox')}
@@ -187,14 +208,15 @@ export function TopBar({ title, username, onLogout, onOpenMenu, mobile }: Props)
             </span>
           )}
         </Link>
-        <button type="button" className="btn-ghost px-2" onClick={() => setHelpOpen((o) => !o)} aria-label={t('guide.help.open')} title={t('guide.help.open')} aria-expanded={helpOpen} data-testid="help-button">
-          <HelpIcon className="h-4 w-4" aria-hidden />
-        </button>
-        <span className={mobile ? 'hidden' : ''}>
-          <LangSwitch />
-        </span>
-        <FocusToggle />
-        <ThemeToggle />
+        {!mobile && (
+          <>
+            <button type="button" className="btn-ghost px-2" onClick={() => setHelpOpen((o) => !o)} aria-label={t('guide.help.open')} title={t('guide.help.open')} aria-expanded={helpOpen} data-testid="help-button">
+              <HelpIcon className="h-4 w-4" aria-hidden />
+            </button>
+            <FocusToggle />
+            <ThemeToggle />
+          </>
+        )}
         <div className="relative">
           <button
             type="button"
@@ -210,22 +232,41 @@ export function TopBar({ title, username, onLogout, onOpenMenu, mobile }: Props)
             </span>
           </button>
           {menuOpen && (
-            <div role="menu" className="card absolute right-0 top-9 z-40 min-w-[10rem] p-1 shadow-lg" onMouseLeave={() => setMenuOpen(false)}>
-              <div className="px-3 py-1.5 text-zinc-600 dark:text-zinc-400">{username}</div>
-              {mobile && (
-                <div className="px-3 py-1.5">
+            <>
+              {/* 手機沒有 mouseleave：點選單外任何地方就關 */}
+              <button type="button" className="fixed inset-0 z-30 cursor-default" aria-label={t('common.close')} onClick={closeMenu} data-testid="user-menu-backdrop" tabIndex={-1} />
+              <div role="menu" className="card absolute right-0 top-9 z-40 min-w-[12rem] p-1 shadow-lg" onMouseLeave={closeMenu} data-testid="user-menu">
+                <div className="px-3 py-1.5 text-zinc-600 dark:text-zinc-400">{username}</div>
+                {mobile && (
+                  <>
+                    <div className="px-1"><UpdateHint /></div>
+                    <button type="button" role="menuitem" className={menuItem} onClick={() => { closeMenu(); openGlobalSearch() }} data-testid="search-button">
+                      <SearchIcon className="h-4 w-4" aria-hidden />
+                      {t('nav.search')}
+                    </button>
+                    <button type="button" role="menuitem" className={menuItem} onClick={() => { closeMenu(); setHelpOpen(true) }} data-testid="help-button">
+                      <HelpIcon className="h-4 w-4" aria-hidden />
+                      {t('guide.help.open')}
+                    </button>
+                    <FocusToggle asMenuItem />
+                    <ThemeToggle asMenuItem />
+                  </>
+                )}
+                {/* 語言不會一天切三次：桌面也一起收進來，頂欄少一個 <select> */}
+                <label className="flex items-center justify-between gap-2 px-3 py-1.5 text-zinc-700 dark:text-zinc-300">
+                  <span>{t('lang.switch')}</span>
                   <LangSwitch />
-                </div>
-              )}
-              <button type="button" role="menuitem" className="btn-ghost w-full justify-start" onClick={() => { setMenuOpen(false); startTour() }} data-testid="replay-tour">
-                <TourIcon className="h-4 w-4" aria-hidden />
-                {t('guide.tour.replay')}
-              </button>
-              <button type="button" role="menuitem" className="btn-ghost w-full justify-start" onClick={onLogout}>
-                <LogOutIcon className="h-4 w-4" aria-hidden />
-                {t('nav.logout')}
-              </button>
-            </div>
+                </label>
+                <button type="button" role="menuitem" className={menuItem} onClick={() => { closeMenu(); startTour() }} data-testid="replay-tour">
+                  <TourIcon className="h-4 w-4" aria-hidden />
+                  {t('guide.tour.replay')}
+                </button>
+                <button type="button" role="menuitem" className={menuItem} onClick={onLogout}>
+                  <LogOutIcon className="h-4 w-4" aria-hidden />
+                  {t('nav.logout')}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>

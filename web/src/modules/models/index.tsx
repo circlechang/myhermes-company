@@ -7,6 +7,8 @@ import { PageHeader } from '../../components/PageHeader'
 import { Empty, ErrorBox, Loading } from '../../components/QueryState'
 import type { StudioModule } from '../registry'
 import { useProfiles } from '../profiles'
+import { useEngineerMode } from '../../prefs/engineerMode'
+import { useStaffNames } from '../skills/staffNames'
 
 export interface Provider {
   id: string; name: string; kind: 'builtin' | 'custom'; auth_type: string; base_url: string; key_envs: string[]; key_env_set: string | null
@@ -82,6 +84,7 @@ function OAuthFlow({ provider, onDone }: { provider: string; onDone: () => void 
 
 function ProviderCard({ p, profile, current, groups, onChanged }: { p: Provider; profile: string; current: { model: string; provider: string }; groups: string[]; onChanged: () => void }) {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const [open, setOpen] = useState(false)
   const [live, setLive] = useState(false)
   const models = useQuery({ queryKey: ['models', 'list', p.id, live, profile], queryFn: () => modelsApi.models(p.id, live, profile), enabled: open, retry: false })
@@ -95,20 +98,20 @@ function ProviderCard({ p, profile, current, groups, onChanged }: { p: Provider;
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className={`inline-block h-2 w-2 rounded-full ${p.configured ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
         <button className="min-w-0 truncate font-medium" onClick={() => setOpen(!open)} title={p.name}>{p.name}</button>
-        <code className="id-text shrink text-zinc-600 dark:text-zinc-400" title={p.id}>{p.id}</code>
+        {engineer && <code className="id-text shrink text-zinc-600 dark:text-zinc-400" title={p.id}>{p.id}</code>}
         {p.is_current && <span className="badge bg-indigo-100 text-2xs text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">{t('models.current')}</span>}
         {p.kind === 'custom' && <span className="badge bg-amber-100 text-2xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{t('models.custom')}</span>}
-        <span className="ml-auto text-xs text-zinc-600 dark:text-zinc-400">{p.key_env_set ? `${t('models.keyVia')} ${p.key_env_set}` : p.oauth_logged_in ? t('models.oauthLoggedIn') : p.credentials.length ? t('models.credentials', { n: p.credentials.length }) : t('models.notConfigured')}</span>
+        <span className="ml-auto text-xs text-zinc-600 dark:text-zinc-400">{p.key_env_set ? (engineer ? `${t('models.keyVia')} ${p.key_env_set}` : t('models.keySet')) : p.oauth_logged_in ? t('models.oauthLoggedIn') : p.credentials.length ? t('models.credentials', { n: p.credentials.length }) : t('models.notConfigured')}</span>
       </div>
       {p.oauth_error && <div className="text-xs text-rose-600 dark:text-rose-400">{p.oauth_error}</div>}
       {open && (
         <div className="mt-2 space-y-2 text-xs">
-          <div className="path-text text-zinc-600 dark:text-zinc-400" title={p.base_url}>{p.base_url || '—'}</div>
+          {engineer && <div className="path-text text-zinc-600 dark:text-zinc-400" title={p.base_url}>{p.base_url || '—'}</div>}
           {err && <div className="text-rose-600 dark:text-rose-400">{err}</div>}
           <div className="flex flex-wrap items-center gap-2">
             {p.key_envs.length > 0 && (
               <>
-                <input className="input w-full sm:w-64" type="password" placeholder={`${t('models.apiKey')} → ${p.key_envs[0]}`} value={key} onChange={(e) => setKey(e.target.value)} aria-label={`${p.id} api key`} autoComplete="off" />
+                <input className="input w-full sm:w-64" type="password" placeholder={engineer ? `${t('models.apiKey')} → ${p.key_envs[0]}` : t('models.apiKey')} value={key} onChange={(e) => setKey(e.target.value)} aria-label={`${p.id} api key`} autoComplete="off" />
                 <button className="btn-outline" disabled={!key} onClick={() => run(() => modelsApi.setKey(p.id, key, undefined, profile)).then(() => setKey(''))}>{t('models.saveKey')}</button>
                 {p.key_env_set && <button className="btn-ghost text-rose-600 dark:text-rose-400" onClick={() => run(() => modelsApi.clearKey(p.id, profile))}>{t('models.clearKey')}</button>}
               </>
@@ -198,6 +201,7 @@ function CustomProviderForm({ profile, onDone }: { profile: string; onDone: () =
 
 function SpeechCard({ profile }: { profile: string }) {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
   const q = useQuery({ queryKey: ['models', 'speech', profile], queryFn: () => modelsApi.speech(profile) })
   const qc = useQueryClient()
   const set = useMutation({ mutationFn: (b: Parameters<typeof modelsApi.setSpeech>[0]) => modelsApi.setSpeech(b, profile), onSuccess: () => qc.invalidateQueries({ queryKey: ['models', 'speech'] }) })
@@ -216,7 +220,7 @@ function SpeechCard({ profile }: { profile: string }) {
           <tbody>{data.providers.map((p) => (
             <tr key={p.id} className="border-t border-zinc-200 dark:border-zinc-800">
               <td className="nowrap-cell py-0.5 pr-2 align-top">{p.current ? '★ ' : ''}{p.name}</td>
-              <td className="nowrap-cell pr-2 align-top">{p.key_envs.length ? <span className={p.key_set ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-600 dark:text-zinc-400'}>{p.key_envs[0]} {p.key_set ? '✓' : '✗'}</span> : <span className="text-zinc-600 dark:text-zinc-400">{t('models.noKeyNeeded')}</span>}</td>
+              <td className="nowrap-cell pr-2 align-top">{p.key_envs.length ? <span className={p.key_set ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-600 dark:text-zinc-400'}>{engineer ? p.key_envs[0] : t(p.key_set ? 'models.keySet' : 'models.keyMissing')} {p.key_set ? '✓' : '✗'}</span> : <span className="text-zinc-600 dark:text-zinc-400">{t('models.noKeyNeeded')}</span>}</td>
               <td className="min-w-[12rem] align-top text-zinc-600 dark:text-zinc-400">{Object.entries(p.settings).map(([k, v]) => `${k}=${String(v)}`).join(' · ')}</td>
             </tr>))}</tbody>
         </table>
@@ -235,6 +239,8 @@ function SpeechCard({ profile }: { profile: string }) {
 
 export function ModelsPage() {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
+  const staff = useStaffNames()
   const profiles = useProfiles()
   const [profile, setProfile] = useState('default')
   const [adding, setAdding] = useState(false)
@@ -246,23 +252,26 @@ export function ModelsPage() {
   const groups = d ? [...new Set(d.providers.map((p) => p.group))] : []
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4">
-      <PageHeader title={t('models.title')} subtitle={t('models.subtitle')} actions={
+      <PageHeader title={t('models.title')} subtitle={engineer ? t('models.subtitleEngineer') : t('models.subtitle')} actions={
         <>
-          <select className="input w-auto" value={profile} onChange={(e) => setProfile(e.target.value)} aria-label="profile">
-            {(profiles.data?.profiles ?? [{ name: 'default' }]).map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+          {/* 下拉顯示員工名，不顯示 profile id（工程師模式才附） */}
+          <select className="input w-auto" value={profile} onChange={(e) => setProfile(e.target.value)} aria-label={engineer ? t('models.profileEngineer') : t('models.profile')} data-testid="models-profile">
+            {(profiles.data?.profiles ?? [{ name: 'default' }]).map((p) => <option key={p.name} value={p.name}>{staff.label(p.name)}</option>)}
           </select>
           <label className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs"><input type="checkbox" checked={onlyConfigured} onChange={(e) => setOnlyConfigured(e.target.checked)} />{t('models.onlyConfigured')}</label>
           <button className="btn-outline" onClick={() => modelsApi.catalog(true).then(refresh)}>{t('models.refreshAll')}</button>
-          <button className="btn-primary" onClick={() => setAdding(true)}>{t('models.addCustom')}</button>
+          {engineer && <button className="btn-primary" onClick={() => setAdding(true)}>{t('models.addCustom')}</button>}
         </>
       } />
+      {!engineer && <p className="text-xs text-zinc-600 dark:text-zinc-400" data-testid="models-custom-hint">{t('models.customNeedsEngineer')}</p>}
       {d && (
         <div className="card p-3 text-sm" data-testid="current-model">
-          {t('models.currentDefault')}: <code className="font-semibold">{d.current.model || '—'}</code> · {d.current.provider || '—'} <span className="text-xs text-zinc-600 dark:text-zinc-400">{d.current.base_url}</span>
-          <span className="ml-2 text-xs text-zinc-600 dark:text-zinc-400">{t('models.activeAuth')}: {d.active_provider || '—'}</span>
+          {t('models.currentDefault')}: <code className="font-semibold">{d.current.model || '—'}</code> · {d.current.provider || '—'}
+          {engineer && <span className="ml-1 text-xs text-zinc-600 dark:text-zinc-400">{d.current.base_url}</span>}
+          {engineer && <span className="ml-2 text-xs text-zinc-600 dark:text-zinc-400">{t('models.activeAuth')}: {d.active_provider || '—'}</span>}
         </div>
       )}
-      {adding && <CustomProviderForm profile={profile} onDone={() => { setAdding(false); refresh() }} />}
+      {adding && engineer && <CustomProviderForm profile={profile} onDone={() => { setAdding(false); refresh() }} />}
       {q.isLoading && <Loading />}
       {q.error && <ErrorBox error={q.error} onRetry={() => q.refetch()} />}
       {d && groups.map((g) => {
@@ -284,10 +293,12 @@ export function ModelsPage() {
 const zhTW = {
   nav: { models: '模型' },
   models: {
-    title: '模型管理', subtitle: '供應商從 ~/.hermes/auth.json、.env、config.yaml 自動發現；金鑰只留在後端',
-    current: '目前', custom: '自訂', keyVia: '金鑰來自', oauthLoggedIn: 'OAuth 已登入', credentials: '{{n}} 組憑證', notConfigured: '未設定', onlyConfigured: '只顯示已設定',
-    refreshAll: '重新抓取模型清單', addCustom: '新增自訂供應商', currentDefault: '預設模型', activeAuth: 'auth.json 作用中供應商',
-    apiKey: 'API key', saveKey: '存入 .env', clearKey: '清除金鑰', oauthLogin: 'OAuth 登入', logout: '登出', confirmDelete: '刪除供應商 {{name}}？（config.yaml 與 .env 的金鑰一併移除）',
+    title: '模型', subtitle: '每位員工用哪個腦；金鑰只放在伺服器',
+    subtitleEngineer: '供應商從 ~/.hermes/auth.json、.env、config.yaml 自動發現；金鑰只留在後端',
+    profile: '員工', profileEngineer: 'Profile',
+    current: '目前', custom: '自訂', keyVia: '金鑰來自', keySet: '已設金鑰', keyMissing: '未設金鑰', oauthLoggedIn: 'OAuth 已登入', credentials: '{{n}} 組憑證', notConfigured: '未設定', onlyConfigured: '只顯示已設定',
+    refreshAll: '重新整理', addCustom: '新增自訂供應商', customNeedsEngineer: '要接自己的供應商，開工程師模式', currentDefault: '預設模型', activeAuth: 'auth.json 作用中供應商',
+    apiKey: 'API key', saveKey: '儲存金鑰', clearKey: '清除金鑰', oauthLogin: 'OAuth 登入', logout: '登出', confirmDelete: '刪除供應商 {{name}}？金鑰會一併移除',
     group: '分組', enabled: '啟用', models: '模型', live: '直接向供應商抓', refresh: '重新整理', visible: '可見', alias: '別名', aliasPrompt: '{{m}} 的別名（留空清除）', setDefault: '設為預設模型',
     oauthTitle: '{{p}} OAuth 登入', oauthOpen: '1. 打開網址：', oauthCode: '2. 輸入代碼：', oauthPaste: '若流程要求貼回 code，貼在這裡', oauthSubmit: '送出', oauthDone: '登入完成',
     customName: '名稱', defaultModel: '預設模型', detect: '偵測端點', detecting: '偵測中…', detected: '可用：{{url}}（{{n}} 個模型）',
@@ -298,10 +309,12 @@ const zhTW = {
 const en = {
   nav: { models: 'Models' },
   models: {
-    title: 'Models', subtitle: 'Providers discovered from ~/.hermes/auth.json, .env, config.yaml; keys stay on the server',
+    title: 'Models', subtitle: 'Which brain each staff member uses; keys stay on the server',
+    subtitleEngineer: 'Providers discovered from ~/.hermes/auth.json, .env, config.yaml; keys stay on the server',
+    profile: 'Staff', profileEngineer: 'Profile', keySet: 'key set', keyMissing: 'no key', customNeedsEngineer: 'Turn on engineer mode to add your own provider',
     current: 'current', custom: 'custom', keyVia: 'key via', oauthLoggedIn: 'OAuth signed in', credentials: '{{n}} credentials', notConfigured: 'not configured', onlyConfigured: 'configured only',
-    refreshAll: 'Refresh model lists', addCustom: 'Add custom provider', currentDefault: 'Default model', activeAuth: 'active provider',
-    apiKey: 'API key', saveKey: 'Save to .env', clearKey: 'Clear key', oauthLogin: 'OAuth sign-in', logout: 'Sign out', confirmDelete: 'Delete provider {{name}}?',
+    refreshAll: 'Refresh', addCustom: 'Add custom provider', currentDefault: 'Default model', activeAuth: 'active provider',
+    apiKey: 'API key', saveKey: 'Save key', clearKey: 'Clear key', oauthLogin: 'OAuth sign-in', logout: 'Sign out', confirmDelete: 'Delete provider {{name}}?',
     group: 'Group', enabled: 'Enabled', models: 'Models', live: 'fetch live', refresh: 'Refresh', visible: 'visible', alias: 'Alias', aliasPrompt: 'Alias for {{m}}', setDefault: 'Set as default',
     oauthTitle: '{{p}} OAuth', oauthOpen: '1. Open:', oauthCode: '2. Enter code:', oauthPaste: 'Paste callback code here if asked', oauthSubmit: 'Submit', oauthDone: 'Signed in',
     customName: 'Name', defaultModel: 'Default model', detect: 'Detect endpoint', detecting: 'Detecting…', detected: 'OK: {{url}} ({{n}} models)',

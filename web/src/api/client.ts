@@ -125,7 +125,27 @@ export const api = {
     status: () => request<HermesStatus>('/hermes/status'),
     health: () => request<{ ok: boolean }>('/health'),
   },
+  // 有事找我：閘門／失敗／危險指令推 LINE（公司層級偏好）
+  notify: {
+    prefs: () => request<NotifyPrefs>('/notify/prefs'),
+    save: (body: Partial<NotifyPrefs>) => request<NotifyPrefs>('/notify/prefs', { method: 'PUT', body: json(body) }),
+    test: (line_to?: string) => request<NotifyTestResult>('/notify/test', { method: 'POST', body: json({ line_to }) }),
+    status: () => request<NotifyStatus>('/notify/status'),
+  },
 }
+
+export interface NotifyPrefs {
+  enabled: boolean
+  line_to: string
+  public_url: string
+  on_waiting: boolean
+  on_failed: boolean
+  on_chat_approval: boolean
+  quiet_hours: string
+  updated_at?: string
+}
+export interface NotifyTestResult { ok: boolean; error: string }
+export interface NotifyStatus { line_configured: boolean }
 
 export function chatWsUrl(): string {
   const token = getToken() ?? ''

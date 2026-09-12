@@ -48,8 +48,14 @@ export function freshState(): MockState {
 }
 
 export let state: MockState = freshState()
+
+/** 有事找我（LINE 通知）：偏好放記憶體；puts／tests 記下打過的 body 讓測試斷言 */
+export const notifyMock = { prefs: d.mockNotifyPrefs(), puts: [] as unknown[], tests: [] as unknown[] }
 export function resetMockState() {
   state = freshState()
+  notifyMock.prefs = d.mockNotifyPrefs()
+  notifyMock.puts = []
+  notifyMock.tests = []
 }
 
 const ok = (body: unknown, status = 200) =>
@@ -255,6 +261,8 @@ export async function mockFetch(input: RequestInfo | URL, init: RequestInit = {}
   if (path === '/workflow-approvals/ap1/approve' || path === '/workflow-approvals/ap1/reject') return ok({ ok: true })
   if (path === '/limits' && method === 'GET') return ok(d.mockLimits)
   if (path === '/limits/today') return ok(d.mockLimitsToday())
+  // 今天頁「本月累計」：/usage/summary?days=30 → totals.cost_usd
+  if (path === '/usage/summary') return ok(d.mockUsageSummary())
   // /workflow-runs 不帶 status 維持空陣列（工作流頁的既有假設）；帶 status 才回今日的幾筆
   if (path === '/workflow-runs' && u.searchParams.get('status')) {
     const st = u.searchParams.get('status')
@@ -319,6 +327,20 @@ export async function mockFetch(input: RequestInfo | URL, init: RequestInit = {}
     }
     return ok(w)
   }
+
+  // 有事找我（LINE 通知）
+  if (path === '/notify/prefs' && method === 'GET') return ok(notifyMock.prefs)
+  if (path === '/notify/prefs' && method === 'PUT') {
+    if (body.enabled && !(body.line_to ?? notifyMock.prefs.line_to)) return fail(400, 'bad_request', '要啟用得先填 LINE 收件對象')
+    notifyMock.puts.push(body)
+    notifyMock.prefs = { ...notifyMock.prefs, ...body, updated_at: now() }
+    return ok(notifyMock.prefs)
+  }
+  if (path === '/notify/test' && method === 'POST') {
+    notifyMock.tests.push(body)
+    return body.line_to ? ok({ ok: true, error: '' }) : ok({ ok: false, error: '沒有收件對象（line_to 空白）' })
+  }
+  if (path === '/notify/status') return ok(d.mockNotifyStatus)
 
   return fail(404, 'not_found', `no mock for ${method} ${path}`)
 }

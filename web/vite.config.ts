@@ -31,5 +31,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // 44 個檔全開並行時 jsdom 會慢到讓 1 秒的 findBy 逾時而閃紅（單跑全綠）；限制並行、放寬單測上限
+    testTimeout: 20000,
+    hookTimeout: 20000,
+    poolOptions: { forks: { minForks: 1, maxForks: 4 } },
   },
 })

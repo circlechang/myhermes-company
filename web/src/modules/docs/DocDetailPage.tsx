@@ -7,6 +7,7 @@ import { Empty, ErrorBox, Loading } from '../../components/QueryState'
 import { DiffStatBadge, DiffView } from './DiffView'
 import { DocActions } from './DocActions'
 import { DocPanel } from './DocPanel'
+import { EditableTitle } from './EditableTitle'
 import { LineageGraph } from './LineageGraph'
 import { STATUS_ORDER, useDoc, useDocDiff, useDocMutations, useDocVersions, useLineage } from './api'
 
@@ -30,7 +31,16 @@ export function DocDetailPage() {
 
   return (
     <div className="p-4" data-testid="doc-detail-page">
-      <PageHeader title={doc.data.title} subtitle={doc.data.path} />
+      <PageHeader
+        title={
+          <EditableTitle
+            title={doc.data.title}
+            className="text-xl font-semibold"
+            onSave={(next) => m.patch.mutate({ title: next })}
+          />
+        }
+        subtitle={doc.data.path}
+      />
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
         <select
           className="input w-28"

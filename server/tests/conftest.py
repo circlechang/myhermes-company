@@ -30,6 +30,7 @@ class FakeGatewayState:
         self.steered: list[tuple[str, str]] = []
         self.scenario = "simple"  # simple | tools | approval | failed | subagent | canned
         self.canned_text = ""  # scenario=canned 時整段當 run 的最終輸出（測 LLM 回覆的解析）
+        self.unserved: set[str] = set()  # 模擬 gateway multiplex 允許名單外的 profile（/p/<它>/ 回 404）
 
 
 def make_fake_gateway(state: FakeGatewayState) -> FastAPI:
@@ -48,6 +49,8 @@ def make_fake_gateway(state: FakeGatewayState) -> FastAPI:
 
         @gw.get(prefix + "/v1/models")
         async def models(profile: str = ""):
+            if profile and profile in state.unserved:
+                return JSONResponse({"error": "Unknown or unconfigured profile"}, status_code=404)
             return {"object": "list", "data": [{"id": "hermes-agent"}]}
 
         @gw.get(prefix + "/v1/skills")
@@ -57,6 +60,8 @@ def make_fake_gateway(state: FakeGatewayState) -> FastAPI:
 
         @gw.post(prefix + "/v1/runs", status_code=202)
         async def runs(request: Request, profile: str = ""):
+            if profile and profile in state.unserved:
+                return JSONResponse({"error": "Unknown or unconfigured profile"}, status_code=404)
             body = await request.json()
             if not body.get("input"):
                 return JSONResponse({"error": {"message": "Missing 'input' field"}}, status_code=400)

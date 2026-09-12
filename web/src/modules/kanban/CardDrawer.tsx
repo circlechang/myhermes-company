@@ -1,12 +1,16 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loading } from '../../components/QueryState'
+import { useEngineerMode } from '../../prefs/engineerMode'
+import { useStaffNames } from '../skills/staffNames'
 import { useAttachments, useCardDetail, useKanbanMutations, type HermesStatus } from './api'
 
 const fmt = (ts?: number | null) => (ts ? new Date(ts * 1000).toLocaleString() : '')
 
 export function CardDrawer({ id, profiles, onClose }: { id: string; profiles: string[]; onClose: () => void }) {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
+  const staff = useStaffNames()
   const d = useCardDetail(id)
   const att = useAttachments(id)
   const m = useKanbanMutations(id)
@@ -29,8 +33,8 @@ export function CardDrawer({ id, profiles, onClose }: { id: string; profiles: st
         {task && (
           <>
             <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-              <code className="font-mono">{task.id}</code>
-              <span className="badge bg-zinc-200 dark:bg-zinc-800">{task.status}</span>
+              {engineer && <code className="font-mono">{task.id}</code>}
+              <span className="badge bg-zinc-200 dark:bg-zinc-800">{t(`kanban.status.${task.status}`)}</span>
               <span className="whitespace-nowrap">{t(`kanban.priorities.${task.priority_label}`)}（{task.priority ?? 0}）</span>
               <span className="whitespace-nowrap">{fmt(task.created_at)}</span>
             </div>
@@ -46,7 +50,7 @@ export function CardDrawer({ id, profiles, onClose }: { id: string; profiles: st
               <label className="text-xs">{t('kanban.assignee')}
                 <select className="input mt-1" value={task.assignee ?? ''} onChange={(e) => m.assign.mutate({ id, profile: e.target.value })}>
                   <option value="">{t('kanban.unassigned')}</option>
-                  {profiles.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {profiles.map((p) => <option key={p} value={p}>{staff.label(p)}</option>)}
                 </select>
               </label>
               <label className="text-xs">{t('kanban.moveTo')}
@@ -82,11 +86,11 @@ export function CardDrawer({ id, profiles, onClose }: { id: string; profiles: st
               <div className="flex flex-wrap gap-1">
                 <select className="input flex-1 basis-40" value={dispatchProfile} onChange={(e) => setDispatchProfile(e.target.value)} aria-label={t('kanban.dispatchProfile')}>
                   <option value="">{t('kanban.keepAssignee')}</option>
-                  {profiles.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {profiles.map((p) => <option key={p} value={p}>{staff.label(p)}</option>)}
                 </select>
                 <button className="btn-primary" disabled={m.dispatch.isPending} onClick={() => m.dispatch.mutate({ id, profile: dispatchProfile || undefined })}>{t('kanban.dispatchNow')}</button>
               </div>
-              <p className="text-xs text-zinc-600 dark:text-zinc-400">{t('kanban.dispatchHint')}</p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">{engineer ? t('kanban.dispatchHintEngineer') : t('kanban.dispatchHint')}</p>
               {m.dispatch.data ? <pre className="max-h-32 overflow-auto rounded bg-zinc-100 p-2 text-2xs dark:bg-zinc-900" data-testid="dispatch-result">{JSON.stringify(m.dispatch.data, null, 1)}</pre> : null}
               {m.dispatch.error ? <div className="text-xs text-rose-600 dark:text-rose-400">{(m.dispatch.error as Error).message}</div> : null}
             </section>

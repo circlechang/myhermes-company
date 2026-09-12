@@ -66,10 +66,10 @@ describe('版面：側欄分群', () => {
     const sidebar = await screen.findByTestId('sidebar')
     for (const g of ['today', 'chat', 'work', 'agents', 'settings']) expect(within(sidebar).getByTestId(`nav-group-${g}`)).toBeInTheDocument()
     const hrefs = within(sidebar).getAllByRole('link').map((a) => a.getAttribute('href'))
-    const visible = ['/today', '/workbench', '/doc-mode', '/groupchat', '/inbox', '/workflows', '/kanban', '/docs', '/packs', '/coding', '/agents', '/skills', '/models', '/settings']
+    const visible = ['/today', '/bots', '/workbench', '/doc-mode', '/groupchat', '/workflows', '/kanban', '/docs', '/packs', '/agents', '/skills', '/models', '/settings']
     for (const p of visible) expect(hrefs).toContain(p)
     // 藏起來的：不進側欄，但頁標題仍解析得到，且會列在設定總覽
-    const hidden = ['/profiles', '/channels', '/cron', '/files', '/usage', '/limits', '/theme', '/logs', '/voice', '/admin', '/compat', '/events', '/search', '/soul-history']
+    const hidden = ['/inbox', '/coding', '/profiles', '/channels', '/cron', '/files', '/usage', '/limits', '/theme', '/logs', '/voice', '/admin', '/compat', '/events', '/search', '/soul-history']
     for (const p of hidden) expect(hrefs).not.toContain(p)
     expect(hrefs).not.toContain('/')
     expect(hrefs).toHaveLength(visible.length)
@@ -165,7 +165,7 @@ describe('版面：側欄分群', () => {
     window.dispatchEvent(new CustomEvent(INBOX_EVENT, { detail: { count: 3 } }))
     expect(await screen.findByTestId('inbox-badge')).toHaveTextContent('3')
     const hasInbox = moduleRoutes.some((r) => r.path === '/inbox')
-    expect(screen.getByTestId('inbox-button')).toHaveAttribute('href', hasInbox ? '/inbox' : '/workflows/approvals')
+    expect(screen.getByTestId('inbox-button')).toHaveAttribute('href', hasInbox ? '/today' : '/workflows/approvals')
   })
 
   it('主題切換寫 data-theme，使用者選單可登出', async () => {

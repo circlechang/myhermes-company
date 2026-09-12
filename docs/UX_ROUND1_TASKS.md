@@ -31,3 +31,17 @@
 完成紀錄（2026-09-02 晚）：web tsc 乾淨、vitest 37 檔 282 全綠（+20）、pytest 497 全綠（+7）；build 後重啟 :8700。截圖 docs/qa/screens/ux2-*.png。
 新端點 `POST /workflows/draft {text, agent_id?}`（不建流程，回草稿）；`POST /workflows/{id}/nodes/{node}/try`。
 沒做：分岔／迴圈站在工程師模式仍是舊介面；`POST /workflows/draft` 未對真 Hermes 打過（只驗解析退路）；原本存在的「與 default 的對話」不回填標題。
+
+# 第三輪：挑剔使用者十條（2026-09-03，分支 ux/round3-mobile-notify）
+
+| # | 路 | 完成條件 | 狀態 |
+|---|---|---|---|
+| M | 手機 | 工作臺／AI 員工／流程「等你看」／今天／收件匣在 390px 寬能完整操作：清單優先、點了進內容、有返回；閱讀欄在手機是全螢幕；頂欄收成 4 個控制項 | ☑ |
+| N | 通知 | 流程等你看、對話危險指令、流程失敗 → 推 LINE（用既有 LINE 投遞），訊息附連結直達；設定頁可填收件對象與站台網址、可關 | ☑ |
+| V1 | 今天＝收件匣 | 收件匣併進今天頁（種類籤保留），側欄拿掉收件匣，頂欄徽章指到今天；金額 NT$＋本月累計（匯率可設）；時間全站「今天 09:30／昨天／8/29」；載入改骨架 | ☑ |
+| V2 | 詞彙與空狀態 | 核准→可以、待辦收件匣→收件匣、AI 員工管理→AI 員工；Skills／Coding Agents／頻道／模型／看板在工程師模式關時零系統詞；Coding Agents 離開側欄；文件模式／群聊／套件空狀態各一顆主按鈕；錯誤訊息附「去修」連結 | ☑ |
+
+完成紀錄（2026-09-04）：web tsc 乾淨、vitest 44 檔 322 全綠（+38）、pytest 508 全綠（+11）；build 後重啟 :8700。截圖 docs/qa/screens/ux5-*.png（桌機 8 張＋手機 6 張）。
+新東西：LINE 通知（`/notify/prefs`、`/notify/test`、`/notify/status`；等你看／流程失敗／危險指令三種訊息、10 分鐘去重、安靜時段）；`web/src/lib/format.ts`（台幣、萬 tokens、今天 09:30）；CollapsiblePanel 手機 sheet 模式；收件匣併入今天頁（/inbox 轉址）。
+測試基礎：vitest 限 4 個 worker、findBy 等待 4 秒（全套並行時 1 秒會閃紅）。
+沒做：Coding Agents 頁只從設定總覽或員工卡「開工程對話」進；LINE 推播沒對真 LINE 打過（需 token）；手機版只用 jsdom＋mock 截圖驗，沒真機。

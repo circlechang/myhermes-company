@@ -1,4 +1,4 @@
-export { CollapsiblePanel, type CollapsiblePanelProps } from './CollapsiblePanel'
+export { CollapsiblePanel, type CollapsiblePanelProps, type PanelMobileMode } from './CollapsiblePanel'
 export { PanelGroup, WorkArea } from './WorkArea'
 export { PanelResizer, type PanelResizerProps } from './PanelResizer'
 export {

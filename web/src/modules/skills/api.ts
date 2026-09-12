@@ -6,6 +6,7 @@ export interface SkillItem {
   path: string
   source: 'local' | 'builtin'
   category: string
+  topic: string
   description: string
   version: string
   tags: string[]
@@ -60,8 +61,13 @@ const json = (b: unknown) => JSON.stringify(b)
 const q = (o: Record<string, string>) => new URLSearchParams(o).toString()
 
 export const skillsApi = {
-  list: (profile: string, qs = '', category = '', source = '') =>
-    request<{ profile: string; items: SkillItem[]; categories: { name: string; count: number }[] }>(`/skills?${q({ profile, q: qs, category, source })}`),
+  list: (profile: string, qs = '', category = '', source = '', topic = '') =>
+    request<{
+      profile: string
+      items: SkillItem[]
+      topics: { name: string; hint: string; count: number }[]
+      categories: { name: string; count: number }[]
+    }>(`/skills?${q({ profile, q: qs, category, source, topic })}`),
   detail: (name: string, profile: string) => request<SkillDetail>(`/skills/${encodeURIComponent(name)}?${q({ profile })}`),
   file: (name: string, profile: string, rel: string) =>
     request<{ rel: string; binary: boolean; size: number; content: string | null }>(`/skills/${encodeURIComponent(name)}/file?${q({ profile, rel })}`),
@@ -71,7 +77,12 @@ export const skillsApi = {
     request<{ enabled: boolean }>(`/skills/${encodeURIComponent(name)}/toggle`, { method: 'POST', body: json({ profile, enabled }) }),
   note: (name: string) => request<{ content: string }>(`/skills/${encodeURIComponent(name)}/note`),
   saveNote: (name: string, content: string) => request<{ content: string }>(`/skills/${encodeURIComponent(name)}/note`, { method: 'PUT', body: json({ content }) }),
-  usage: () => request<{ counts: Record<string, number>; top: [string, number][] }>('/skills/usage'),
+  usage: () => request<{
+    counts: Record<string, number>
+    last_used: Record<string, number>
+    top: [string, number][]
+    recent: [string, number][]
+  }>('/skills/usage'),
   bundles: () => request<Bundle[]>('/skills/bundles'),
   createBundle: (b: { name: string; skills: string[]; description?: string; instruction?: string }) =>
     request<{ ok: boolean; output: string }>('/skills/bundles', { method: 'POST', body: json(b) }),

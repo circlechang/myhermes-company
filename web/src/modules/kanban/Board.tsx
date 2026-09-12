@@ -9,6 +9,8 @@ import { CollapsiblePanel, PanelGroup, WorkArea } from '../../components/layout/
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorBox, Loading } from '../../components/QueryState'
 import '../../guide/i18n'
+import { useEngineerMode } from '../../prefs/engineerMode'
+import { useStaffNames } from '../skills/staffNames'
 import { COLUMNS, columnOf, resolveDrop, useBoard, useKanbanMutations, type Card, type Column, type HermesStatus, type PriorityLabel } from './api'
 import { CardDrawer } from './CardDrawer'
 
@@ -21,6 +23,8 @@ const prioColor: Record<PriorityLabel, string> = {
 
 export function KanbanBoard() {
   const { t } = useTranslation()
+  const engineer = useEngineerMode()
+  const staff = useStaffNames()
   const [assignee, setAssignee] = useState('')
   const [archived, setArchived] = useState(false)
   const q = useBoard(assignee || undefined, archived)
@@ -68,7 +72,7 @@ export function KanbanBoard() {
         <div className="panel-filters">
           <select className="input w-auto" value={assignee} onChange={(e) => setAssignee(e.target.value)} aria-label={t('kanban.filterProfile')}>
             <option value="">{t('kanban.allProfiles')}</option>
-            {q.data?.profiles.map((p) => <option key={p} value={p}>{p}</option>)}
+            {q.data?.profiles.map((p) => <option key={p} value={p}>{staff.label(p)}</option>)}
           </select>
           <label className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{t('kanban.showArchived')}</label>
         </div>
@@ -76,7 +80,7 @@ export function KanbanBoard() {
       <WorkArea className="p-2 sm:p-4">
       <PageHeader
         title={t('kanban.title')}
-        subtitle={t('kanban.subtitle')}
+        subtitle={engineer ? t('kanban.subtitleEngineer') : t('kanban.subtitle')}
         actions={
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <button className="btn-primary" onClick={() => setShowForm((v) => !v)}>+ {t('kanban.newTask')}</button>
@@ -96,7 +100,7 @@ export function KanbanBoard() {
           <label><span className="block text-xs text-zinc-600 dark:text-zinc-400">{t('kanban.assignee')}</span>
             <select className="input" value={form.assignee} onChange={(e) => setForm({ ...form, assignee: e.target.value })}>
               <option value="">{t('kanban.unassigned')}</option>
-              {q.data?.profiles.map((p) => <option key={p} value={p}>{p}</option>)}
+              {q.data?.profiles.map((p) => <option key={p} value={p}>{staff.label(p)}</option>)}
             </select>
           </label>
           <label><span className="block text-xs text-zinc-600 dark:text-zinc-400">{t('kanban.priority')}</span>
@@ -155,6 +159,7 @@ function DraggableCard({ card, onOpen, onMove }: { card: Card; onOpen: (id: stri
 
 function CardView({ card, onOpen, onMove, handle, overlay }: { card: Card; onOpen?: (id: string) => void; onMove?: (c: Card, s: HermesStatus) => void; handle?: Record<string, unknown>; overlay?: boolean }) {
   const { t } = useTranslation()
+  const staff = useStaffNames()
   return (
     <div className={`card p-2 text-sm ${overlay ? 'shadow-lg' : ''}`} data-testid={`card-${card.id}`}>
       <div className="flex min-w-0 items-start gap-1">
@@ -166,12 +171,13 @@ function CardView({ card, onOpen, onMove, handle, overlay }: { card: Card; onOpe
       {(card.tags ?? []).length > 0 && <div className="mt-1 flex flex-wrap gap-1">{(card.tags ?? []).map((tg) => <span key={tg} className="badge max-w-full truncate bg-indigo-50 px-1 text-2xs text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200" title={tg}>#{tg}</span>)}</div>}
       <div className="mt-2 flex min-w-0 items-center gap-1 text-2xs">
         <span className={`badge px-1.5 py-0.5 ${prioColor[card.priority_label]}`}>{t(`kanban.priorities.${card.priority_label}`)}</span>
-        <span className="min-w-0 truncate text-zinc-600 dark:text-zinc-400" title={card.assignee ?? undefined}>{card.assignee ? `@${card.assignee}` : t('kanban.unassigned')}</span>
-        <span className="shrink-0 whitespace-nowrap text-zinc-600 dark:text-zinc-400">{card.status}</span>
+        {/* 指派人顯示員工名，tooltip 才給完整「員工名 · profile」 */}
+        <span className="min-w-0 truncate text-zinc-600 dark:text-zinc-400" title={card.assignee ? staff.full(card.assignee) : undefined} data-testid="card-assignee">{card.assignee ? staff.label(card.assignee) : t('kanban.unassigned')}</span>
+        <span className="shrink-0 whitespace-nowrap text-zinc-600 dark:text-zinc-400" data-testid="card-status">{t(`kanban.status.${card.status}`)}</span>
         {onMove && (
           <select
             aria-label={t('kanban.moveTo')}
-            className="ml-auto shrink-0 rounded border border-zinc-300 bg-transparent px-1 py-0.5 text-2xs dark:border-zinc-700"
+            className="ml-auto shrink-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-2xs text-zinc-500 opacity-60 hover:border-zinc-300 hover:opacity-100 focus:border-zinc-300 focus:opacity-100 dark:hover:border-zinc-700 dark:focus:border-zinc-700"
             value={columnOf(card.status) ?? 'todo'}
             onChange={(e) => { const s = e.target.value as HermesStatus; if (s !== 'running') onMove(card, s) }}
           >

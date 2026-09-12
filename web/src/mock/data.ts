@@ -214,3 +214,21 @@ export const mockLimits = [
   { id: 'l1', scope: 'company', agent_id: '', daily_tokens: 200_000, daily_usd: 1, enabled: true, action: 'notify', last_triggered_on: '', disabled_agents: [], created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z', agent: null,
     today: { tokens: 184_000, usd: 0.62, runs: 5, tokens_pct: 92, usd_pct: 62, exceeded: false, triggered_today: false } },
 ]
+
+/** /today 用：30 日用量總計（本月累計 NT$）。數字對得上 admin1 測試那份，但那份是 test 私有的 fake fetch */
+export const mockUsageSummary = () => ({
+  totals: { input_tokens: 5_100_000, output_tokens: 420_000, total_tokens: 5_520_000, cache_read_tokens: 900_000, cache_write_tokens: 0, reasoning_tokens: 0,
+    sessions: 42, sessions_per_day: 1.4, api_calls: 260, messages: 310, tool_calls: 88, cost_usd: 18.83, cost_hermes_usd: 10.2, cost_table_usd: 8.63,
+    sessions_unpriced: 0, cache_hit_rate: 0.16, days: 30 },
+  daily: [] as { key: string; sessions: number; input_tokens: number; output_tokens: number; cache_read_tokens: number; cost_usd: number }[],
+  by_model: [], by_source: [], by_profile: [],
+  studio: { sessions: 12, messages: 80, input_tokens: 400_000, output_tokens: 50_000 },
+  sources: [{ profile: 'default', path: '/h/state.db', exists: true, sessions: 42 }],
+})
+
+/** 有事找我（LINE 通知）：預設關著；status 說 LINE 已接好（測試要看提示時自己改成 false） */
+export const mockNotifyPrefs = () => ({
+  enabled: false, line_to: '', public_url: '', on_waiting: true, on_failed: true, on_chat_approval: true, quiet_hours: '',
+  updated_at: '2026-09-01T00:00:00Z',
+})
+export const mockNotifyStatus = { line_configured: true }

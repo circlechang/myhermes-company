@@ -159,6 +159,7 @@
     "noSkills": "No skill data",
     "saveSoul": "Save SOUL.md",
     "newAgent": "New agent",
+    "openCoding": "Open coding session →",
     "confirmDelete": "Delete this agent?",
     "runtime": "Runtime",
     "runtimeHermes": "Hermes",
@@ -235,7 +236,7 @@
     "newTask": "New task",
     "taskTitle": "Title",
     "taskBody": "Body",
-    "assignee": "Assignee (profile)",
+    "assignee": "Assignee",
     "priority": "Priority",
     "priorities": {
       "low": "Low",
@@ -311,6 +312,28 @@
       "owner": "Owner",
       "admin": "Admin",
       "member": "Member"
+    },
+    "notify": {
+      "title": "Reach me",
+      "hint": "A gate waiting on you, a failed run, a risky command in chat — get a LINE message instead of watching the site.",
+      "enabled": "Enable LINE notifications",
+      "lineTo": "LINE recipient",
+      "lineToHint": "userId or groupId — the same target you use in a “Send to LINE” step",
+      "publicUrl": "Site URL",
+      "publicUrlHint": "Links in LINE must open from your phone — usually your Cloudflare Tunnel or LAN address; leave blank to omit links",
+      "onWaiting": "Waiting on you (gates)",
+      "onFailed": "Run failed",
+      "onChat": "Risky commands",
+      "quietHours": "Quiet hours",
+      "quietHoursHint": "e.g. 23-07 — nothing is pushed in that window",
+      "test": "Send a test",
+      "save": "Save",
+      "saved": "Saved",
+      "testSent": "Sent",
+      "testFailed": "Not sent: {{error}}",
+      "lineMissing": "Hermes has no LINE token yet — connect LINE under Channels first.",
+      "lineMissingLink": "Go to Channels",
+      "readOnly": "Only owners and admins can change this."
     }
   },
   "preview": {
@@ -386,6 +409,9 @@
     "bundleForm": "New bundle",
     "journeyDetail": "Node detail",
     "adminSide": "System info",
-    "kanbanFilters": "Board filters"
+    "kanbanFilters": "Board filters",
+    "closeSheet": "Close {{title}}",
+    "backToSessions": "Chats",
+    "backToAgents": "Agents"
   }
 }

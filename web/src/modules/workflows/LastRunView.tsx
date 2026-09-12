@@ -105,11 +105,12 @@ export function LastRunView({ stations, agents, live, runs, busy, loading, onLoa
           }
           return (
             <li key={id} className="px-3 py-2 text-sm" data-testid={`last-row-${id}`} data-status={ap ? 'waiting_approval' : status}>
+              {/* 390px：兩欄（序號｜其餘全疊），狀態疊在標題下；sm 起才展開成四欄 */}
               <div className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-2 gap-y-0.5 sm:grid-cols-[1.5rem_7rem_minmax(0,1fr)_minmax(0,1fr)]">
                 <span className="text-base tabular-nums text-zinc-700 dark:text-zinc-300">{circled(s.seq)}</span>
                 <span className="truncate font-semibold" title={who}>{who}</span>
                 <span className="col-start-2 truncate text-zinc-700 sm:col-start-3 dark:text-zinc-300" title={what}>{what}</span>
-                <span className="col-start-2 min-w-0 sm:col-start-4" data-testid={`last-status-${id}`}>{statusCell}</span>
+                <span className="col-start-2 min-w-0 break-words sm:col-start-4" data-testid={`last-status-${id}`}>{statusCell}</span>
                 {outputCell && <span className="col-start-2 min-w-0 truncate sm:col-span-3" data-testid={`last-output-${id}`}>{outputCell}</span>}
               </div>
               {ap && (
@@ -150,7 +151,7 @@ export function LastRunView({ stations, agents, live, runs, busy, loading, onLoa
             const cur = r.id === live.runId
             return (
               <li key={r.id}>
-                <button type="button" className={`flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 ${cur ? 'font-semibold' : ''}`} data-testid={`last-run-pick-${r.id}`} onClick={() => onLoadRun(r.id)}>
+                <button type="button" className={`flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 ${cur ? 'font-semibold' : ''}`} data-testid={`last-run-pick-${r.id}`} onClick={() => onLoadRun(r.id)}>
                   <span className="w-24 shrink-0">{shortTime(r.created_at)}</span>
                   <span className="shrink-0">{statusWord(t, r.status)}</span>
                   {c && <span className="text-zinc-500">{c}</span>}

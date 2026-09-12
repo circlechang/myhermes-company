@@ -1,5 +1,9 @@
 import '@testing-library/jest-dom/vitest'
+import { configure } from '@testing-library/dom'
 import '../i18n'
+
+// findBy／waitFor 預設 1 秒，全套並行時不夠；放寬到 4 秒（只影響等待上限，不拖慢通過的測試）
+configure({ asyncUtilTimeout: 4000 })
 
 // React Flow（工作流畫布）在 jsdom 需要 ResizeObserver / DOMMatrixReadOnly
 if (typeof globalThis.ResizeObserver === 'undefined') {

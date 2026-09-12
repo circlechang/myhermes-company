@@ -20,6 +20,8 @@ const zhTW = {
     empty: '還沒有文件。',
     new: '建立',
     newTitle: '新文件標題',
+    rename: '改名字',
+    renameHint: '點一下改名字（工作區的檔名會跟著換）',
     versions: '版本歷史',
     noVersions: '還沒有版本（AI 的第一份輸出就是 v1）。',
     latest: '最新',
@@ -71,6 +73,8 @@ const zhTW = {
     mode: {
       docs: '文件',
       pickDoc: '先選一份文件',
+      emptyTitle: '還沒有文件：建一份，之後每次對話都是在把它寫完。',
+      createFirst: '建第一份文件',
       hint: '左邊選一份文件，或建一份新的：這個對話串的目標就是把它寫完。',
       noSession: '這份文件還沒有對話。',
       start: '開始對話',
@@ -139,6 +143,8 @@ const en = {
     mode: {
       docs: 'Documents',
       pickDoc: 'Pick a document first',
+      emptyTitle: 'No documents yet: create one, and every conversation after that works on finishing it.',
+      createFirst: 'Create the first document',
       hint: 'Pick a document on the left, or create one: this thread exists to finish it.',
       noSession: 'No conversation for this document yet.',
       start: 'Start chatting',

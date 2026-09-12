@@ -9,6 +9,8 @@ import { renderApp, setupMocks } from '../../test/utils'
 import { PacksPage } from './PacksPage'
 import { StageBoard } from './StageBoard'
 import type { Pack, StageStatus, TopicDetail, TopicSummary } from './api'
+import { setEngineerMode } from '../../prefs/engineerMode'
+import { bossCopyViolations } from '../../test/bossCopy'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const calls: { method: string; path: string; body?: any }[] = []
@@ -81,6 +83,7 @@ function fakeFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Re
 beforeEach(() => {
   setupMocks({ loggedIn: true })
   setFetchImpl(fakeFetch as typeof fetch)
+  setEngineerMode(false)
   calls.length = 0
   installed = null
   topics = []
@@ -110,6 +113,17 @@ describe('PacksPage', () => {
     await waitFor(() => expect(screen.getByTestId('open-marketing')).toBeInTheDocument())
     expect(calls.find((c) => c.path === '/packs/marketing/install')?.method).toBe('POST')
     expect(screen.getByText(/未知欄位/)).toBeInTheDocument()
+  })
+
+  it('老闆模式：副標題白話、裝好後有「已裝好，去流程看看 →」、不露出 profile 代號與搜尋路徑', async () => {
+    installed = { id: 'pk_1', name: 'marketing', version: '0.1.0', installed_at: '2026-08-29T00:00:00', agents: {}, workflows: {}, profiles_created: [] }
+    renderBoard('/packs')
+    expect(await screen.findByText('一鍵裝好一組員工＋流程＋技能')).toBeInTheDocument()
+    expect(await screen.findByTestId('installed-go-marketing')).toHaveAttribute('href', '/workflows')
+    expect(screen.getByTestId('installed-go-marketing')).toHaveTextContent('已裝好，去流程看看 →')
+    expect(screen.queryByText('evidence-radar')).not.toBeInTheDocument()
+    expect(screen.queryByText(/搜尋路徑/)).not.toBeInTheDocument()
+    expect(bossCopyViolations()).toEqual([])
   })
 })
 

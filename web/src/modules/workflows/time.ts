@@ -1,26 +1,14 @@
 // 老闆看得懂的時間：今天 08:00／昨天 21:30／週三 09:00／9/1 08:00；花多久：40 秒／3 分鐘／1 小時 5 分。
-const pad = (n: number) => String(n).padStart(2, '0')
-const hhmm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
-const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
+// 「幾點」的規則統一放 lib/format 的 fmtWhen；這裡只保留流程頁要的固定時刻語意（不講「5 分鐘前」、遠日期帶時刻、
+// 沒時區的字串照舊當本地），函式名不動，別的檔案不用改。
+import { dayDiff, fmtWhen, hhmm } from '../../lib/format'
 
-const dayDiff = (a: Date, b: Date) => {
-  const da = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime()
-  const db = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime()
-  return Math.round((da - db) / 86_400_000)
-}
+const pad = (n: number) => String(n).padStart(2, '0')
+const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
 
 /** 相對的短時間：跟「現在」比，今天／明天／昨天／一週內用週幾，再遠給月/日。 */
 export function shortTime(iso?: string | null, now: Date = new Date()): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  const diff = dayDiff(d, now)
-  const t = hhmm(d)
-  if (diff === 0) return `今天 ${t}`
-  if (diff === 1) return `明天 ${t}`
-  if (diff === -1) return `昨天 ${t}`
-  if (Math.abs(diff) < 7) return `週${WEEKDAY[d.getDay()]} ${t}`
-  return `${d.getMonth() + 1}/${d.getDate()} ${t}`
+  return fmtWhen(iso, now, 'zh-TW', { relative: false, farTime: true, assumeUtc: false }) || '—'
 }
 
 /** 同一天只給 HH:MM（「今天 08:00 開始 · 08:04 完成」的第二個時間） */

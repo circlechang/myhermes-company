@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '../components/EmptyState'
 import { CollapsiblePanel, WorkArea } from '../components/layout/index'
+import { useIsMobile } from '../components/nav/useNavState'
 import { DocPanel, type PendingUpdate } from '../modules/docs/DocPanel'
 import { docsApi, stripDocFence } from '../modules/docs/api'
 import '../guide/i18n'
@@ -35,6 +36,8 @@ export function WorkbenchPage() {
   const agentsQ = useAgents()
   // 工程師模式關：右欄只留老闆看得懂的（連線、員工、來源、時間、訊息數、用量）
   const engineer = useEngineerMode()
+  // 手機：清單優先。沒選對話就整頁是「員工＋對話」清單；選了才進聊天室，左上角「‹ 對話」回清單
+  const isMobile = useIsMobile()
   const [agentId, setAgentId] = useState<string | undefined>()
   const [agentsOpen, setAgentsOpenState] = useState<boolean>(() => {
     try { return localStorage.getItem(AGENTS_OPEN_KEY) !== '0' } catch { return true }
@@ -67,7 +70,6 @@ export function WorkbenchPage() {
   const [external, setExternal] = useState<Attachment[] | undefined>()
   const [searchOpen, setSearchOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [catManager, setCatManager] = useState(false)
 
   // 每個 session 一份聊天狀態，切換不丟串流中的內容
@@ -158,7 +160,13 @@ export function WorkbenchPage() {
     setHermesView(undefined)
     setReply(undefined)
     setEditing(undefined)
-    setSidebarOpen(false)
+  }
+  /** 手機「‹ 對話」：清掉選取，回到清單 */
+  const backToList = () => {
+    setSessionId(undefined)
+    setHermesView(undefined)
+    setReply(undefined)
+    setEditing(undefined)
   }
   const newSession = async () => {
     if (!agentId) return
@@ -252,17 +260,23 @@ export function WorkbenchPage() {
           openProfile: openHermesProfile,
           onOpenGroup: (p) => setOpenHermesProfile((cur) => (cur === p ? undefined : p)),
           children: openHermesProfile ? (
-            <HermesHistoryList profile={openHermesProfile} active={hermesView} onOpen={(s) => { setHermesView({ profile: s.profile, id: s.id }); setSessionId(undefined); setSidebarOpen(false) }} />
+            <HermesHistoryList profile={openHermesProfile} active={hermesView} onOpen={(s) => { setHermesView({ profile: s.profile, id: s.id }); setSessionId(undefined) }} />
           ) : null,
         }}
       />
     </>
   )
 
+  const conversationOpen = !!sessionId || !!hermesView
+  // 手機：清單與聊天室二選一；桌面兩邊都在
+  const showList = !isMobile || !conversationOpen
+  const showChat = !isMobile || conversationOpen
+
   return (
     <div className="relative flex h-full min-h-0 w-full">
-      {/* 左：AI 員工 + 對話（手機版改抽屜） */}
-      <div className="hidden md:contents">
+      {/* 左：AI 員工 + 對話（手機沒選對話時就是整頁） */}
+      {showList && (
+      <div className={isMobile ? 'contents' : 'hidden md:contents'}>
         <CollapsiblePanel
           id="workbench.left"
           side="left"
@@ -272,27 +286,23 @@ export function WorkbenchPage() {
           min={200}
           max={440}
           bodyClassName="flex flex-col overflow-hidden"
+          mobileMode="inline"
           data-testid="sidebar-desktop"
         >
           {sidebar}
         </CollapsiblePanel>
       </div>
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" data-testid="sidebar-drawer">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-[85vw] max-w-xs flex-col bg-white shadow-xl dark:bg-zinc-900">
-            <div className="flex items-center justify-end px-2 pt-2">
-              <button type="button" className="btn-ghost text-xs" onClick={() => setSidebarOpen(false)}>{t('chat.mobile.closeSidebar')} ✕</button>
-            </div>
-            {sidebar}
-          </aside>
-        </div>
       )}
 
       {/* 中：聊天（永遠 min-w-0，側欄再寬也擠不扁） */}
+      {showChat && (
       <WorkArea>
         <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-800">
-          <button type="button" className="btn-ghost px-2 md:hidden" onClick={() => setSidebarOpen(true)} aria-label={t('chat.mobile.openSidebar')}>☰</button>
+          {isMobile && (
+            <button type="button" className="btn-ghost shrink-0 !px-1.5" onClick={backToList} aria-label={t('panels.backToSessions')} data-testid="mobile-back">
+              ‹ {t('panels.backToSessions')}
+            </button>
+          )}
           <span className="min-w-0 truncate font-medium">{hermesView ? t('chat.hermes.title') : session?.title ?? agent?.name ?? ''}</span>
           {session && !hermesView && (
             docId ? (
@@ -368,6 +378,7 @@ export function WorkbenchPage() {
           </>
         )}
       </WorkArea>
+      )}
 
       {/* 右：預覽 or session 資訊（<lg 時預覽用覆蓋層） */}
       {previewPath && (
@@ -391,8 +402,8 @@ export function WorkbenchPage() {
         </aside>
       )}
       {/* 綁了文件的對話：右側讓給文件本身。系統以文件為核心，session 資訊不該擋在前面。 */}
-      {!previewPath && docId && (
-        <div className="hidden lg:contents">
+      {!previewPath && docId && showChat && (
+        <div className={isMobile ? 'contents' : 'hidden lg:contents'}>
           <CollapsiblePanel
             id="workbench.doc"
             side="right"
@@ -402,6 +413,7 @@ export function WorkbenchPage() {
             min={320}
             max={720}
             bodyClassName="flex flex-col overflow-hidden"
+            mobileMode="sheet"
             data-testid="workbench-doc-panel"
           >
             <DocPanel
@@ -423,6 +435,7 @@ export function WorkbenchPage() {
           defaultWidth={300}
           min={220}
           max={480}
+          mobileMode="hidden"
           data-testid="session-info"
         >
           <dl className="space-y-2 px-3 pb-3 text-xs">

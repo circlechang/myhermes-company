@@ -15,14 +15,14 @@ from sqlmodel import Session, select
 
 from ...auth import Principal, current_principal, get_db, principal_from_ws
 from ...errors import ApiError, bad_request, not_found
-from ...models import Agent, Member
-from .models import Room, RoomMember, RoomMessage, RoomSummary
+from ...models import Agent, Member, now
+from .models import Room, RoomDoc, RoomMember, RoomMessage, RoomPref, RoomReaction, RoomSummary
 from .service import Orchestrator, estimate_tokens
 
 log = logging.getLogger("studio.groupchat")
 router = APIRouter(prefix="/groupchat", tags=["groupchat"])
 
-POLICIES = ("none", "round_robin", "host")
+POLICIES = ("none", "round_robin", "host", "auto")
 
 
 # ---------------------------------------------------------------------------
@@ -101,12 +101,31 @@ def _my_membership(db: Session, p: Principal, room: Room) -> RoomMember:
     return m
 
 
-def _room_view(db: Session, room: Room) -> dict[str, Any]:
+def _pref(db: Session, room_id: str, member_id: str, *, create: bool = False) -> Optional[RoomPref]:
+    row = db.exec(select(RoomPref).where(RoomPref.room_id == room_id, RoomPref.member_id == member_id)).first()
+    if row is None and create:
+        row = RoomPref(room_id=room_id, member_id=member_id)
+        db.add(row)
+        db.flush()
+    return row
+
+
+def _room_view(db: Session, room: Room, member_id: str = "") -> dict[str, Any]:
     d = room.to_dict()
-    d["members"] = [m.to_dict() for m in _members(db, room.id)]
-    last = db.exec(select(RoomMessage).where(RoomMessage.room_id == room.id).order_by(RoomMessage.seq.desc())).first()
+    members = _members(db, room.id)
+    d["members"] = [m.to_dict() for m in members]
+    main = select(RoomMessage).where(RoomMessage.room_id == room.id, RoomMessage.thread_root_id == "")
+    last = db.exec(main.order_by(RoomMessage.seq.desc())).first()
     d["last_message"] = last.to_dict() if last else None
     d["message_count"] = len(db.exec(select(RoomMessage.id).where(RoomMessage.room_id == room.id)).all())
+    if member_id:
+        pref = _pref(db, room.id, member_id)
+        mine = {m.id for m in members if m.member_id == member_id}
+        last_read = pref.last_read_seq if pref else 0
+        unread = [r for r in db.exec(select(RoomMessage.sender_id).where(
+            RoomMessage.room_id == room.id, RoomMessage.thread_root_id == "", RoomMessage.seq > last_read)).all()
+            if r not in mine]
+        d.update(unread=len(unread), last_read_seq=last_read, pinned=bool(pref and pref.pinned), hidden=bool(pref and pref.hidden))
     return d
 
 
@@ -148,10 +167,15 @@ def _add_ai(db: Session, room: Room, agent: Agent, *, display_name: str = "", mo
 
 
 @router.get("/rooms")
-def list_rooms(p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+def list_rooms(view: str = "", p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """view=messenger：只列自己在裡面的房間（含私訊），附未讀／釘選／隱藏；舊群聊頁不帶 view，行為不變（私訊不列）。"""
     rooms = db.exec(select(Room).where(Room.company_id == p.company_id).order_by(Room.updated_at.desc())).all()
+    mine = {m.room_id for m in db.exec(select(RoomMember).where(RoomMember.member_id == p.member.id)).all()}
+    if view == "messenger":
+        rooms = [r for r in rooms if r.id in mine]
+        return [_room_view(db, r, p.member.id) for r in rooms]
+    rooms = [r for r in rooms if r.kind != "dm"]
     if p.role not in ("owner", "admin"):
-        mine = {m.room_id for m in db.exec(select(RoomMember).where(RoomMember.member_id == p.member.id)).all()}
         rooms = [r for r in rooms if r.id in mine]
     return [_room_view(db, r) for r in rooms]
 
@@ -182,21 +206,25 @@ def create_room(body: RoomCreate, p: Principal = Depends(current_principal), db:
 def get_room(room_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
     room = _get_room(db, p, room_id)
     _my_membership(db, p, room)
-    return _room_view(db, room)
+    return _room_view(db, room, p.member.id)
 
 
 @router.patch("/rooms/{room_id}")
-def patch_room(room_id: str, body: RoomPatch, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+async def patch_room(room_id: str, body: RoomPatch, request: Request, p: Principal = Depends(current_principal),
+                     db: Session = Depends(get_db)):
     room = _get_room(db, p, room_id)
     _my_membership(db, p, room)
     if body.no_mention_policy is not None and body.no_mention_policy not in POLICIES:
         raise bad_request(f"no_mention_policy 必須是 {POLICIES}")
+    old_name = room.name
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(room, k, v)
     db.add(room)
     db.commit()
     db.refresh(room)
-    return _room_view(db, room)
+    if body.name is not None and body.name.strip() and body.name != old_name:
+        await _orch(request).system_event(room.id, f"{p.member.username} 把群組改名為「{room.name}」")
+    return _room_view(db, room, p.member.id)
 
 
 @router.delete("/rooms/{room_id}", status_code=204)
@@ -204,7 +232,7 @@ def delete_room(room_id: str, p: Principal = Depends(current_principal), db: Ses
     room = _get_room(db, p, room_id)
     if room.created_by != p.member.id and p.role not in ("owner", "admin"):
         raise ApiError(403, "forbidden", "只有建立者或管理者可以刪除房間")
-    for model in (RoomMessage, RoomSummary, RoomMember):
+    for model in (RoomMessage, RoomSummary, RoomMember, RoomReaction, RoomPref, RoomDoc):
         for row in db.exec(select(model).where(model.room_id == room.id)).all():
             db.delete(row)
     db.delete(room)
@@ -266,7 +294,8 @@ def list_members(room_id: str, p: Principal = Depends(current_principal), db: Se
 
 
 @router.post("/rooms/{room_id}/members", status_code=201)
-def add_member(room_id: str, body: MemberAdd, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+async def add_member(room_id: str, body: MemberAdd, request: Request, p: Principal = Depends(current_principal),
+                     db: Session = Depends(get_db)):
     room = _get_room(db, p, room_id)
     _my_membership(db, p, room)
     if body.agent_id:
@@ -286,6 +315,8 @@ def add_member(room_id: str, body: MemberAdd, p: Principal = Depends(current_pri
         raise bad_request("需要 agent_id 或 member_id")
     db.commit()
     db.refresh(m)
+    if room.kind == "group":
+        await _orch(request).system_event(room.id, f"{p.member.username} 把 {m.display_name} 加進群組")
     return m.to_dict()
 
 
@@ -314,7 +345,8 @@ def patch_member(room_id: str, rm_id: str, body: MemberPatch, p: Principal = Dep
 
 
 @router.delete("/rooms/{room_id}/members/{rm_id}", status_code=204)
-def remove_member(room_id: str, rm_id: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+async def remove_member(room_id: str, rm_id: str, request: Request, p: Principal = Depends(current_principal),
+                        db: Session = Depends(get_db)):
     room = _get_room(db, p, room_id)
     _my_membership(db, p, room)
     m = db.get(RoomMember, rm_id)
@@ -327,28 +359,100 @@ def remove_member(room_id: str, rm_id: str, p: Principal = Depends(current_princ
     if room.summarizer_member_id == m.id:
         room.summarizer_member_id = None
         db.add(room)
+    name, kind = m.display_name, room.kind
     db.delete(m)
     db.commit()
+    if kind == "group":
+        await _orch(request).system_event(room.id, f"{p.member.username} 把 {name} 移出群組")
     return None
 
 
 # ---------------------------------------------------------------------------
 # messages / summaries
 # ---------------------------------------------------------------------------
+def _enrich(db: Session, room_id: str, rows: list[RoomMessage], my_rm_ids: set[str]) -> list[dict[str, Any]]:
+    """訊息加上：引用預覽、討論串回覆數、emoji 反應統計。"""
+    ids = [m.id for m in rows]
+    quotes: dict[str, RoomMessage] = {}
+    qids = {m.reply_to_id for m in rows if m.reply_to_id}
+    if qids:
+        for q in db.exec(select(RoomMessage).where(RoomMessage.id.in_(list(qids)))).all():
+            quotes[q.id] = q
+    threads: dict[str, list[RoomMessage]] = {}
+    reacts: dict[str, list[RoomReaction]] = {}
+    if ids:
+        for r in db.exec(select(RoomMessage).where(RoomMessage.room_id == room_id, RoomMessage.thread_root_id.in_(ids))
+                         .order_by(RoomMessage.seq)).all():
+            threads.setdefault(r.thread_root_id, []).append(r)
+        for x in db.exec(select(RoomReaction).where(RoomReaction.message_id.in_(ids)).order_by(RoomReaction.created_at)).all():
+            reacts.setdefault(x.message_id, []).append(x)
+    out = []
+    for m in rows:
+        d = m.to_dict()
+        q = quotes.get(m.reply_to_id)
+        d["reply_to"] = ({"id": q.id, "sender_name": q.sender_name, "content": (q.content or "")[:200],
+                          "has_doc": any(a.get("type") == "doc" for a in q.attachments())} if q else None)
+        t = threads.get(m.id, [])
+        d["reply_count"] = len(t)
+        d["thread_last_at"] = t[-1].created_at if t else None
+        d["thread_participants"] = list(dict.fromkeys(r.sender_name for r in t))[:4]
+        d["reactions"] = _reaction_summary(reacts.get(m.id, []), my_rm_ids)
+        out.append(d)
+    return out
+
+
+def _reaction_summary(rows: list[RoomReaction], my_rm_ids: set[str]) -> list[dict[str, Any]]:
+    by: dict[str, dict[str, Any]] = {}
+    for x in rows:
+        e = by.setdefault(x.emoji, {"emoji": x.emoji, "count": 0, "mine": False, "names": []})
+        e["count"] += 1
+        e["names"].append(x.name)
+        if x.rm_id in my_rm_ids:
+            e["mine"] = True
+    return list(by.values())
+
+
 @router.get("/rooms/{room_id}/messages")
-def list_messages(room_id: str, before_seq: Optional[int] = None, limit: int = 100,
+def list_messages(room_id: str, before_seq: Optional[int] = None, limit: int = 100, scope: str = "all", thread: str = "",
                   p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """scope=all（舊頁預設，全部）｜main（只有主對話）｜thread（`thread`＝根訊息 id：根＋回覆）。"""
     room = _get_room(db, p, room_id)
-    _my_membership(db, p, room)
+    me = _my_membership(db, p, room)
     q = select(RoomMessage).where(RoomMessage.room_id == room.id)
+    if scope == "main":
+        q = q.where(RoomMessage.thread_root_id == "")
+    elif scope == "thread":
+        if not thread:
+            raise bad_request("scope=thread 需要 thread＝根訊息 id")
+        q = q.where((RoomMessage.thread_root_id == thread) | (RoomMessage.id == thread))
     if before_seq is not None:
         q = q.where(RoomMessage.seq < before_seq)
-    rows = db.exec(q.order_by(RoomMessage.seq.desc()).limit(max(1, min(limit, 500)))).all()
-    return [m.to_dict() for m in reversed(rows)]
+    rows = list(reversed(db.exec(q.order_by(RoomMessage.seq.desc()).limit(max(1, min(limit, 500)))).all()))
+    return _enrich(db, room.id, rows, {me.id})
 
 
 class MessageIn(BaseModel):
     content: str
+    reply_to_id: str = ""
+    thread_root_id: str = ""
+    doc_id: str = ""
+
+
+def _check_refs(db: Session, room: Room, body: "MessageIn") -> None:
+    for mid in (body.reply_to_id, body.thread_root_id):
+        if mid:
+            m = db.get(RoomMessage, mid)
+            if m is None or m.room_id != room.id:
+                raise not_found("message")
+    if body.thread_root_id:
+        root = db.get(RoomMessage, body.thread_root_id)
+        if root and root.thread_root_id:
+            raise bad_request("討論串裡不能再開討論串")
+    if body.doc_id:
+        from ..docs.models import Doc
+        d = db.get(Doc, body.doc_id)
+        if d is None or d.company_id != room.company_id:
+            raise not_found("doc")
 
 
 @router.post("/rooms/{room_id}/messages", status_code=201)
@@ -359,9 +463,202 @@ async def post_message(room_id: str, body: MessageIn, request: Request, p: Princ
     text = body.content.strip()
     if not text:
         raise bad_request("content 不可為空")
+    _check_refs(db, room, body)
     db.expunge(me)
-    msg = await _orch(request).post(room.id, me, text)
-    return msg.to_dict()
+    msg = await _orch(request).post(room.id, me, text, reply_to_id=body.reply_to_id, thread_root_id=body.thread_root_id,
+                                    doc_id=body.doc_id)
+    _mark_read(db, room.id, p.member.id, msg.seq)
+    return _orch(request).public(msg)
+
+
+def _mark_read(db: Session, room_id: str, member_id: str, seq: int) -> None:
+    pref = _pref(db, room_id, member_id, create=True)
+    if seq > pref.last_read_seq:
+        pref.last_read_seq = seq
+        pref.updated_at = now()
+        db.add(pref)
+        db.commit()
+
+
+class ReadIn(BaseModel):
+    seq: Optional[int] = None  # 不帶＝讀到最新
+
+
+@router.post("/rooms/{room_id}/read")
+def mark_read(room_id: str, body: ReadIn, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    room = _get_room(db, p, room_id)
+    _my_membership(db, p, room)
+    seq = body.seq
+    if seq is None:
+        seq = db.exec(select(RoomMessage.seq).where(RoomMessage.room_id == room.id).order_by(RoomMessage.seq.desc())).first() or 0
+    _mark_read(db, room.id, p.member.id, int(seq))
+    return {"room_id": room.id, "last_read_seq": _pref(db, room.id, p.member.id).last_read_seq}
+
+
+class PrefIn(BaseModel):
+    pinned: Optional[bool] = None
+    hidden: Optional[bool] = None
+
+
+@router.patch("/rooms/{room_id}/prefs")
+def patch_prefs(room_id: str, body: PrefIn, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """釘選／隱藏只影響自己的清單（隱藏不刪任何東西，Bot 照常運作）。"""
+    room = _get_room(db, p, room_id)
+    _my_membership(db, p, room)
+    pref = _pref(db, room.id, p.member.id, create=True)
+    if body.pinned is not None:
+        pref.pinned = body.pinned
+    if body.hidden is not None:
+        pref.hidden = body.hidden
+    pref.updated_at = now()
+    db.add(pref)
+    db.commit()
+    return _room_view(db, room, p.member.id)
+
+
+class ReactIn(BaseModel):
+    emoji: str
+
+
+@router.post("/rooms/{room_id}/messages/{message_id}/reactions")
+async def toggle_reaction(room_id: str, message_id: str, body: ReactIn, request: Request,
+                          p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """同一人同一 emoji 再按一次＝取消。"""
+    room = _get_room(db, p, room_id)
+    me = _my_membership(db, p, room)
+    m = db.get(RoomMessage, message_id)
+    if m is None or m.room_id != room.id:
+        raise not_found("message")
+    emoji = body.emoji.strip()[:16]
+    if not emoji:
+        raise bad_request("emoji 不可為空")
+    ex = db.exec(select(RoomReaction).where(RoomReaction.message_id == m.id, RoomReaction.rm_id == me.id,
+                                            RoomReaction.emoji == emoji)).first()
+    if ex:
+        db.delete(ex)
+    else:
+        db.add(RoomReaction(room_id=room.id, message_id=m.id, rm_id=me.id, name=me.display_name, emoji=emoji))
+    db.commit()
+    rows = list(db.exec(select(RoomReaction).where(RoomReaction.message_id == m.id).order_by(RoomReaction.created_at)).all())
+    await request.app.state.groupchat_hub.broadcast(room.id, {"type": "reaction.updated", "message_id": m.id,
+                                                              "reactions": _reaction_summary(rows, set())})
+    return {"message_id": m.id, "reactions": _reaction_summary(rows, {me.id})}
+
+
+@router.post("/rooms/{room_id}/stop")
+async def stop_room(room_id: str, request: Request, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    room = _get_room(db, p, room_id)
+    _my_membership(db, p, room)
+    n = await _orch(request).stop_room(room.id)
+    return {"stopped": n}
+
+
+class ApprovalIn(BaseModel):
+    choice: str  # once | always | deny
+
+
+@router.post("/rooms/{room_id}/messages/{message_id}/approval")
+async def approve(room_id: str, message_id: str, body: ApprovalIn, request: Request,
+                  p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    room = _get_room(db, p, room_id)
+    _my_membership(db, p, room)
+    if body.choice not in ("once", "always", "deny", "session"):
+        raise bad_request("choice 只能是 once／always／deny")
+    from ...hermes.gateway import GatewayError
+    try:
+        m = await _orch(request).respond_approval(room.id, message_id, body.choice, p.member.username)
+    except GatewayError as e:
+        raise ApiError(e.status if 400 <= e.status < 600 else 502, "approval_failed", e.message)
+    return m.to_dict()
+
+
+@router.get("/rooms/{room_id}/docs")
+def room_docs(room_id: str, request: Request, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """這個房間流過的文件（新到舊），附最新版本號與最後改的人。"""
+    from ..docs import service as dsvc
+    from ..docs.models import Doc
+    room = _get_room(db, p, room_id)
+    _my_membership(db, p, room)
+    out = []
+    for rd in db.exec(select(RoomDoc).where(RoomDoc.room_id == room.id).order_by(RoomDoc.updated_at.desc())).all():
+        doc = db.get(Doc, rd.doc_id)
+        if doc is None or doc.status == "archived":
+            continue
+        last = dsvc.latest(db, doc.id)
+        out.append({"doc_id": doc.id, "title": doc.title, "format": doc.fmt(), "version": last.version if last else 0,
+                    "summary": last.summary if last else "", "author_kind": last.author_kind if last else "",
+                    "author_id": last.author_id if last else "", "updated_at": rd.updated_at,
+                    "first_message_id": rd.first_message_id, "last_message_id": rd.last_message_id})
+    return out
+
+
+class DocEditIn(BaseModel):
+    content: str
+    summary: str = ""
+
+
+@router.post("/rooms/{room_id}/docs/{doc_id}/versions", status_code=201)
+async def edit_room_doc(room_id: str, doc_id: str, body: DocEditIn, request: Request,
+                        p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """人在右側面板改文件：存成新版本，並在房間貼一張「你改了 → vN」的文件卡（不觸發 Bot）。"""
+    from ..docs import service as dsvc
+    from ..docs.models import Doc
+    room = _get_room(db, p, room_id)
+    me = _my_membership(db, p, room)
+    doc = db.get(Doc, doc_id)
+    if doc is None or doc.company_id != room.company_id:
+        raise not_found("doc")
+    orch = _orch(request)
+    try:
+        v, created = dsvc.add_version(db, orch._workspace(), doc, body.content, author_kind="human", author_id=p.member.id,
+                                      summary=body.summary.strip() or "手動編輯")
+        db.commit()
+        db.refresh(v)
+    except dsvc.DocError as e:
+        db.rollback()
+        raise ApiError(e.status, e.code, e.message)
+    if not created:
+        return {"same": True, "version": v.version}
+    card = orch._doc_card(doc, v, me, "edited")
+    db.expunge(me)
+    msg = orch.save_message(room.id, me, "", attachments=[card], doc_id=doc.id)
+    orch.track_docs(room.id, msg.id, [card])
+    await request.app.state.groupchat_hub.broadcast(room.id, {"type": "message.new", "message": msg.to_dict()})
+    await request.app.state.groupchat_hub.broadcast(room.id, {"type": "docs.changed", "doc_ids": [doc.id]})
+    return {"same": False, "version": v.version, "message": msg.to_dict()}
+
+
+@router.get("/search")
+def search(q: str, p: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    """指令面板：房間名稱、訊息內容、房間文件標題（只搜自己在裡面的房間）。"""
+    from ..docs.models import Doc
+    term = q.strip()
+    if not term:
+        return {"rooms": [], "messages": [], "docs": []}
+    mine = {m.room_id for m in db.exec(select(RoomMember).where(RoomMember.member_id == p.member.id)).all()}
+    rooms = [r for r in db.exec(select(Room).where(Room.company_id == p.company_id)).all() if r.id in mine]
+    by_id = {r.id: r for r in rooms}
+    like = f"%{term}%"
+    msgs = db.exec(select(RoomMessage).where(RoomMessage.room_id.in_(list(by_id)), RoomMessage.content.like(like))
+                   .order_by(RoomMessage.created_at.desc()).limit(20)).all() if by_id else []
+    docs_out = []
+    if by_id:
+        seen = set()
+        for rd in db.exec(select(RoomDoc).where(RoomDoc.room_id.in_(list(by_id))).order_by(RoomDoc.updated_at.desc())).all():
+            if rd.doc_id in seen:
+                continue
+            d = db.get(Doc, rd.doc_id)
+            if d and term.lower() in (d.title or "").lower():
+                seen.add(d.id)
+                docs_out.append({"doc_id": d.id, "title": d.title, "room_id": rd.room_id, "room_name": by_id[rd.room_id].name,
+                                 "message_id": rd.last_message_id})
+    return {
+        "rooms": [{"id": r.id, "name": r.name, "kind": r.kind, "dm_agent_id": r.dm_agent_id} for r in rooms
+                  if term.lower() in r.name.lower()][:10],
+        "messages": [{"id": m.id, "room_id": m.room_id, "room_name": by_id[m.room_id].name, "sender_name": m.sender_name,
+                      "content": m.content[:200], "thread_root_id": m.thread_root_id, "created_at": m.created_at} for m in msgs],
+        "docs": docs_out[:10],
+    }
 
 
 @router.get("/rooms/{room_id}/summaries")
@@ -476,7 +773,18 @@ async def _ws_main(ws: WebSocket) -> None:
                 text = str(msg.get("content") or "").strip()
                 if not text:
                     continue
-                await orch.post(room_id, me, text)
+                refs = MessageIn(content=text, reply_to_id=str(msg.get("reply_to_id") or ""),
+                                 thread_root_id=str(msg.get("thread_root_id") or ""), doc_id=str(msg.get("doc_id") or ""))
+                with Session(app.state.engine) as db:
+                    try:
+                        _check_refs(db, db.get(Room, room_id), refs)
+                    except ApiError as e:
+                        await send({"type": "error", "code": e.code, "message": e.message, "room_id": room_id})
+                        continue
+                sent = await orch.post(room_id, me, text, reply_to_id=refs.reply_to_id, thread_root_id=refs.thread_root_id,
+                                       doc_id=refs.doc_id)
+                with Session(app.state.engine) as db:
+                    _mark_read(db, room_id, principal.member.id, sent.seq)
             elif t == "typing":
                 me = joined.get(room_id)
                 if me is not None:

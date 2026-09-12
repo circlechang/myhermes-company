@@ -9,6 +9,7 @@ import { PageHeader } from '../components/PageHeader'
 import { iconFor } from '../components/nav/icons'
 import { allNav } from '../components/nav/navConfig'
 import { ErrorBox, Loading } from '../components/QueryState'
+import { NotifyPrefs } from '../components/settings/NotifyPrefs'
 import { hiddenNav, type NavItem } from '../modules/registry'
 import { setEngineerMode, useEngineerMode } from '../prefs/engineerMode'
 
@@ -92,6 +93,9 @@ export function SettingsPage() {
             </p>
           )}
         </div>
+
+        {/* 有事找我：閘門／失敗／危險指令推 LINE，放在常用偏好正下方 */}
+        <NotifyPrefs />
 
         {sections.map((g) => (
           <section key={g.group} data-testid={`settings-hub-${g.group}`}>

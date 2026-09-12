@@ -38,6 +38,31 @@ from .hub import WorkflowHub
 
 log = logging.getLogger("studio.workflows.engine")
 
+
+def _notify(kind: str, ctx: "RunContext", *, nid: str = "", text: str = "", error: str = "", ref: str = "") -> None:
+    """有事找老闆（notify 模組推 LINE）。模組不在或壞掉都不能影響流程，所以整包吞掉。
+    n＝節點在流程裡的順位（1 起算），老闆看的是「第幾步」不是 node id。"""
+    try:
+        from ..notify import emit
+        n = list(ctx.nodes).index(nid) + 1 if nid in ctx.nodes else 0
+        emit(kind, ctx.company_id, {"ref": ref or ctx.run_id, "n": n, "workflow_name": ctx.workflow_name, "wf_id": ctx.workflow_id,
+                                    "text": text, "error": error})
+    except Exception as e:
+        log.debug("notify skipped: %s", e)
+
+
+def _failed_node(ctx: "RunContext") -> tuple[str, str]:
+    """失敗訊息要指到「第幾步、為什麼」：先找 failed 的節點，沒有（超預算／逾時）就拿最後一個動過的。"""
+    for nid, st in ctx.states.items():
+        if st.get("status") == "failed":
+            return nid, str(st.get("error") or "")
+    last = ""
+    for nid, st in ctx.states.items():
+        if st.get("started_at"):
+            last = nid
+    return last, ""
+
+
 DONE = {"completed", "failed", "skipped", "reused", "stopped", "outcome_unknown"}
 TERMINAL_RUN = {"completed", "failed", "stopped", "timeout", "budget_exceeded", "needs_attention"}
 TRY_TRIGGER = "try"  # 試跑這一站：不進「上一次的產出」、不能當重跑父 run
@@ -376,6 +401,9 @@ class WorkflowEngine:
             return
         ctx.status = status
         ctx.error = error or ctx.error
+        if status in ("failed", "budget_exceeded", "timeout"):  # 人按停止不算失敗，不推
+            fn, ferr = _failed_node(ctx)
+            _notify("failed", ctx, nid=fn, error=ferr or ctx.error or status)
         if ctx.deadline_task and not ctx.deadline_task.done():
             ctx.deadline_task.cancel()
         self._event(ctx, {"type": "run.status", "status": status, "error": ctx.error})
@@ -670,6 +698,7 @@ class WorkflowEngine:
                 db.commit()
                 db.refresh(a)
                 approval_id = a.id
+            _notify("gate", ctx, nid=nid, text=payload, ref=approval_id)  # 自檢 blocked 也是等人看
             decision, comment = await self._wait_human(ctx, nid, approval_id, payload=payload)
             if decision != "approve":
                 raise RuntimeError(f"自檢 blocked，人退回：{comment or '無說明'}")
@@ -743,6 +772,7 @@ class WorkflowEngine:
                 db.commit()
                 db.refresh(a)
                 approval_id = a.id
+            _notify("gate", ctx, nid=nid, text=payload, ref=approval_id)  # 有事找老闆：閘門等你看
         ctx.states[nid]["approval_id"] = approval_id
         async with ctx.lock:
             self._set_state(ctx, nid, "waiting_approval")
@@ -916,6 +946,7 @@ class WorkflowEngine:
                 st["reason"] = "run 進入 needs_attention"
         ctx.status = "needs_attention"
         ctx.error = "伺服器重啟，節點 " + ", ".join(nodes) + " 結果未知；請確認外部狀態後從該節點重跑"
+        _notify("failed", ctx, nid=nodes[0] if nodes else "", error=ctx.error)  # needs_attention 也要找老闆
         self._event(ctx, {"type": "run.status", "status": "needs_attention", "error": ctx.error, "unknown": nodes})
         with Session(self.db_engine) as db:
             for nid in ctx.states:
