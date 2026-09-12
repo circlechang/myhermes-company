@@ -1,5 +1,5 @@
 """群聊資料表：rooms / room_members / room_messages / room_summaries，
-以及 Bots 訊息介面（Grok Bot 式）加的：room_reactions / room_prefs / room_docs。
+以及 Bots 訊息介面加的：room_reactions / room_prefs / room_docs。
 
 私訊（dm）也是一個 room：成員＝一位人類＋一個 Bot，路由固定 host＝那個 Bot。
 """

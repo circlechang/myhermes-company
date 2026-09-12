@@ -40,7 +40,7 @@ function Section({ title, children, action }: { title: string; children: ReactNo
   )
 }
 
-/** 失焦就存的欄位（Grok 的 Settings 面板沒有儲存鈕） */
+/** 失焦就存的欄位（設定面板不放儲存鈕，改到哪存到哪） */
 function AutoField({ label, value, onSave, multiline = false, testId }: { label: string; value: string; onSave: (v: string) => Promise<unknown>; multiline?: boolean; testId?: string }) {
   const [v, setV] = useState(value)
   const [state, setState] = useState<'' | 'saving' | 'saved'>('')

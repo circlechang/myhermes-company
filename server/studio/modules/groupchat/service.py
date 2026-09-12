@@ -24,7 +24,7 @@ log = logging.getLogger("studio.groupchat")
 
 # @ 後面接：中英數、底線、連字號、點（profile 名常見）；名稱比對時以「最長優先」避免 @researcher 吃掉 @researcher-2
 _MENTION_RE = re.compile(r"@([\w一-鿿぀-ヿ.-]+)")
-# @everyone：群組裡所有 Bot 都要看（Grok Bot 用法：少用，群組層級的更新）
+# @everyone：群組裡所有 Bot 都要看（少用，給群組層級的公告）
 _EVERYONE_RE = re.compile(r"@(everyone|all|所有人|大家)(?![\w一-鿿])", re.IGNORECASE)
 
 
